@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -20,11 +23,13 @@ const (
 	DistributionOrderStatusPaid          = "paid"
 	DistributionOrderStatusFulfilled     = "fulfilled"
 	DistributionOrderStatusCancelled     = "cancelled"
+	DistributionOrderStatusRefunded      = "refunded"
 	DistributionInventoryStatusAvailable = "available"
 	DistributionInventoryStatusReserved  = "reserved"
 	DistributionInventoryStatusAssigned  = "assigned"
 	DistributionInventoryStatusRedeemed  = "redeemed"
 	DistributionInventoryStatusVoided    = "voided"
+	DistributionInventoryStatusRefunded  = "refunded"
 	DistributionLedgerEntryCredit        = "credit"
 	DistributionLedgerEntryDebit         = "debit"
 	DistributionSourceAdjust             = "adjust"
@@ -34,16 +39,20 @@ const (
 	DistributionSourceProfit             = "profit"
 	DistributionSourceRefund             = "refund"
 	DistributionLogStatusPosted          = "posted"
+	DistributionLogStatusRefunded        = "refunded"
 	DistributionCustomerEventBind        = "bind"
 	DistributionCustomerEventPurchase    = "purchase"
 	DistributionCustomerEventAssign      = "assign"
-	DistributionPriceScopeGlobal         = "global"
-	DistributionPriceScopeLevel          = "level"
-	DistributionPriceScopeAgent          = "agent"
+	DistributionPriceTargetCustomer      = "customer"
+	DistributionPriceTargetLevel         = "level"
+	DistributionPriceTypeDiscount        = "discount"
+	DistributionPriceTypeFixed           = "fixed"
 	DistributionInvitationStatusPending  = "pending"
 	DistributionInvitationStatusAccepted = "accepted"
 	DistributionInvitationStatusExpired  = "expired"
 	DistributionInvitationStatusRevoked  = "revoked"
+	DistributionAgentLevelPrimary        = 1
+	DistributionAgentLevelSecondary      = 2
 	DistributionDiscountTypePercent      = "percent"
 	DistributionDiscountTypeAmount       = "amount"
 )
@@ -54,14 +63,18 @@ var (
 	ErrDistributionInvalidAmount         = errors.New("invalid amount")
 	ErrDistributionInvalidStatus         = errors.New("invalid status")
 	distributionIdempotencyKeyRegexp     = regexp.MustCompile(DistributionIdempotencyKeyPattern)
+	distributionSnowflakeMu              sync.Mutex
+	distributionSnowflakeLastMilli       int64
+	distributionSnowflakeSequence        int64
 )
 
 type DistributionPriceConfigRule struct {
-	ScopeType string
-	AgentId   int
-	Level     int
-	UnitPrice int
-	Status    string
+	TargetType     string
+	CustomerUserId int
+	AgentLevel     int
+	PriceType      string
+	PriceValue     int
+	Status         string
 }
 
 func distributionStableHex(seed string) string {
@@ -100,7 +113,34 @@ func ValidateDistributionStatus(status string) error {
 }
 
 func BuildPurchaseOrderNo(userID int, packageID int, key string) string {
-	return "distribution_order_idem_" + distributionStableHex(fmt.Sprintf("purchase:%d:%d:%s", userID, packageID, key))
+	return strconv.FormatInt(nextDistributionSnowflakeID(), 10)
+}
+
+func nextDistributionSnowflakeID() int64 {
+	const (
+		epochMilli   = int64(1704067200000)
+		workerID     = int64(1)
+		sequenceMask = int64(4095)
+	)
+	distributionSnowflakeMu.Lock()
+	defer distributionSnowflakeMu.Unlock()
+
+	nowMilli := time.Now().UnixMilli()
+	if nowMilli < distributionSnowflakeLastMilli {
+		nowMilli = distributionSnowflakeLastMilli
+	}
+	if nowMilli == distributionSnowflakeLastMilli {
+		distributionSnowflakeSequence = (distributionSnowflakeSequence + 1) & sequenceMask
+		if distributionSnowflakeSequence == 0 {
+			for nowMilli <= distributionSnowflakeLastMilli {
+				nowMilli = time.Now().UnixMilli()
+			}
+		}
+	} else {
+		distributionSnowflakeSequence = 0
+	}
+	distributionSnowflakeLastMilli = nowMilli
+	return ((nowMilli - epochMilli) << 22) | (workerID << 12) | distributionSnowflakeSequence
 }
 
 func BuildBalanceRef(agentID int, key string) string {
@@ -144,20 +184,33 @@ func CanAssignInventory(status string, assignedTo int) bool {
 	return assignedTo == 0 && (status == DistributionInventoryStatusAvailable || status == DistributionInventoryStatusReserved)
 }
 
-func ResolveDistributionAgentPrice(packageDefaultPrice int, agentID int, agentLevel int, configs []DistributionPriceConfigRule) int {
-	for _, cfg := range configs {
-		if cfg.ScopeType == DistributionPriceScopeAgent && cfg.AgentId == agentID && cfg.Status == DistributionStatusEnabled && cfg.UnitPrice >= 0 {
-			return cfg.UnitPrice
+func applyDistributionPriceConfig(basePrice int, priceType string, priceValue int) int {
+	switch priceType {
+	case DistributionPriceTypeFixed:
+		if priceValue >= 0 {
+			return priceValue
+		}
+	case DistributionPriceTypeDiscount:
+		if priceValue >= 1 && priceValue <= 10 {
+			return int(int64(basePrice) * int64(priceValue) / 10)
 		}
 	}
+	return basePrice
+}
+
+func ResolveDistributionAgentPrice(packageDefaultPrice int, agentLevel int, configs []DistributionPriceConfigRule) int {
 	for _, cfg := range configs {
-		if cfg.ScopeType == DistributionPriceScopeLevel && cfg.Level == agentLevel && cfg.Status == DistributionStatusEnabled && cfg.UnitPrice >= 0 {
-			return cfg.UnitPrice
+		if cfg.TargetType == DistributionPriceTargetLevel && cfg.AgentLevel == agentLevel && cfg.Status == DistributionStatusEnabled {
+			return applyDistributionPriceConfig(packageDefaultPrice, cfg.PriceType, cfg.PriceValue)
 		}
 	}
+	return packageDefaultPrice
+}
+
+func ResolveDistributionCustomerPrice(packageDefaultPrice int, customerUserID int, configs []DistributionPriceConfigRule) int {
 	for _, cfg := range configs {
-		if cfg.ScopeType == DistributionPriceScopeGlobal && cfg.Status == DistributionStatusEnabled && cfg.UnitPrice >= 0 {
-			return cfg.UnitPrice
+		if cfg.TargetType == DistributionPriceTargetCustomer && cfg.CustomerUserId == customerUserID && cfg.Status == DistributionStatusEnabled {
+			return applyDistributionPriceConfig(packageDefaultPrice, cfg.PriceType, cfg.PriceValue)
 		}
 	}
 	return packageDefaultPrice

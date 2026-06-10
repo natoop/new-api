@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,7 @@ type DistributionAgentSaveInput struct {
 	Balance       int    `json:"balance"`
 	CommissionBps int    `json:"commission_bps"`
 	ParentAgentId int    `json:"parent_agent_id"`
+	Level         int    `json:"level"`
 	Contact       string `json:"contact"`
 	Remark        string `json:"remark"`
 }
@@ -29,29 +31,35 @@ type DistributionAgentProfile struct {
 }
 
 type DistributionPackageSaveInput struct {
-	Name         string `json:"name"`
-	Sku          string `json:"sku"`
-	Description  string `json:"description"`
-	Status       string `json:"status"`
-	AgentPrice   int    `json:"agent_price"`
-	RetailPrice  int    `json:"retail_price"`
-	CreditAmount int    `json:"credit_amount"`
-	SortOrder    int    `json:"sort_order"`
+	SubscriptionPlanId  int    `json:"subscription_plan_id"`
+	Name                string `json:"name"`
+	Sku                 string `json:"sku"`
+	Description         string `json:"description"`
+	Status              string `json:"status"`
+	AgentPrice          int    `json:"agent_price"`
+	RetailPrice         int    `json:"retail_price"`
+	SecondaryAgentPrice int    `json:"secondary_agent_price"`
+	CreditAmount        int    `json:"credit_amount"`
+	SortOrder           int    `json:"sort_order"`
 }
 
 type DistributionPriceConfigSaveInput struct {
 	Id             int    `json:"id"`
-	ScopeType      string `json:"scope_type"`
 	PackageId      int    `json:"package_id"`
-	Level          int    `json:"level"`
-	ParentAgentId  int    `json:"parent_agent_id"`
-	AgentId        int    `json:"agent_id"`
-	UnitPrice      int    `json:"unit_price"`
-	Tier1CostPrice int    `json:"tier1_cost_price"`
-	Tier2CostPrice int    `json:"tier2_cost_price"`
+	TargetType     string `json:"target_type"`
+	CustomerUserId int    `json:"customer_user_id"`
+	AgentLevel     int    `json:"agent_level"`
+	PriceType      string `json:"price_type"`
+	PriceValue     int    `json:"price_value"`
 	Status         string `json:"status"`
 	Remark         string `json:"remark"`
 }
+
+const (
+	errDistributionPackageSubscriptionExists = "distribution package subscription plan already exists"
+	errDistributionPackageTierPriceOrder     = "tier 1 agent price must be less than or equal to tier 2 agent price"
+	errDistributionPackagePriceTooHigh       = "agent prices must be less than or equal to subscription plan price"
+)
 
 func validateDistributionAgentInput(input DistributionAgentSaveInput) (DistributionAgentSaveInput, error) {
 	input.Name = strings.TrimSpace(input.Name)
@@ -72,10 +80,63 @@ func validateDistributionAgentInput(input DistributionAgentSaveInput) (Distribut
 	if input.ParentAgentId < 0 {
 		return input, fmt.Errorf("parent_agent_id cannot be negative")
 	}
+	if input.Level == 0 {
+		input.Level = DistributionAgentLevelSecondary
+	}
+	if input.Level != DistributionAgentLevelPrimary && input.Level != DistributionAgentLevelSecondary {
+		return input, fmt.Errorf("level must be 1 or 2")
+	}
+	if input.Level == DistributionAgentLevelPrimary {
+		input.ParentAgentId = 0
+	}
 	if input.Id > 0 && input.ParentAgentId == input.Id {
 		return input, fmt.Errorf("parent_agent_id cannot point to the same agent")
 	}
 	return input, nil
+}
+
+func normalizeDistributionAgentHierarchy(tx *gorm.DB, currentAgentID int, level int, parentAgentID int) (int, int, error) {
+	if level == 0 {
+		level = DistributionAgentLevelSecondary
+	}
+	if level != DistributionAgentLevelPrimary && level != DistributionAgentLevelSecondary {
+		return level, parentAgentID, fmt.Errorf("level must be 1 or 2")
+	}
+	if level == DistributionAgentLevelPrimary {
+		return level, 0, nil
+	}
+	if parentAgentID <= 0 {
+		return level, 0, nil
+	}
+	if currentAgentID > 0 && parentAgentID == currentAgentID {
+		return level, parentAgentID, fmt.Errorf("parent_agent_id cannot point to the same agent")
+	}
+	var parent model.DistributionAgent
+	if err := tx.Select("id, level").Where("id = ?", parentAgentID).First(&parent).Error; err != nil {
+		return level, parentAgentID, fmt.Errorf("parent agent not found")
+	}
+	if parent.Level != DistributionAgentLevelPrimary {
+		return level, parentAgentID, fmt.Errorf("parent agent must be level 1")
+	}
+	return level, parentAgentID, nil
+}
+
+func distributionPromotionParentAgentID(tx *gorm.DB, inviterUserID int) (int, error) {
+	if inviterUserID <= 0 {
+		return 0, nil
+	}
+	var parent model.DistributionAgent
+	err := tx.Select("id, level").Where("user_id = ? AND status = ?", inviterUserID, DistributionStatusEnabled).First(&parent).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if parent.Level != DistributionAgentLevelPrimary {
+		return 0, nil
+	}
+	return parent.Id, nil
 }
 
 func validateDistributionPackageInput(input DistributionPackageSaveInput) (DistributionPackageSaveInput, error) {
@@ -86,62 +147,149 @@ func validateDistributionPackageInput(input DistributionPackageSaveInput) (Distr
 	if input.Status == "" {
 		input.Status = DistributionStatusEnabled
 	}
-	if input.Name == "" {
-		return input, fmt.Errorf("name cannot be empty")
-	}
-	if input.Sku == "" {
-		return input, fmt.Errorf("sku cannot be empty")
+	if input.SubscriptionPlanId <= 0 {
+		return input, fmt.Errorf("subscription_plan_id must be greater than 0")
 	}
 	if err := ValidateDistributionStatus(input.Status); err != nil {
 		return input, err
 	}
-	if input.AgentPrice < 0 || input.RetailPrice < 0 || input.CreditAmount < 0 {
-		return input, fmt.Errorf("amount fields cannot be negative")
+	if input.AgentPrice < 0 || input.SecondaryAgentPrice < 0 {
+		return input, fmt.Errorf("agent prices cannot be negative")
 	}
 	return input, nil
 }
 
-func AdminSaveDistributionAgent(input DistributionAgentSaveInput) (*model.DistributionAgent, error) {
-	input, err := validateDistributionAgentInput(input)
-	if err != nil {
-		return nil, err
+func distributionSubscriptionPlanPriceCents(priceAmount float64) int {
+	if priceAmount <= 0 {
+		return 0
 	}
+	return int(decimal.NewFromFloat(priceAmount).Mul(decimal.NewFromInt(100)).Round(0).IntPart())
+}
+
+func calcDistributionPaymentAmountFromUSDCents(amountCents int) (int, error) {
+	if amountCents <= 0 {
+		return 0, nil
+	}
+	if common.QuotaPerUnit <= 0 {
+		return 0, fmt.Errorf("quota unit config is invalid")
+	}
+	return int(decimal.NewFromInt(int64(amountCents)).
+		Div(decimal.NewFromInt(100)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Ceil().
+		IntPart()), nil
+}
+
+func hydrateDistributionPackageFromSubscriptionPlan(tx *gorm.DB, input *DistributionPackageSaveInput) (*model.SubscriptionPlan, error) {
+	if input == nil || input.SubscriptionPlanId <= 0 {
+		return nil, fmt.Errorf("subscription_plan_id must be greater than 0")
+	}
+	var plan model.SubscriptionPlan
+	if err := tx.Where("id = ? AND enabled = ?", input.SubscriptionPlanId, true).First(&plan).Error; err != nil {
+		return nil, fmt.Errorf("subscription plan not found or disabled")
+	}
+	plan.NormalizeDefaults()
+	input.Name = strings.TrimSpace(plan.Title)
+	input.Description = strings.TrimSpace(plan.Subtitle)
+	input.Sku = fmt.Sprintf("subscription_plan_%d", plan.Id)
+	input.RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+	input.CreditAmount = int(plan.TotalAmount)
+	return &plan, nil
+}
+
+func validateDistributionPackagePrices(input DistributionPackageSaveInput) error {
+	if input.AgentPrice > input.SecondaryAgentPrice {
+		return errors.New(errDistributionPackageTierPriceOrder)
+	}
+	if input.AgentPrice > input.RetailPrice || input.SecondaryAgentPrice > input.RetailPrice {
+		return errors.New(errDistributionPackagePriceTooHigh)
+	}
+	return nil
+}
+
+func hydrateDistributionPackagesFromSubscriptionPlans(packages []model.DistributionPackage) error {
+	planIDs := make([]int, 0, len(packages))
+	seen := map[int]struct{}{}
+	for _, distributionPackage := range packages {
+		if distributionPackage.SubscriptionPlanId <= 0 {
+			continue
+		}
+		if _, ok := seen[distributionPackage.SubscriptionPlanId]; ok {
+			continue
+		}
+		seen[distributionPackage.SubscriptionPlanId] = struct{}{}
+		planIDs = append(planIDs, distributionPackage.SubscriptionPlanId)
+	}
+	if len(planIDs) == 0 {
+		return nil
+	}
+	var plans []model.SubscriptionPlan
+	if err := model.DB.Where("id IN ?", planIDs).Find(&plans).Error; err != nil {
+		return err
+	}
+	planMap := make(map[int]model.SubscriptionPlan, len(plans))
+	for _, plan := range plans {
+		plan.NormalizeDefaults()
+		planMap[plan.Id] = plan
+	}
+	for i := range packages {
+		plan, ok := planMap[packages[i].SubscriptionPlanId]
+		if !ok {
+			continue
+		}
+		packages[i].SubscriptionTitle = plan.Title
+		packages[i].SubscriptionSubtitle = plan.Subtitle
+		packages[i].Name = strings.TrimSpace(plan.Title)
+		packages[i].Description = strings.TrimSpace(plan.Subtitle)
+		packages[i].RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+		packages[i].CreditAmount = int(plan.TotalAmount)
+	}
+	return nil
+}
+
+func AdminSaveDistributionAgent(input DistributionAgentSaveInput) (*model.DistributionAgent, error) {
 	now := time.Now().Unix()
 	var saved model.DistributionAgent
-	err = model.DB.Transaction(func(tx *gorm.DB) error {
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if input.Id > 0 {
+			if err := tx.Where("id = ?", input.Id).First(&saved).Error; err != nil {
+				return err
+			}
+			if input.UserId > 0 && input.UserId != saved.UserId {
+				return fmt.Errorf("user_id cannot be changed")
+			}
+			if input.Level == 0 {
+				input.Level = saved.Level
+			}
+			level, parentAgentID, err := normalizeDistributionAgentHierarchy(tx, input.Id, input.Level, input.ParentAgentId)
+			if err != nil {
+				return err
+			}
+			saved.ParentAgentId = parentAgentID
+			saved.Level = level
+			saved.UpdatedAt = now
+			if err := tx.Save(&saved).Error; err != nil {
+				return err
+			}
+			return nil
+		}
+		input.Level = DistributionAgentLevelSecondary
+		input.ParentAgentId = 0
+		input, err := validateDistributionAgentInput(input)
+		if err != nil {
+			return err
+		}
 		var duplicate model.DistributionAgent
-		err := tx.Where("user_id = ? AND id <> ?", input.UserId, input.Id).First(&duplicate).Error
+		err = tx.Where("user_id = ? AND id <> ?", input.UserId, input.Id).First(&duplicate).Error
 		if err == nil {
 			return fmt.Errorf("user_id already has a distribution agent")
 		}
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if input.ParentAgentId > 0 {
-			var parent model.DistributionAgent
-			if err := tx.Where("id = ?", input.ParentAgentId).First(&parent).Error; err != nil {
-				return fmt.Errorf("parent agent not found")
-			}
-		}
-		if input.Id > 0 {
-			if err := tx.Where("id = ?", input.Id).First(&saved).Error; err != nil {
-				return err
-			}
-			saved.UserId = input.UserId
-			saved.Name = input.Name
-			saved.Balance = input.Balance
-			saved.CommissionBps = input.CommissionBps
-			saved.ParentAgentId = input.ParentAgentId
-			saved.Contact = input.Contact
-			saved.Remark = input.Remark
-			saved.UpdatedAt = now
-			if err := tx.Save(&saved).Error; err != nil {
-				return err
-			}
-			if err := ensureDistributionAgentUserRole(tx, input.UserId); err != nil {
-				return err
-			}
-			return syncDistributionLegacyInvitedCustomers(tx, &saved, input.UserId, now)
+		level, parentAgentID, err := normalizeDistributionAgentHierarchy(tx, 0, input.Level, input.ParentAgentId)
+		if err != nil {
+			return err
 		}
 		saved = model.DistributionAgent{
 			UserId:        input.UserId,
@@ -149,7 +297,8 @@ func AdminSaveDistributionAgent(input DistributionAgentSaveInput) (*model.Distri
 			Status:        DistributionStatusEnabled,
 			Balance:       input.Balance,
 			CommissionBps: input.CommissionBps,
-			ParentAgentId: input.ParentAgentId,
+			ParentAgentId: parentAgentID,
+			Level:         level,
 			Contact:       input.Contact,
 			Remark:        input.Remark,
 			CreatedAt:     now,
@@ -210,11 +359,15 @@ func syncDistributionLegacyInvitedCustomers(tx *gorm.DB, agent *model.Distributi
 	return nil
 }
 
-func ensureDistributionAgentForUser(tx *gorm.DB, user *model.User) (*model.DistributionAgent, error) {
+func ensureDistributionAgentForUser(tx *gorm.DB, user *model.User, level int, parentAgentID int) (*model.DistributionAgent, error) {
 	if user == nil || user.Id <= 0 {
 		return nil, fmt.Errorf("invalid user")
 	}
 	now := time.Now().Unix()
+	level, parentAgentID, err := normalizeDistributionAgentHierarchy(tx, 0, level, parentAgentID)
+	if err != nil {
+		return nil, err
+	}
 	name := strings.TrimSpace(user.DisplayName)
 	if name == "" {
 		name = strings.TrimSpace(user.Username)
@@ -223,10 +376,16 @@ func ensureDistributionAgentForUser(tx *gorm.DB, user *model.User) (*model.Distr
 		name = fmt.Sprintf("user-%d", user.Id)
 	}
 	var agent model.DistributionAgent
-	err := tx.Where("user_id = ?", user.Id).First(&agent).Error
+	err = tx.Where("user_id = ?", user.Id).First(&agent).Error
 	if err == nil {
+		level, parentAgentID, err = normalizeDistributionAgentHierarchy(tx, agent.Id, level, parentAgentID)
+		if err != nil {
+			return nil, err
+		}
 		agent.Name = name
 		agent.Status = DistributionStatusEnabled
+		agent.Level = level
+		agent.ParentAgentId = parentAgentID
 		agent.UpdatedAt = now
 		if err := tx.Save(&agent).Error; err != nil {
 			return nil, err
@@ -248,7 +407,8 @@ func ensureDistributionAgentForUser(tx *gorm.DB, user *model.User) (*model.Distr
 		Status:        DistributionStatusEnabled,
 		Balance:       0,
 		CommissionBps: 0,
-		ParentAgentId: 0,
+		ParentAgentId: parentAgentID,
+		Level:         level,
 		Contact:       "",
 		Remark:        "",
 		CreatedAt:     now,
@@ -269,7 +429,27 @@ func ensureDistributionAgentForUser(tx *gorm.DB, user *model.User) (*model.Distr
 func AdminEnsureDistributionAgentForUser(user *model.User) (*model.DistributionAgent, error) {
 	var agent *model.DistributionAgent
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		saved, err := ensureDistributionAgentForUser(tx, user)
+		parentAgentID, err := distributionPromotionParentAgentID(tx, user.InviterId)
+		if err != nil {
+			return err
+		}
+		saved, err := ensureDistributionAgentForUser(tx, user, DistributionAgentLevelSecondary, parentAgentID)
+		if err != nil {
+			return err
+		}
+		agent = saved
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return agent, nil
+}
+
+func AdminCreateDistributionAgentForUser(user *model.User) (*model.DistributionAgent, error) {
+	var agent *model.DistributionAgent
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		saved, err := ensureDistributionAgentForUser(tx, user, DistributionAgentLevelSecondary, 0)
 		if err != nil {
 			return err
 		}
@@ -393,8 +573,13 @@ func AdminListDistributionPackages(startIdx int, pageSize int) ([]model.Distribu
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := query.Order("sort_order desc, id desc").Limit(pageSize).Offset(startIdx).Find(&packages).Error
-	return packages, total, err
+	if err := query.Order("sort_order desc, id desc").Limit(pageSize).Offset(startIdx).Find(&packages).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := hydrateDistributionPackagesFromSubscriptionPlans(packages); err != nil {
+		return nil, 0, err
+	}
+	return packages, total, nil
 }
 
 func AdminCreateDistributionPackage(input DistributionPackageSaveInput) (*model.DistributionPackage, error) {
@@ -405,8 +590,22 @@ func AdminCreateDistributionPackage(input DistributionPackageSaveInput) (*model.
 	now := time.Now().Unix()
 	var saved model.DistributionPackage
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := hydrateDistributionPackageFromSubscriptionPlan(tx, &input)
+		if err != nil {
+			return err
+		}
+		if err := validateDistributionPackagePrices(input); err != nil {
+			return err
+		}
 		var duplicate model.DistributionPackage
-		err := tx.Where("sku = ?", input.Sku).First(&duplicate).Error
+		err = tx.Where("subscription_plan_id = ?", input.SubscriptionPlanId).First(&duplicate).Error
+		if err == nil {
+			return errors.New(errDistributionPackageSubscriptionExists)
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		err = tx.Where("sku = ?", input.Sku).First(&duplicate).Error
 		if err == nil {
 			return fmt.Errorf("sku already exists")
 		}
@@ -414,16 +613,20 @@ func AdminCreateDistributionPackage(input DistributionPackageSaveInput) (*model.
 			return err
 		}
 		saved = model.DistributionPackage{
-			Name:         input.Name,
-			Sku:          input.Sku,
-			Description:  input.Description,
-			Status:       input.Status,
-			AgentPrice:   input.AgentPrice,
-			RetailPrice:  input.RetailPrice,
-			CreditAmount: input.CreditAmount,
-			SortOrder:    input.SortOrder,
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			SubscriptionPlanId:   plan.Id,
+			SubscriptionTitle:    plan.Title,
+			SubscriptionSubtitle: plan.Subtitle,
+			Name:                 input.Name,
+			Sku:                  input.Sku,
+			Description:          input.Description,
+			Status:               input.Status,
+			AgentPrice:           input.AgentPrice,
+			RetailPrice:          input.RetailPrice,
+			SecondaryAgentPrice:  input.SecondaryAgentPrice,
+			CreditAmount:         input.CreditAmount,
+			SortOrder:            input.SortOrder,
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}
 		return tx.Create(&saved).Error
 	})
@@ -444,8 +647,22 @@ func AdminUpdateDistributionPackage(packageID int, input DistributionPackageSave
 	now := time.Now().Unix()
 	var saved model.DistributionPackage
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := hydrateDistributionPackageFromSubscriptionPlan(tx, &input)
+		if err != nil {
+			return err
+		}
+		if err := validateDistributionPackagePrices(input); err != nil {
+			return err
+		}
 		var duplicate model.DistributionPackage
-		err := tx.Where("sku = ? AND id <> ?", input.Sku, packageID).First(&duplicate).Error
+		err = tx.Where("subscription_plan_id = ? AND id <> ?", input.SubscriptionPlanId, packageID).First(&duplicate).Error
+		if err == nil {
+			return errors.New(errDistributionPackageSubscriptionExists)
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		err = tx.Where("sku = ? AND id <> ?", input.Sku, packageID).First(&duplicate).Error
 		if err == nil {
 			return fmt.Errorf("sku already exists")
 		}
@@ -455,12 +672,16 @@ func AdminUpdateDistributionPackage(packageID int, input DistributionPackageSave
 		if err := tx.Where("id = ?", packageID).First(&saved).Error; err != nil {
 			return err
 		}
+		saved.SubscriptionPlanId = plan.Id
+		saved.SubscriptionTitle = plan.Title
+		saved.SubscriptionSubtitle = plan.Subtitle
 		saved.Name = input.Name
 		saved.Sku = input.Sku
 		saved.Description = input.Description
 		saved.Status = input.Status
 		saved.AgentPrice = input.AgentPrice
 		saved.RetailPrice = input.RetailPrice
+		saved.SecondaryAgentPrice = input.SecondaryAgentPrice
 		saved.CreditAmount = input.CreditAmount
 		saved.SortOrder = input.SortOrder
 		saved.UpdatedAt = now
@@ -493,43 +714,58 @@ func AdminUpdateDistributionPackageStatus(packageID int, status string) (*model.
 	return &distributionPackage, nil
 }
 
-func ListDistributionAgentPackages() ([]model.DistributionPackage, error) {
+func ListDistributionAgentPackages(startIdx int, pageSize int) ([]model.DistributionPackage, int64, error) {
 	var packages []model.DistributionPackage
-	err := model.DB.Where("status = ?", DistributionStatusEnabled).
-		Order("sort_order desc, id desc").
-		Find(&packages).Error
-	return packages, err
+	query := model.DB.Model(&model.DistributionPackage{}).Where("status = ?", DistributionStatusEnabled)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := query.Order("sort_order desc, id desc").Limit(pageSize).Offset(startIdx).Find(&packages).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := hydrateDistributionPackagesFromSubscriptionPlans(packages); err != nil {
+		return nil, 0, err
+	}
+	return packages, total, nil
 }
 
 func validateDistributionPriceConfigInput(input DistributionPriceConfigSaveInput) (DistributionPriceConfigSaveInput, error) {
-	input.ScopeType = strings.TrimSpace(input.ScopeType)
+	input.TargetType = strings.TrimSpace(input.TargetType)
+	input.PriceType = strings.TrimSpace(input.PriceType)
 	input.Status = strings.TrimSpace(input.Status)
 	input.Remark = strings.TrimSpace(input.Remark)
 	if input.Status == "" {
 		input.Status = DistributionStatusEnabled
 	}
-	switch input.ScopeType {
-	case DistributionPriceScopeGlobal:
-		input.AgentId = 0
-		input.Level = 0
-		input.ParentAgentId = 0
-	case DistributionPriceScopeLevel:
-		if input.Level < 0 {
-			return input, fmt.Errorf("level cannot be negative")
+	switch input.TargetType {
+	case DistributionPriceTargetLevel:
+		if input.AgentLevel != 1 && input.AgentLevel != 2 {
+			return input, fmt.Errorf("agent_level must be 1 or 2")
 		}
-		input.AgentId = 0
-	case DistributionPriceScopeAgent:
-		if input.AgentId <= 0 {
-			return input, fmt.Errorf("agent_id must be greater than 0")
+		input.CustomerUserId = 0
+	case DistributionPriceTargetCustomer:
+		if input.CustomerUserId <= 0 {
+			return input, fmt.Errorf("customer_user_id must be greater than 0")
 		}
+		input.AgentLevel = 0
 	default:
-		return input, fmt.Errorf("invalid scope_type")
+		return input, fmt.Errorf("invalid target_type")
 	}
 	if input.PackageId <= 0 {
 		return input, fmt.Errorf("package_id must be greater than 0")
 	}
-	if input.UnitPrice < 0 || input.Tier1CostPrice < 0 || input.Tier2CostPrice < 0 {
-		return input, fmt.Errorf("price fields cannot be negative")
+	switch input.PriceType {
+	case DistributionPriceTypeFixed:
+		if input.PriceValue < 0 {
+			return input, fmt.Errorf("price_value cannot be negative")
+		}
+	case DistributionPriceTypeDiscount:
+		if input.PriceValue < 1 || input.PriceValue > 10 {
+			return input, fmt.Errorf("discount price_value must be between 1 and 10")
+		}
+	default:
+		return input, fmt.Errorf("invalid price_type")
 	}
 	if err := ValidateDistributionStatus(input.Status); err != nil {
 		return input, err
@@ -561,14 +797,12 @@ func AdminSaveDistributionPriceConfig(input DistributionPriceConfigSaveInput, op
 				return err
 			}
 		}
-		saved.ScopeType = input.ScopeType
 		saved.PackageId = input.PackageId
-		saved.Level = input.Level
-		saved.ParentAgentId = input.ParentAgentId
-		saved.AgentId = input.AgentId
-		saved.UnitPrice = input.UnitPrice
-		saved.Tier1CostPrice = input.Tier1CostPrice
-		saved.Tier2CostPrice = input.Tier2CostPrice
+		saved.TargetType = input.TargetType
+		saved.CustomerUserId = input.CustomerUserId
+		saved.AgentLevel = input.AgentLevel
+		saved.PriceType = input.PriceType
+		saved.PriceValue = input.PriceValue
 		saved.Status = input.Status
 		saved.Remark = input.Remark
 		saved.UpdatedByUserId = operatorUserID

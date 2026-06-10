@@ -17,45 +17,79 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Handshake, Plus, RefreshCcw } from 'lucide-react'
-import { toast } from 'sonner'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  RefreshCcw,
+  Search,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CopyButton } from '@/components/copy-button'
 import { SectionPageLayout } from '@/components/layout'
 import { generateAffiliateLink } from '@/features/wallet/lib'
-import { CopyButton } from '@/components/copy-button'
 import {
-  acceptAgentInvitation,
-  assignAgentInventory,
-  createAgentInvitation,
   getAgentCustomers,
   getAgentInventory,
-  getAgentInvitations,
+  getAgentInventoryPackageOptions,
   getAgentLedger,
   getAgentPackages,
   getAgentProfile,
   getAgentProfit,
   getAgentPromoCodes,
   purchaseAgentPackage,
+  refundAgentInventory,
   saveAgentPromoCode,
 } from './api'
-import { DateOnlyField, DateRangeField } from './date-fields'
+import { DateOnlyField } from './date-fields'
+import {
+  distributionLedgerEntryLabel,
+  distributionSourceTypeLabel,
+  distributionStatusLabel,
+} from './labels'
 import type {
   DistributionCustomerOwnership,
   DistributionInventory,
-  DistributionInvitation,
+  DistributionInventoryPackageOption,
   DistributionLedger,
   DistributionPackage,
   DistributionProfile,
   DistributionProfit,
   DistributionPromoCode,
 } from './types'
+
+const PAGE_SIZE = 10
+const MAX_PROMO_AMOUNT_CENTS = 2000
+
+type AgentTab =
+  | 'packages'
+  | 'inventory'
+  | 'ledger'
+  | 'profit'
+  | 'customers'
+  | 'promo'
 
 function formatTime(value?: number) {
   if (!value) return '-'
@@ -66,32 +100,86 @@ function formatMoney(value?: number) {
   return ((value ?? 0) / 100).toFixed(2)
 }
 
+function packageTitle(pkg: DistributionPackage) {
+  return pkg.subscription_title || pkg.name || '-'
+}
+
+function packageSubtitle(pkg: DistributionPackage) {
+  return pkg.subscription_subtitle || pkg.description || ''
+}
+
+function formatUserLabel(item?: {
+  customer_user_id?: number
+  assigned_to?: number
+  username?: string
+  display_name?: string
+  email?: string
+}) {
+  if (!item) return '-'
+  const name = item.display_name || item.username || item.email
+  const id = item.customer_user_id || item.assigned_to
+  if (name && id) return `${name} (#${id})`
+  return name || (id ? `#${id}` : '-')
+}
+
 function getPurchaseMessageKey(message?: string) {
   const normalized = (message || '').toLowerCase()
   if (normalized.includes('insufficient balance')) return 'Insufficient balance'
-  if (normalized.includes('agent profile not found')) {
+  if (normalized.includes('agent profile not found'))
     return 'Agent profile not found'
-  }
   if (normalized.includes('package not found')) return 'Package not found'
   if (normalized.includes('record not found')) return 'Data not found'
   return 'Purchase failed'
 }
 
+function apiActionError(message?: string) {
+  return message?.trim() || 'Action failed'
+}
+
+function normalizePromoAmountInput(value: string) {
+  if (value.trim() === '') return ''
+  const amount = Math.floor(Number(value))
+  if (Number.isNaN(amount)) return ''
+  return String(Math.min(MAX_PROMO_AMOUNT_CENTS, Math.max(0, amount)))
+}
+
+function canRefundInventory(row: DistributionInventory) {
+  return row.status === 'available' && row.assigned_to === 0
+}
+
 function StatusBadge({ status }: { status?: string }) {
-  return <Badge variant='secondary'>{status || '-'}</Badge>
+  const { t } = useTranslation()
+  return <Badge variant='secondary'>{distributionStatusLabel(status, t)}</Badge>
+}
+
+function SelectDisplay({
+  label,
+  placeholder,
+}: {
+  label?: string
+  placeholder: string
+}) {
+  return (
+    <span
+      data-slot='select-value'
+      className='flex min-w-0 flex-1 items-center truncate text-left'
+    >
+      {label || placeholder}
+    </span>
+  )
 }
 
 function ClipboardButton({ text }: { text: string }) {
   const { t } = useTranslation()
   return (
     <CopyButton
-            value={text}
-            variant='outline'
-            className='bg-background size-9 shrink-0'
-            iconClassName='size-4'
-            tooltip={t('Copy referral link')}
-            aria-label={t('Copy referral link')}
-          />
+      value={text}
+      variant='outline'
+      className='bg-background size-9 shrink-0'
+      iconClassName='size-4'
+      tooltip={t('Copy referral link')}
+      aria-label={t('Copy referral link')}
+    />
   )
 }
 
@@ -101,7 +189,7 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
     <tr>
       <td
         colSpan={colSpan}
-        className='py-8 text-center text-sm text-muted-foreground'
+        className='text-muted-foreground py-8 text-center text-sm'
       >
         {t('No data')}
       </td>
@@ -109,9 +197,51 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
   )
 }
 
+function TablePager({
+  page,
+  total,
+  onPageChange,
+}: {
+  page: number
+  total: number
+  onPageChange: (page: number) => void
+}) {
+  const { t } = useTranslation()
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  return (
+    <div className='flex items-center justify-between gap-3 pt-3 text-sm'>
+      <span className='text-muted-foreground'>
+        {t('Total')}: {total}
+      </span>
+      <div className='flex items-center gap-2'>
+        <Button
+          variant='outline'
+          size='sm'
+          disabled={page <= 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+        >
+          <ChevronLeft className='h-4 w-4' />
+        </Button>
+        <span className='min-w-16 text-center'>
+          {page}/{totalPages}
+        </span>
+        <Button
+          variant='outline'
+          size='sm'
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        >
+          <ChevronRight className='h-4 w-4' />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function AgentCenter() {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('packages')
+  const [activeTab, setActiveTab] = useState<AgentTab>('packages')
   const [profile, setProfile] = useState<DistributionProfile | null>(null)
   const [packages, setPackages] = useState<DistributionPackage[]>([])
   const [inventory, setInventory] = useState<DistributionInventory[]>([])
@@ -120,79 +250,143 @@ export function AgentCenter() {
   const [customers, setCustomers] = useState<DistributionCustomerOwnership[]>(
     []
   )
-  const [invitations, setInvitations] = useState<DistributionInvitation[]>([])
   const [promoCodes, setPromoCodes] = useState<DistributionPromoCode[]>([])
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteLevel, setInviteLevel] = useState('1')
-  const [inviteExpiresAt, setInviteExpiresAt] = useState('')
-  const [promoCode, setPromoCode] = useState('')
-  const [promoDiscountType, setPromoDiscountType] = useState('percent')
-  const [promoDiscountValue, setPromoDiscountValue] = useState('0')
+  const [inventoryPackageOptions, setInventoryPackageOptions] = useState<
+    DistributionInventoryPackageOption[]
+  >([])
+
+  const [packagePage, setPackagePage] = useState(1)
+  const [inventoryPage, setInventoryPage] = useState(1)
+  const [ledgerPage, setLedgerPage] = useState(1)
+  const [profitPage, setProfitPage] = useState(1)
+  const [customerPage, setCustomerPage] = useState(1)
+  const [promoPage, setPromoPage] = useState(1)
+
+  const [packageTotal, setPackageTotal] = useState(0)
+  const [inventoryTotal, setInventoryTotal] = useState(0)
+  const [ledgerTotal, setLedgerTotal] = useState(0)
+  const [profitTotal, setProfitTotal] = useState(0)
+  const [customerTotal, setCustomerTotal] = useState(0)
+  const [promoTotal, setPromoTotal] = useState(0)
+
+  const [inventoryKeyword, setInventoryKeyword] = useState('')
+  const [inventoryKeywordInput, setInventoryKeywordInput] = useState('')
+  const [customerKeyword, setCustomerKeyword] = useState('')
+  const [customerKeywordInput, setCustomerKeywordInput] = useState('')
+  const [promoTimeFilter, setPromoTimeFilter] = useState('all')
+  const [promoUsageFilter, setPromoUsageFilter] = useState('all')
+
+  const [promoDialogOpen, setPromoDialogOpen] = useState(false)
+  const [promoPackageId, setPromoPackageId] = useState('')
+  const [promoAmount, setPromoAmount] = useState('')
   const [promoMaxRedemptions, setPromoMaxRedemptions] = useState('0')
-  const [promoStartsAt, setPromoStartsAt] = useState('')
   const [promoExpiresAt, setPromoExpiresAt] = useState('')
-  const [assignInventoryId, setAssignInventoryId] = useState('')
-  const [assignCustomerUserId, setAssignCustomerUserId] = useState('')
   const [loading, setLoading] = useState(false)
-  const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>({
-    packages: true,
-    inventory: false,
-    ledger: false,
-    profit: false,
-    customers: false,
-    invitations: false,
-    promo: false,
-  })
 
-  const refresh = useCallback(async (tab: string) => {
-    setLoading(true)
-    try {
-      const profileRes = await getAgentProfile().catch(() => null)
-      if (profileRes?.success) setProfile(profileRes.data)
+  const refresh = useCallback(
+    async (tab: AgentTab) => {
+      setLoading(true)
+      try {
+        const profileRes = await getAgentProfile().catch(() => null)
+        if (profileRes?.success) setProfile(profileRes.data)
 
-      if (tab === 'packages') {
-        const packageRes = await getAgentPackages().catch(() => null)
-        if (packageRes?.success) setPackages(packageRes.data || [])
+        if (tab === 'packages') {
+          const res = await getAgentPackages({
+            p: packagePage,
+            page_size: PAGE_SIZE,
+          }).catch(() => null)
+          if (res?.success) {
+            setPackages(res.data.items || [])
+            setPackageTotal(res.data.total || 0)
+          }
+        }
+
+        if (tab === 'inventory') {
+          const res = await getAgentInventory({
+            p: inventoryPage,
+            page_size: PAGE_SIZE,
+            keyword: inventoryKeyword,
+          }).catch(() => null)
+          if (res?.success) {
+            setInventory(res.data.items || [])
+            setInventoryTotal(res.data.total || 0)
+          }
+        }
+
+        if (tab === 'ledger') {
+          const res = await getAgentLedger({
+            p: ledgerPage,
+            page_size: PAGE_SIZE,
+          }).catch(() => null)
+          if (res?.success) {
+            setLedger(res.data.items || [])
+            setLedgerTotal(res.data.total || 0)
+          }
+        }
+
+        if (tab === 'profit') {
+          const res = await getAgentProfit({
+            p: profitPage,
+            page_size: PAGE_SIZE,
+          }).catch(() => null)
+          if (res?.success) {
+            setProfit(res.data.items || [])
+            setProfitTotal(res.data.total || 0)
+          }
+        }
+
+        if (tab === 'customers') {
+          const res = await getAgentCustomers({
+            p: customerPage,
+            page_size: PAGE_SIZE,
+            keyword: customerKeyword,
+          }).catch(() => null)
+          if (res?.success) {
+            setCustomers(res.data.items || [])
+            setCustomerTotal(res.data.total || 0)
+          }
+        }
+
+        if (tab === 'promo') {
+          const [promoRes, packageOptionsRes] = await Promise.all([
+            getAgentPromoCodes({
+              p: promoPage,
+              page_size: PAGE_SIZE,
+              time_filter: promoTimeFilter,
+              usage_filter: promoUsageFilter,
+            }).catch(() => null),
+            getAgentInventoryPackageOptions().catch(() => null),
+          ])
+          if (promoRes?.success) {
+            setPromoCodes(promoRes.data.items || [])
+            setPromoTotal(promoRes.data.total || 0)
+          }
+          if (packageOptionsRes?.success) {
+            setInventoryPackageOptions(packageOptionsRes.data || [])
+          }
+        }
+      } finally {
+        setLoading(false)
       }
-      if (tab === 'inventory') {
-        const inventoryRes = await getAgentInventory().catch(() => null)
-        if (inventoryRes?.success) setInventory(inventoryRes.data || [])
-      }
-      if (tab === 'ledger') {
-        const ledgerRes = await getAgentLedger().catch(() => null)
-        if (ledgerRes?.success) setLedger(ledgerRes.data || [])
-      }
-      if (tab === 'profit') {
-        const profitRes = await getAgentProfit().catch(() => null)
-        if (profitRes?.success) setProfit(profitRes.data || [])
-      }
-      if (tab === 'customers') {
-        const customerRes = await getAgentCustomers().catch(() => null)
-        if (customerRes?.success) setCustomers(customerRes.data || [])
-      }
-      if (tab === 'invitations') {
-        const invitationRes = await getAgentInvitations().catch(() => null)
-        if (invitationRes?.success) setInvitations(invitationRes.data || [])
-      }
-      if (tab === 'promo') {
-        const promoRes = await getAgentPromoCodes().catch(() => null)
-        if (promoRes?.success) setPromoCodes(promoRes.data || [])
-      }
-      setLoadedTabs((current) => ({ ...current, [tab]: true }))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    },
+    [
+      customerKeyword,
+      customerPage,
+      inventoryKeyword,
+      inventoryPage,
+      ledgerPage,
+      packagePage,
+      profitPage,
+      promoPage,
+      promoTimeFilter,
+      promoUsageFilter,
+    ]
+  )
 
   useEffect(() => {
-    void refresh('packages')
-  }, [refresh])
-
-  useEffect(() => {
-    if (!loadedTabs[activeTab]) {
-      void refresh(activeTab)
-    }
-  }, [activeTab, loadedTabs, refresh])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refresh(activeTab)
+  }, [activeTab, refresh])
 
   const summaryCards = useMemo(
     () => [
@@ -206,23 +400,82 @@ export function AgentCenter() {
       },
       {
         title: t('Customer Count'),
-        value: loadedTabs.customers ? String(customers.length) : '-',
+        value: String(customerTotal),
       },
       {
-        title: t('Invitation Count'),
-        value: loadedTabs.invitations ? String(invitations.length) : '-',
+        title: t('Promo Code Count'),
+        value: String(promoTotal),
       },
     ],
-    [customers.length, invitations.length, loadedTabs, profile, t]
+    [customerTotal, profile, promoTotal, t]
   )
-  const referralLink = useMemo(
-    () => (profile?.aff_code ? generateAffiliateLink(profile.aff_code) : ''),
-    [profile?.aff_code]
+  const referralLink = profile?.aff_code
+    ? generateAffiliateLink(profile.aff_code)
+    : ''
+  const packageLabelMap = useMemo(() => {
+    const next = new Map<number, string>()
+    packages.forEach((pkg) => next.set(pkg.id, packageTitle(pkg)))
+    inventoryPackageOptions.forEach((option) =>
+      next.set(option.package_id, option.package_name)
+    )
+    promoCodes.forEach((code) => {
+      if (code.package_name) next.set(code.package_id, code.package_name)
+    })
+    return next
+  }, [inventoryPackageOptions, packages, promoCodes])
+
+  const selectedPromoPackage = inventoryPackageOptions.find(
+    (option) => String(option.package_id) === promoPackageId
   )
-  const packageLabelMap = useMemo(
-    () => new Map(packages.map((pkg) => [pkg.id, pkg.name])),
-    [packages]
-  )
+
+  async function handleCreatePromoCode() {
+    if (!promoPackageId) {
+      toast.error(t('Please select a package'))
+      return
+    }
+    const amount = Number(promoAmount)
+    if (Number.isNaN(amount) || amount < 0 || amount > MAX_PROMO_AMOUNT_CENTS) {
+      toast.error(t('Promo code amount must be between 0 and 2000 cents.'))
+      return
+    }
+    const maxRedemptions = Number(promoMaxRedemptions || 0)
+    if (Number.isNaN(maxRedemptions) || maxRedemptions < 0) {
+      toast.error(t('Max redemptions cannot be negative'))
+      return
+    }
+    const result = await saveAgentPromoCode({
+      package_id: Number(promoPackageId),
+      discount_type: 'amount',
+      discount_value: amount,
+      max_redemptions: maxRedemptions,
+      starts_at: 0,
+      expires_at: Number(promoExpiresAt || 0),
+      status: 'enabled',
+    })
+    if (!result.success) {
+      toast.error(apiActionError(result.message))
+      return
+    }
+    toast.success(t('Saved'))
+    setPromoDialogOpen(false)
+    setPromoPackageId('')
+    setPromoAmount('')
+    setPromoMaxRedemptions('0')
+    setPromoExpiresAt('')
+    setPromoPage(1)
+    await refresh('promo')
+  }
+
+  async function handleRefundInventory(row: DistributionInventory) {
+    const result = await refundAgentInventory(row.id)
+    if (!result.success) {
+      toast.error(apiActionError(result.message))
+      return
+    }
+    toast.success(t('Refunded'))
+    setLedgerPage(1)
+    await refresh('inventory')
+  }
 
   return (
     <SectionPageLayout>
@@ -251,27 +504,26 @@ export function AgentCenter() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value)}
-          className='mt-6'
+          onValueChange={(value) => setActiveTab(value as AgentTab)}
+          className='mt-6 space-y-4'
         >
-          <TabsList className='grid w-full grid-cols-7'>
+          <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
             <TabsTrigger value='packages'>{t('Packages')}</TabsTrigger>
             <TabsTrigger value='inventory'>{t('Inventory')}</TabsTrigger>
             <TabsTrigger value='ledger'>{t('Ledger')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
             <TabsTrigger value='customers'>{t('Customers')}</TabsTrigger>
-            <TabsTrigger value='invitations'>{t('Invitations')}</TabsTrigger>
             <TabsTrigger value='promo'>{t('Promo Codes')}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value='packages' className='space-y-4'>
+          <TabsContent value='packages'>
             <Card>
               <CardHeader>
                 <CardTitle>{t('Available Packages')}</CardTitle>
               </CardHeader>
               <CardContent className='space-y-4'>
                 {packages.length === 0 && (
-                  <div className='rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground'>
+                  <div className='text-muted-foreground rounded-md border border-dashed py-8 text-center text-sm'>
                     {t('No data')}
                   </div>
                 )}
@@ -281,14 +533,17 @@ export function AgentCenter() {
                     className='flex flex-wrap items-center justify-between gap-3 rounded-md border p-3'
                   >
                     <div className='space-y-1'>
-                      <div className='font-medium'>{pkg.name}</div>
-                      <div className='text-sm text-muted-foreground'>
-                        {pkg.sku} · {pkg.description || '-'}
-                      </div>
-                      <div className='text-xs text-muted-foreground'>
-                        {t('Agent Price')}: {formatMoney(pkg.agent_price)} ·{' '}
-                        {t('Retail Price')}: {formatMoney(pkg.retail_price)} ·{' '}
-                        {t('Credit')}: {pkg.credit_amount}
+                      <div className='font-medium'>{packageTitle(pkg)}</div>
+                      {packageSubtitle(pkg) && (
+                        <div className='text-muted-foreground text-sm'>
+                          {packageSubtitle(pkg)}
+                        </div>
+                      )}
+                      <div className='text-muted-foreground text-xs'>
+                        {t('Tier 1 Agent Price (USD)')}:{' '}
+                        {formatMoney(pkg.agent_price)} ·{' '}
+                        {t('Tier 2 Agent Price (USD)')}:{' '}
+                        {formatMoney(pkg.secondary_agent_price)}
                       </div>
                     </div>
                     <Button
@@ -296,11 +551,8 @@ export function AgentCenter() {
                         const result = await purchaseAgentPackage(pkg.id)
                         if (result.success) {
                           toast.success(t('Purchased'))
-                          setLoadedTabs((current) => ({
-                            ...current,
-                            inventory: false,
-                            ledger: false,
-                          }))
+                          setInventoryPage(1)
+                          setLedgerPage(1)
                           await refresh('packages')
                           return
                         }
@@ -312,50 +564,47 @@ export function AgentCenter() {
                     </Button>
                   </div>
                 ))}
+                <TablePager
+                  page={packagePage}
+                  total={packageTotal}
+                  onPageChange={setPackagePage}
+                />
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value='inventory' className='space-y-4'>
+          <TabsContent value='inventory'>
             <Card>
               <CardHeader>
                 <CardTitle>{t('Inventory')}</CardTitle>
               </CardHeader>
               <CardContent className='space-y-4'>
-                <div className='grid gap-3 md:grid-cols-3'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='inventory-id'>{t('Inventory ID')}</Label>
+                <div className='flex flex-col gap-2 md:flex-row md:items-end'>
+                  <div className='space-y-2 md:w-80'>
+                    <Label>{t('Search customer')}</Label>
                     <Input
-                      id='inventory-id'
-                      value={assignInventoryId}
-                      onChange={(e) => setAssignInventoryId(e.target.value)}
-                    />
-                  </div>
-                  <div className='space-y-2'>
-                    <Label htmlFor='customer-user-id'>
-                      {t('Customer User ID')}
-                    </Label>
-                    <Input
-                      id='customer-user-id'
-                      value={assignCustomerUserId}
-                      onChange={(e) => setAssignCustomerUserId(e.target.value)}
-                    />
-                  </div>
-                  <div className='flex items-end'>
-                    <Button
-                      className='w-full'
-                      onClick={async () => {
-                        await assignAgentInventory(
-                          Number(assignInventoryId),
-                          Number(assignCustomerUserId)
-                        )
-                    toast.success(t('Assigned'))
-                        await refresh('inventory')
+                      value={inventoryKeywordInput}
+                      onChange={(event) =>
+                        setInventoryKeywordInput(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          setInventoryPage(1)
+                          setInventoryKeyword(inventoryKeywordInput)
+                        }
                       }}
-                    >
-                      {t('Assign')}
-                    </Button>
+                    />
                   </div>
+                  <Button
+                    variant='outline'
+                    onClick={() => {
+                      setInventoryPage(1)
+                      setInventoryKeyword(inventoryKeywordInput)
+                    }}
+                  >
+                    <Search className='mr-2 h-4 w-4' />
+                    {t('Search')}
+                  </Button>
                 </div>
                 <div className='overflow-x-auto'>
                   <table className='w-full text-sm'>
@@ -369,23 +618,44 @@ export function AgentCenter() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventory.length === 0 && <EmptyTableRow colSpan={6} />}
+                      {inventory.length === 0 && <EmptyTableRow colSpan={5} />}
                       {inventory.map((row) => (
                         <tr key={row.id} className='border-b'>
-                          <td className='font-mono text-xs'>{row.inventory_no}</td>
+                          <td className='py-2 font-mono text-xs'>
+                            {row.inventory_no}
+                          </td>
                           <td>
                             <StatusBadge status={row.status} />
                           </td>
                           <td>{packageLabelMap.get(row.package_id) || '-'}</td>
-                          <td>{row.assigned_to || '-'}</td>
+                          <td>{formatUserLabel(row)}</td>
                           <td>
-                            <ClipboardButton text={row.inventory_no} />
+                            <div className='flex items-center gap-2'>
+                              <ClipboardButton text={row.inventory_no} />
+                              {canRefundInventory(row) && (
+                                <Button
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() =>
+                                    void handleRefundInventory(row)
+                                  }
+                                >
+                                  <RefreshCcw className='mr-2 h-4 w-4' />
+                                  {t('Refund')}
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <TablePager
+                  page={inventoryPage}
+                  total={inventoryTotal}
+                  onPageChange={setInventoryPage}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -395,7 +665,7 @@ export function AgentCenter() {
               <CardHeader>
                 <CardTitle>{t('Ledger')}</CardTitle>
               </CardHeader>
-              <CardContent className='overflow-x-auto'>
+              <CardContent className='space-y-4 overflow-x-auto'>
                 <table className='w-full text-sm'>
                   <thead>
                     <tr className='border-b text-left'>
@@ -413,8 +683,12 @@ export function AgentCenter() {
                     {ledger.map((row) => (
                       <tr key={row.id} className='border-b'>
                         <td className='py-2'>{formatTime(row.created_at)}</td>
-                        <td>{row.entry_type}</td>
-                        <td>{row.source_type}</td>
+                        <td>
+                          {distributionLedgerEntryLabel(row.entry_type, t)}
+                        </td>
+                        <td>
+                          {distributionSourceTypeLabel(row.source_type, t)}
+                        </td>
                         <td>{formatMoney(row.delta)}</td>
                         <td>{formatMoney(row.balance_before)}</td>
                         <td>{formatMoney(row.balance_after)}</td>
@@ -423,6 +697,11 @@ export function AgentCenter() {
                     ))}
                   </tbody>
                 </table>
+                <TablePager
+                  page={ledgerPage}
+                  total={ledgerTotal}
+                  onPageChange={setLedgerPage}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -432,23 +711,21 @@ export function AgentCenter() {
               <CardHeader>
                 <CardTitle>{t('Profit')}</CardTitle>
               </CardHeader>
-              <CardContent className='overflow-x-auto'>
+              <CardContent className='space-y-4 overflow-x-auto'>
                 <table className='w-full text-sm'>
                   <thead>
                     <tr className='border-b text-left'>
-                      {/* <th className='py-2'>{t('No')}</th> */}
-                      <th>{t('Order')}</th>
+                      <th className='py-2'>{t('Order')}</th>
                       <th>{t('Child Agent')}</th>
                       <th>{t('Amount')}</th>
                       <th>{t('Status')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {profit.length === 0 && <EmptyTableRow colSpan={5} />}
+                    {profit.length === 0 && <EmptyTableRow colSpan={4} />}
                     {profit.map((row) => (
                       <tr key={row.id} className='border-b'>
-                        {/* <td className='py-2 font-mono text-xs'>{row.profit_no}</td> */}
-                        <td>{row.order_id}</td>
+                        <td className='py-2'>{row.order_id}</td>
                         <td>{row.child_agent_id}</td>
                         <td>{formatMoney(row.amount)}</td>
                         <td>
@@ -458,6 +735,11 @@ export function AgentCenter() {
                     ))}
                   </tbody>
                 </table>
+                <TablePager
+                  page={profitPage}
+                  total={profitTotal}
+                  onPageChange={setProfitPage}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -483,17 +765,52 @@ export function AgentCenter() {
                   <div className='space-y-2'>
                     <Label>{t('Registration Link')}</Label>
                     <div className='flex gap-2'>
-                      <Input value={referralLink} readOnly className='font-mono' />
+                      <Input
+                        value={referralLink}
+                        readOnly
+                        className='font-mono'
+                      />
                       <ClipboardButton text={referralLink} />
                     </div>
                   </div>
                   <div className='space-y-2'>
                     <Label>{t('Login Link')}</Label>
                     <div className='flex gap-2'>
-                      <Input value={referralLink} readOnly className='font-mono' />
+                      <Input
+                        value={referralLink}
+                        readOnly
+                        className='font-mono'
+                      />
                       <ClipboardButton text={referralLink} />
                     </div>
                   </div>
+                </div>
+                <div className='flex flex-col gap-2 md:flex-row md:items-end'>
+                  <div className='space-y-2 md:w-80'>
+                    <Label>{t('Search customer')}</Label>
+                    <Input
+                      value={customerKeywordInput}
+                      onChange={(event) =>
+                        setCustomerKeywordInput(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          setCustomerPage(1)
+                          setCustomerKeyword(customerKeywordInput)
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant='outline'
+                    onClick={() => {
+                      setCustomerPage(1)
+                      setCustomerKeyword(customerKeywordInput)
+                    }}
+                  >
+                    <Search className='mr-2 h-4 w-4' />
+                    {t('Search')}
+                  </Button>
                 </div>
                 <table className='w-full text-sm'>
                   <thead>
@@ -507,214 +824,261 @@ export function AgentCenter() {
                     {customers.length === 0 && <EmptyTableRow colSpan={3} />}
                     {customers.map((row) => (
                       <tr key={row.id} className='border-b'>
-                        <td className='py-2'>{row.customer_user_id}</td>
-                        <td>{row.source_type}</td>
+                        <td className='py-2'>{formatUserLabel(row)}</td>
+                        <td>
+                          {distributionSourceTypeLabel(row.source_type, t)}
+                        </td>
                         <td>{formatTime(row.bound_at)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value='invitations' className='space-y-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('Create Invitation')}</CardTitle>
-              </CardHeader>
-              <CardContent className='grid gap-3 md:grid-cols-4'>
-                <div className='space-y-2'>
-                  <Label htmlFor='invitee-email'>{t('Invitee Email')}</Label>
-                  <Input
-                    id='invitee-email'
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='invite-level'>{t('Level')}</Label>
-                  <Input
-                    id='invite-level'
-                    value={inviteLevel}
-                    onChange={(e) => setInviteLevel(e.target.value)}
-                  />
-                </div>
-                <DateOnlyField
-                  label='Expires At'
-                  value={inviteExpiresAt}
-                  onChange={setInviteExpiresAt}
-                  endOfDay
+                <TablePager
+                  page={customerPage}
+                  total={customerTotal}
+                  onPageChange={setCustomerPage}
                 />
-                <div className='flex items-end'>
-                  <Button
-                    className='w-full'
-                    onClick={async () => {
-                      await createAgentInvitation({
-                        invitee_email: inviteEmail,
-                        level: Number(inviteLevel),
-                        expires_at: Number(inviteExpiresAt),
-                      })
-                      toast.success(t('Created'))
-                      await refresh('invitations')
-                    }}
-                  >
-                    <Handshake className='mr-2 h-4 w-4' />
-                    {t('Create')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('Invitations')}</CardTitle>
-              </CardHeader>
-              <CardContent className='overflow-x-auto'>
-                <table className='w-full text-sm'>
-                  <thead>
-                    <tr className='border-b text-left'>
-                      <th className='py-2'>{t('No')}</th>
-                      <th>{t('Email')}</th>
-                      <th>{t('Status')}</th>
-                      <th>{t('Expire')}</th>
-                      <th>{t('Action')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invitations.length === 0 && (
-                      <EmptyTableRow colSpan={5} />
-                    )}
-                    {invitations.map((row) => (
-                      <tr key={row.id} className='border-b'>
-                        <td className='py-2 font-mono text-xs'>
-                          {row.invitation_no}
-                        </td>
-                        <td>{row.invitee_email || '-'}</td>
-                        <td>
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td>{formatTime(row.expires_at)}</td>
-                        <td>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={async () => {
-                              await acceptAgentInvitation(row.invitation_no)
-                              toast.success(t('Accepted'))
-                              await refresh('invitations')
-                            }}
-                          >
-                            {t('Accept')}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value='promo' className='space-y-4'>
             <Card>
-              <CardHeader>
+              <CardHeader className='flex flex-row items-center justify-between gap-3'>
                 <CardTitle>{t('Promo Codes')}</CardTitle>
+                <Button onClick={() => setPromoDialogOpen(true)}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  {t('Add Promo Code')}
+                </Button>
               </CardHeader>
-              <CardContent className='grid gap-3 md:grid-cols-3'>
-                <div className='space-y-2'>
-                  <Label>{t('Code')}</Label>
-                  <Input
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                  />
+              <CardContent className='space-y-4'>
+                <div className='flex flex-col gap-2 md:flex-row'>
+                  <div className='space-y-2 md:w-56'>
+                    <Label>{t('Expiration')}</Label>
+                    <Select
+                      value={promoTimeFilter}
+                      onValueChange={(value) => {
+                        setPromoPage(1)
+                        setPromoTimeFilter(value ?? 'all')
+                      }}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectDisplay
+                          label={t(
+                            promoTimeFilter === 'active'
+                              ? 'Active'
+                              : promoTimeFilter === 'expired'
+                                ? 'Expired'
+                                : 'All'
+                          )}
+                          placeholder={t('Expiration')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {['all', 'active', 'expired'].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {t(
+                                value === 'active'
+                                  ? 'Active'
+                                  : value === 'expired'
+                                    ? 'Expired'
+                                    : 'All'
+                              )}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-2 md:w-56'>
+                    <Label>{t('Usage Status')}</Label>
+                    <Select
+                      value={promoUsageFilter}
+                      onValueChange={(value) => {
+                        setPromoPage(1)
+                        setPromoUsageFilter(value ?? 'all')
+                      }}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectDisplay
+                          label={t(
+                            promoUsageFilter === 'used'
+                              ? 'Used'
+                              : promoUsageFilter === 'unused'
+                                ? 'Unused'
+                                : 'All'
+                          )}
+                          placeholder={t('Usage Status')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {['all', 'used', 'unused'].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {t(
+                                value === 'used'
+                                  ? 'Used'
+                                  : value === 'unused'
+                                    ? 'Unused'
+                                    : 'All'
+                              )}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className='space-y-2'>
-                  <Label>{t('Discount Type')}</Label>
-                  <Input
-                    value={promoDiscountType}
-                    onChange={(e) => setPromoDiscountType(e.target.value)}
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label>{t('Discount Value')}</Label>
-                  <Input
-                    value={promoDiscountValue}
-                    onChange={(e) => setPromoDiscountValue(e.target.value)}
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label>{t('Max Redemptions')}</Label>
-                  <Input
-                    value={promoMaxRedemptions}
-                    onChange={(e) => setPromoMaxRedemptions(e.target.value)}
-                  />
-                </div>
-                <div className='md:col-span-2'>
-                  <DateRangeField
-                    startValue={promoStartsAt}
-                    endValue={promoExpiresAt}
-                    onStartChange={setPromoStartsAt}
-                    onEndChange={setPromoExpiresAt}
-                  />
-                </div>
-                <div className='flex items-end'>
-                  <Button
-                    className='w-full'
-                    onClick={async () => {
-                      await saveAgentPromoCode({
-                        code: promoCode,
-                        discount_type: promoDiscountType,
-                        discount_value: Number(promoDiscountValue),
-                        max_redemptions: Number(promoMaxRedemptions),
-                        starts_at: Number(promoStartsAt),
-                        expires_at: Number(promoExpiresAt),
-                      })
-                      toast.success(t('Saved'))
-                      await refresh('promo')
-                    }}
-                  >
-                    {t('Save')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('Promo Code List')}</CardTitle>
-              </CardHeader>
-              <CardContent className='overflow-x-auto'>
-                <table className='w-full text-sm'>
-                  <thead>
-                    <tr className='border-b text-left'>
-                      <th className='py-2'>{t('Code')}</th>
-                      <th>{t('Status')}</th>
-                      <th>{t('Type')}</th>
-                      <th>{t('Value')}</th>
-                      <th>{t('Used')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {promoCodes.length === 0 && <EmptyTableRow colSpan={5} />}
-                    {promoCodes.map((row) => (
-                      <tr key={row.id} className='border-b'>
-                        <td className='py-2 font-mono text-xs'>{row.code}</td>
-                        <td>
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td>{row.discount_type}</td>
-                        <td>{row.discount_value}</td>
-                        <td>
-                          {row.used_count}/{row.max_redemptions}
-                        </td>
+                <div className='overflow-x-auto'>
+                  <table className='w-full text-sm'>
+                    <thead>
+                      <tr className='border-b text-left'>
+                        <th className='py-2'>{t('Code')}</th>
+                        <th>{t('Package')}</th>
+                        <th>{t('Status')}</th>
+                        <th>{t('Amount Off (cents)')}</th>
+                        <th>{t('Used')}</th>
+                        <th>{t('Expire')}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {promoCodes.length === 0 && <EmptyTableRow colSpan={6} />}
+                      {promoCodes.map((row) => (
+                        <tr key={row.id} className='border-b'>
+                          <td className='py-2 font-mono text-xs'>{row.code}</td>
+                          <td>
+                            {row.package_name ||
+                              packageLabelMap.get(row.package_id) ||
+                              '-'}
+                          </td>
+                          <td>
+                            <StatusBadge status={row.status} />
+                          </td>
+                          <td>{row.discount_value}</td>
+                          <td>
+                            {row.used_count}/
+                            {row.max_redemptions > 0
+                              ? row.max_redemptions
+                              : t('Unlimited')}
+                          </td>
+                          <td>
+                            {row.expires_at > 0
+                              ? formatTime(row.expires_at)
+                              : t('No expiration')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <TablePager
+                  page={promoPage}
+                  total={promoTotal}
+                  onPageChange={setPromoPage}
+                />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
         <Separator className='my-6' />
+
+        <Dialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen}>
+          <DialogContent className='max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-lg'>
+            <DialogHeader>
+              <DialogTitle>{t('Add Promo Code')}</DialogTitle>
+            </DialogHeader>
+            <div className='flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto'>
+              <div className='space-y-2'>
+                <Label>{t('Package')}</Label>
+                <Select
+                  value={promoPackageId}
+                  onValueChange={(value) => setPromoPackageId(value ?? '')}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectDisplay
+                      label={
+                        selectedPromoPackage
+                          ? selectedPromoPackage.package_name
+                          : ''
+                      }
+                      placeholder={t('Select package')}
+                    />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {inventoryPackageOptions.map((option) => (
+                        <SelectItem
+                          key={option.package_id}
+                          value={String(option.package_id)}
+                        >
+                          {option.package_name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-2'>
+                <Label>{t('Code')}</Label>
+                <Input
+                  value={t('The code is generated automatically.')}
+                  readOnly
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label>{t('Amount Off (cents)')}</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  max={MAX_PROMO_AMOUNT_CENTS}
+                  step={1}
+                  placeholder='0-2000'
+                  value={promoAmount}
+                  onChange={(event) =>
+                    setPromoAmount(
+                      normalizePromoAmountInput(event.target.value)
+                    )
+                  }
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label>{t('Max Redemptions')}</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  value={promoMaxRedemptions}
+                  onChange={(event) =>
+                    setPromoMaxRedemptions(event.target.value)
+                  }
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t('Set to 0 for unlimited redemptions.')}
+                </p>
+              </div>
+              <DateOnlyField
+                label='Expires At'
+                value={promoExpiresAt}
+                onChange={setPromoExpiresAt}
+                endOfDay
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t('Leave empty for no expiration.')}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant='outline'
+                onClick={() => setPromoDialogOpen(false)}
+              >
+                {t('Cancel')}
+              </Button>
+              <Button onClick={() => void handleCreatePromoCode()}>
+                {t('Save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )

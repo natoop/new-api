@@ -22,6 +22,10 @@ type distributionAssignInventoryRequest struct {
 	CustomerUserId int `json:"customer_user_id"`
 }
 
+type distributionRefundInventoryRequest struct {
+	InventoryId int `json:"inventory_id"`
+}
+
 func GetDistributionAgentProfile(c *gin.Context) {
 	userID := c.GetInt("id")
 	profile, err := service.GetDistributionAgentProfile(userID)
@@ -33,12 +37,15 @@ func GetDistributionAgentProfile(c *gin.Context) {
 }
 
 func ListDistributionAgentPackages(c *gin.Context) {
-	packages, err := service.ListDistributionAgentPackages()
+	pageInfo := common.GetPageQuery(c)
+	packages, total, err := service.ListDistributionAgentPackages(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, packages)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(packages)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func PurchaseDistributionPackage(c *gin.Context) {
@@ -58,12 +65,29 @@ func PurchaseDistributionPackage(c *gin.Context) {
 
 func ListDistributionAgentInventory(c *gin.Context) {
 	userID := c.GetInt("id")
-	inventories, err := service.ListDistributionAgentInventory(userID)
+	pageInfo := common.GetPageQuery(c)
+	inventories, total, err := service.ListDistributionAgentInventory(userID, service.DistributionInventoryListInput{
+		Keyword:  c.Query("keyword"),
+		Status:   c.Query("status"),
+		StartIdx: pageInfo.GetStartIdx(),
+		PageSize: pageInfo.GetPageSize(),
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, inventories)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(inventories)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func ListDistributionAgentInventoryPackageOptions(c *gin.Context) {
+	options, err := service.ListDistributionAgentInventoryPackageOptions(c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, options)
 }
 
 func AssignDistributionAgentInventory(c *gin.Context) {
@@ -81,33 +105,57 @@ func AssignDistributionAgentInventory(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
-func ListDistributionAgentLedger(c *gin.Context) {
+func RefundDistributionAgentInventory(c *gin.Context) {
 	userID := c.GetInt("id")
-	ledgers, err := service.ListDistributionAgentLedger(userID)
+	var req distributionRefundInventoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	result, err := service.RefundDistributionAgentInventory(userID, req.InventoryId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, ledgers)
+	common.ApiSuccess(c, result)
+}
+
+func ListDistributionAgentLedger(c *gin.Context) {
+	userID := c.GetInt("id")
+	pageInfo := common.GetPageQuery(c)
+	ledgers, total, err := service.ListDistributionAgentLedger(userID, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(ledgers)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func ListDistributionAgentProfit(c *gin.Context) {
 	userID := c.GetInt("id")
-	profits, err := service.ListDistributionAgentProfit(userID)
+	pageInfo := common.GetPageQuery(c)
+	profits, total, err := service.ListDistributionAgentProfit(userID, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, profits)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(profits)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func ListDistributionCustomers(c *gin.Context) {
-	customers, err := service.ListDistributionCustomers(c.GetInt("id"))
+	pageInfo := common.GetPageQuery(c)
+	customers, total, err := service.ListDistributionCustomers(c.GetInt("id"), c.Query("keyword"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, customers)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(customers)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func ListDistributionInvitations(c *gin.Context) {
@@ -148,12 +196,20 @@ func AcceptDistributionInvitation(c *gin.Context) {
 }
 
 func ListDistributionPromoCodes(c *gin.Context) {
-	codes, err := service.ListDistributionPromoCodes(c.GetInt("id"))
+	pageInfo := common.GetPageQuery(c)
+	codes, total, err := service.ListDistributionPromoCodes(c.GetInt("id"), service.DistributionPromoCodeListInput{
+		TimeFilter:  c.Query("time_filter"),
+		UsageFilter: c.Query("usage_filter"),
+		StartIdx:    pageInfo.GetStartIdx(),
+		PageSize:    pageInfo.GetPageSize(),
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, codes)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(codes)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func SaveDistributionPromoCode(c *gin.Context) {

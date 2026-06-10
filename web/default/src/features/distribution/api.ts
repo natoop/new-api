@@ -28,10 +28,11 @@ import type {
   DistributionLedger,
   DistributionOpsAuthorization,
   DistributionPackage,
-  DistributionPriceConfig,
+  DistributionInventoryPackageOption,
   DistributionProfile,
   DistributionProfit,
   DistributionPromoCode,
+  DistributionSubscriptionPlanRecord,
   DistributionUserOption,
   PaginatedData,
 } from './types'
@@ -87,13 +88,22 @@ export async function getAgentProfile() {
   return getSilent<DistributionProfile | null>('/api/agent/profile', null)
 }
 
-export async function getAgentPackages() {
-  return getSilent<DistributionPackage[]>(
-    '/api/agent/packages',
-    []
+export async function getAgentPackages(
+  params: { p?: number; page_size?: number } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  return getSilent<PaginatedData<DistributionPackage>>(
+    `/api/agent/packages?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
   )
 }
-
 
 export async function purchaseAgentPackage(packageId: number) {
   try {
@@ -117,9 +127,31 @@ export async function purchaseAgentPackage(packageId: number) {
   }
 }
 
-export async function getAgentInventory() {
-  return getSilent<DistributionInventory[]>(
-    '/api/agent/inventory',
+export async function getAgentInventory(
+  params: {
+    p?: number
+    page_size?: number
+    keyword?: string
+  } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  if (params.keyword?.trim()) query.set('keyword', params.keyword.trim())
+  return getSilent<PaginatedData<DistributionInventory>>(
+    `/api/agent/inventory?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
+  )
+}
+
+export async function getAgentInventoryPackageOptions() {
+  return getSilent<DistributionInventoryPackageOption[]>(
+    '/api/agent/inventory/packages',
     []
   )
 }
@@ -135,26 +167,71 @@ export async function assignAgentInventory(
   return res.data as ApiResponse
 }
 
-export async function getAgentLedger() {
-  return getSilent<DistributionLedger[]>('/api/agent/ledger', [])
+export async function refundAgentInventory(inventoryId: number) {
+  const res = await api.post('/api/agent/inventory/refund', {
+    inventory_id: inventoryId,
+  })
+  return res.data as ApiResponse
 }
 
-export async function getAgentProfit() {
-  return getSilent<DistributionProfit[]>('/api/agent/profit', [])
+export async function getAgentLedger(
+  params: { p?: number; page_size?: number } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  return getSilent<PaginatedData<DistributionLedger>>(
+    `/api/agent/ledger?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
+  )
 }
 
-export async function getAgentCustomers() {
-  return getSilent<DistributionCustomerOwnership[]>(
-    '/api/agent/customers',
-    []
+export async function getAgentProfit(
+  params: { p?: number; page_size?: number } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  return getSilent<PaginatedData<DistributionProfit>>(
+    `/api/agent/profit?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
+  )
+}
+
+export async function getAgentCustomers(
+  params: {
+    p?: number
+    page_size?: number
+    keyword?: string
+  } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  if (params.keyword?.trim()) query.set('keyword', params.keyword.trim())
+  return getSilent<PaginatedData<DistributionCustomerOwnership>>(
+    `/api/agent/customers?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
   )
 }
 
 export async function getAgentInvitations() {
-  return getSilent<DistributionInvitation[]>(
-    '/api/agent/invitations',
-    []
-  )
+  return getSilent<DistributionInvitation[]>('/api/agent/invitations', [])
 }
 
 export async function createAgentInvitation(payload: {
@@ -176,18 +253,39 @@ export async function acceptAgentInvitation(invitationNo: string) {
   return res.data as ApiResponse
 }
 
-export async function getAgentPromoCodes() {
-  return getSilent<DistributionPromoCode[]>(
-    '/api/agent/promo-codes',
-    []
+export async function getAgentPromoCodes(
+  params: {
+    p?: number
+    page_size?: number
+    time_filter?: string
+    usage_filter?: string
+  } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  if (params.time_filter) query.set('time_filter', params.time_filter)
+  if (params.usage_filter) query.set('usage_filter', params.usage_filter)
+  return getSilent<PaginatedData<DistributionPromoCode>>(
+    `/api/agent/promo-codes?${query.toString()}`,
+    {
+      items: [],
+      total: 0,
+      page: params.p || 1,
+      page_size: params.page_size || 10,
+    }
   )
 }
 
-export async function saveAgentPromoCode(payload: Partial<DistributionPromoCode>) {
+export async function saveAgentPromoCode(
+  payload: Partial<DistributionPromoCode>
+) {
   const path = payload.id
     ? `/api/agent/promo-codes/${payload.id}`
     : '/api/agent/promo-codes'
-  const res = payload.id ? await api.put(path, payload) : await api.post(path, payload)
+  const res = payload.id
+    ? await api.put(path, payload)
+    : await api.post(path, payload)
   return res.data as ApiResponse
 }
 
@@ -198,11 +296,13 @@ export async function adminGetAgents() {
   return res.data
 }
 
-export async function adminSearchAgents(params: {
-  p?: number
-  page_size?: number
-  keyword?: string
-} = {}) {
+export async function adminSearchAgents(
+  params: {
+    p?: number
+    page_size?: number
+    keyword?: string
+  } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
@@ -215,6 +315,13 @@ export async function adminSearchAgents(params: {
 
 export async function adminSaveAgent(payload: Partial<DistributionAgent>) {
   const res = await api.post('/api/agent-admin/agents', payload)
+  return res.data as ApiResponse
+}
+
+export async function adminUpdateAgentStatus(agentId: number, status: string) {
+  const res = await api.put(`/api/agent-admin/agents/${agentId}/status`, {
+    status,
+  })
   return res.data as ApiResponse
 }
 
@@ -231,7 +338,9 @@ export async function adminAdjustAgentBalance(
   return res.data as ApiResponse
 }
 
-export async function adminGetPackages(params: { p?: number; page_size?: number } = {}) {
+export async function adminGetPackages(
+  params: { p?: number; page_size?: number } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
@@ -241,35 +350,36 @@ export async function adminGetPackages(params: { p?: number; page_size?: number 
   return res.data
 }
 
-export async function adminSavePackage(payload: Partial<DistributionPackage>) {
-  const path = payload.id
-    ? `/api/agent-admin/packages/${payload.id}`
-    : '/api/agent-admin/packages'
-  const res = payload.id ? await api.put(path, payload) : await api.post(path, payload)
-  return res.data as ApiResponse
-}
-
-export async function adminGetPriceConfigs(params: { p?: number; page_size?: number } = {}) {
-  const query = new URLSearchParams()
-  query.set('p', String(params.p || 1))
-  query.set('page_size', String(params.page_size || 10))
-  const res = await api.get<ApiResponse<PaginatedData<DistributionPriceConfig>>>(
-    `/api/agent-admin/price-configs?${query.toString()}`
+export async function adminGetSubscriptionPlans() {
+  const res = await api.get<ApiResponse<DistributionSubscriptionPlanRecord[]>>(
+    '/api/subscription/admin/plans'
   )
   return res.data
 }
 
-export async function adminSavePriceConfig(
-  payload: Partial<DistributionPriceConfig>
-) {
+export async function adminSavePackage(payload: Partial<DistributionPackage>) {
   const path = payload.id
-    ? `/api/agent-admin/price-configs/${payload.id}`
-    : '/api/agent-admin/price-configs'
-  const res = payload.id ? await api.put(path, payload) : await api.post(path, payload)
+    ? `/api/agent-admin/packages/${payload.id}`
+    : '/api/agent-admin/packages'
+  const res = payload.id
+    ? await api.put(path, payload)
+    : await api.post(path, payload)
   return res.data as ApiResponse
 }
 
-export async function adminGetProfit(params: { p?: number; page_size?: number } = {}) {
+export async function adminUpdatePackageStatus(
+  packageId: number,
+  status: string
+) {
+  const res = await api.patch(`/api/agent-admin/packages/${packageId}/status`, {
+    status,
+  })
+  return res.data as ApiResponse
+}
+
+export async function adminGetProfit(
+  params: { p?: number; page_size?: number } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
@@ -279,17 +389,21 @@ export async function adminGetProfit(params: { p?: number; page_size?: number } 
   return res.data
 }
 
-export async function adminGetAttribution(params: { p?: number; page_size?: number } = {}) {
+export async function adminGetAttribution(
+  params: { p?: number; page_size?: number } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
-  const res = await api.get<ApiResponse<PaginatedData<DistributionAttributionLog>>>(
-    `/api/agent-admin/attribution?${query.toString()}`
-  )
+  const res = await api.get<
+    ApiResponse<PaginatedData<DistributionAttributionLog>>
+  >(`/api/agent-admin/attribution?${query.toString()}`)
   return res.data
 }
 
-export async function adminGetGiftRules(params: { p?: number; page_size?: number } = {}) {
+export async function adminGetGiftRules(
+  params: { p?: number; page_size?: number } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
@@ -299,29 +413,53 @@ export async function adminGetGiftRules(params: { p?: number; page_size?: number
   return res.data
 }
 
-export async function adminSaveGiftRule(payload: Partial<DistributionGiftRule>) {
+export async function adminSaveGiftRule(
+  payload: Partial<DistributionGiftRule>
+) {
   const path = payload.id
     ? `/api/agent-admin/gift-rules/${payload.id}`
     : '/api/agent-admin/gift-rules'
-  const res = payload.id ? await api.put(path, payload) : await api.post(path, payload)
+  const res = payload.id
+    ? await api.put(path, payload)
+    : await api.post(path, payload)
   return res.data as ApiResponse
 }
 
-export async function adminGetOpsAuthorizations(params: { p?: number; page_size?: number } = {}) {
+export async function adminUpdateGiftRuleStatus(
+  ruleId: number,
+  status: string
+) {
+  const res = await api.patch(`/api/agent-admin/gift-rules/${ruleId}/status`, {
+    status,
+  })
+  return res.data as ApiResponse
+}
+
+export async function adminGetOpsAuthorizations(
+  params: { p?: number; page_size?: number } = {}
+) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
-  const res = await api.get<ApiResponse<PaginatedData<DistributionOpsAuthorization>>>(
-    `/api/agent-admin/ops-auth?${query.toString()}`
-  )
+  const res = await api.get<
+    ApiResponse<PaginatedData<DistributionOpsAuthorization>>
+  >(`/api/agent-admin/ops-auth?${query.toString()}`)
   return res.data
 }
 
-export async function adminGrantOpsAuthorization(userId: number, remark: string) {
+export async function adminGrantOpsAuthorization(
+  userId: number,
+  remark: string
+) {
   const res = await api.post('/api/agent-admin/ops-auth', {
     user_id: userId,
     remark,
   })
+  return res.data as ApiResponse
+}
+
+export async function adminRevokeOpsAuthorization(userId: number) {
+  const res = await api.delete(`/api/agent-admin/ops-auth/${userId}`)
   return res.data as ApiResponse
 }
 

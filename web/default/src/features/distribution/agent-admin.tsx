@@ -17,9 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, RefreshCcw, Wallet } from 'lucide-react'
-import { toast } from 'sonner'
+import {
+  ChevronLeft,
+  ChevronRight,
+  GitFork,
+  Plus,
+  RefreshCcw,
+  Wallet,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,44 +45,51 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { SectionPageLayout } from '@/components/layout'
+import { AgentCombobox, formatAgentLabel } from './agent-combobox'
 import {
   adminAdjustAgentBalance,
   adminGetAttribution,
   adminGetGiftRules,
   adminGetOpsAuthorizations,
   adminGetPackages,
-  adminGetPriceConfigs,
   adminGetProfit,
+  adminGetSubscriptionPlans,
   adminGetUserOptions,
   adminGrantOpsAuthorization,
   adminSaveAgent,
   adminSaveGiftRule,
   adminSavePackage,
-  adminSavePriceConfig,
+  adminRevokeOpsAuthorization,
   adminSearchAgents,
+  adminUpdateAgentStatus,
+  adminUpdateGiftRuleStatus,
+  adminUpdatePackageStatus,
 } from './api'
-import { AgentCombobox, formatAgentLabel } from './agent-combobox'
 import { DateRangeField } from './date-fields'
+import {
+  distributionPriceTargetLabel,
+  distributionPriceTypeLabel,
+  distributionSourceTypeLabel,
+  distributionStatusLabel,
+} from './labels'
 import type {
   DistributionAgent,
   DistributionAttributionLog,
   DistributionGiftRule,
   DistributionOpsAuthorization,
   DistributionPackage,
-  DistributionPriceConfig,
   DistributionProfit,
+  DistributionSubscriptionPlanRecord,
   DistributionUserOption,
 } from './types'
 
 type AdminTab =
   | 'agents'
   | 'packages'
-  | 'price'
   | 'gift'
   | 'ops'
   | 'profit'
@@ -98,11 +112,26 @@ function formatTime(value?: number) {
 }
 
 function StatusBadge({ status }: { status?: string }) {
-  return <Badge variant='secondary'>{status || '-'}</Badge>
+  const { t } = useTranslation()
+  return <Badge variant='secondary'>{distributionStatusLabel(status, t)}</Badge>
 }
 
 function formatMoney(value?: number) {
   return ((value ?? 0) / 100).toFixed(2)
+}
+
+function packageTitle(pkg: DistributionPackage) {
+  return pkg.subscription_title || pkg.name || '-'
+}
+
+function packageSubtitle(pkg: DistributionPackage) {
+  return pkg.subscription_subtitle || pkg.description || ''
+}
+
+function planLabel(record?: DistributionSubscriptionPlanRecord) {
+  if (!record) return '-'
+  const subtitle = record.plan.subtitle?.trim()
+  return subtitle ? `${record.plan.title} · ${subtitle}` : record.plan.title
 }
 
 function formatUserLabel(user?: DistributionUserOption) {
@@ -116,6 +145,23 @@ function formatUserLabel(user?: DistributionUserOption) {
 
 function formatFallbackId(id?: number) {
   return id ? `#${id}` : '-'
+}
+
+function SelectDisplay({
+  label,
+  placeholder,
+}: {
+  label?: string
+  placeholder: string
+}) {
+  return (
+    <span
+      data-slot='select-value'
+      className='flex min-w-0 flex-1 items-center truncate text-left'
+    >
+      {label || placeholder}
+    </span>
+  )
 }
 
 function TablePager({
@@ -164,12 +210,45 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
     <tr>
       <td
         colSpan={colSpan}
-        className='py-8 text-center text-sm text-muted-foreground'
+        className='text-muted-foreground py-8 text-center text-sm'
       >
         {t('No data')}
       </td>
     </tr>
   )
+}
+
+function apiActionError(message?: string) {
+  return message?.trim() || 'Action failed'
+}
+
+function packageActionError(message?: string) {
+  const fallback = apiActionError(message)
+  const normalized = fallback.toLowerCase()
+  if (
+    normalized.includes('subscription plan already has') ||
+    normalized.includes('distribution package subscription plan already exists')
+  ) {
+    return 'This subscription plan already has a package.'
+  }
+  if (normalized.includes('tier 1 agent price must be less')) {
+    return 'Tier 1 agent price must be less than or equal to tier 2 agent price.'
+  }
+  if (normalized.includes('agent prices must be less')) {
+    return 'Agent prices must be less than or equal to the subscription plan price.'
+  }
+  return fallback
+}
+
+function subscriptionPlanPriceCents(
+  record?: DistributionSubscriptionPlanRecord
+) {
+  if (!record) return 0
+  return Math.round(Number(record.plan.price_amount || 0) * 100)
+}
+
+function nextDistributionStatus(status?: string) {
+  return status === 'enabled' ? 'disabled' : 'enabled'
 }
 
 function TabCard({
@@ -187,42 +266,40 @@ function TabCard({
         <CardTitle>{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent className='space-y-3 overflow-x-auto'>{children}</CardContent>
+      <CardContent className='space-y-3 overflow-x-auto'>
+        {children}
+      </CardContent>
     </Card>
   )
 }
 
 const emptyAgentForm = {
+  id: '',
   user_id: '',
   name: '',
   balance: '',
-  commission_bps: '',
   parent_agent_id: '0',
+  level: '2',
   contact: '',
   remark: '',
   status: 'enabled',
 }
 
 const emptyPackageForm = {
-  name: '',
-  sku: '',
-  description: '',
+  subscription_plan_id: '',
   status: 'enabled',
   agent_price: '',
-  retail_price: '',
-  credit_amount: '',
+  secondary_agent_price: '',
   sort_order: '',
 }
 
 const emptyPriceForm = {
-  scope_type: 'global',
+  target_type: 'level',
   package_id: '',
-  level: '',
-  parent_agent_id: '0',
-  agent_id: '0',
-  unit_price: '',
-  tier1_cost_price: '',
-  tier2_cost_price: '',
+  customer_user_id: '',
+  agent_level: '1',
+  price_type: 'fixed',
+  price_value: '',
   status: 'enabled',
   remark: '',
 }
@@ -246,19 +323,23 @@ export function AgentAdmin() {
   const [agents, setAgents] = useState<DistributionAgent[]>([])
   const [agentOptions, setAgentOptions] = useState<DistributionAgent[]>([])
   const [packages, setPackages] = useState<DistributionPackage[]>([])
-  const [packageOptions, setPackageOptions] = useState<DistributionPackage[]>([])
+  const [packageOptions, setPackageOptions] = useState<DistributionPackage[]>(
+    []
+  )
+  const [subscriptionPlans, setSubscriptionPlans] = useState<
+    DistributionSubscriptionPlanRecord[]
+  >([])
   const [users, setUsers] = useState<DistributionUserOption[]>([])
-  const [priceConfigs, setPriceConfigs] = useState<DistributionPriceConfig[]>([])
   const [profit, setProfit] = useState<DistributionProfit[]>([])
-  const [attribution, setAttribution] = useState<DistributionAttributionLog[]>([])
+  const [attribution, setAttribution] = useState<DistributionAttributionLog[]>(
+    []
+  )
   const [giftRules, setGiftRules] = useState<DistributionGiftRule[]>([])
   const [opsAuth, setOpsAuth] = useState<DistributionOpsAuthorization[]>([])
   const [agentPage, setAgentPage] = useState(1)
   const [agentTotal, setAgentTotal] = useState(0)
   const [packagePage, setPackagePage] = useState(1)
   const [packageTotal, setPackageTotal] = useState(0)
-  const [pricePage, setPricePage] = useState(1)
-  const [priceTotal, setPriceTotal] = useState(0)
   const [profitPage, setProfitPage] = useState(1)
   const [profitTotal, setProfitTotal] = useState(0)
   const [attributionPage, setAttributionPage] = useState(1)
@@ -268,12 +349,16 @@ export function AgentAdmin() {
   const [opsPage, setOpsPage] = useState(1)
   const [opsTotal, setOpsTotal] = useState(0)
   const [balanceAgentId, setBalanceAgentId] = useState('')
-  const [balanceAgent, setBalanceAgent] = useState<DistributionAgent | null>(null)
+  const [balanceAgent, setBalanceAgent] = useState<DistributionAgent | null>(
+    null
+  )
   const [balanceDelta, setBalanceDelta] = useState('')
   const [balanceRemark, setBalanceRemark] = useState('')
-  const [agentParentAgent, setAgentParentAgent] = useState<DistributionAgent | null>(null)
-  const [priceParentAgent, setPriceParentAgent] = useState<DistributionAgent | null>(null)
-  const [priceAgent, setPriceAgent] = useState<DistributionAgent | null>(null)
+  const [agentParentAgent, setAgentParentAgent] =
+    useState<DistributionAgent | null>(null)
+  const [agentDialogMode, setAgentDialogMode] = useState<'create' | 'edit'>(
+    'create'
+  )
   const [agentForm, setAgentForm] = useState(emptyAgentForm)
   const [packageForm, setPackageForm] = useState(emptyPackageForm)
   const [priceForm, setPriceForm] = useState(emptyPriceForm)
@@ -282,31 +367,44 @@ export function AgentAdmin() {
   const [opsRemark, setOpsRemark] = useState('')
 
   const agentLabelMap = useMemo(
-    () => new Map(agentOptions.map((agent) => [agent.id, formatAgentLabel(agent)])),
+    () =>
+      new Map(agentOptions.map((agent) => [agent.id, formatAgentLabel(agent)])),
     [agentOptions]
   )
   const packageLabelMap = useMemo(
-    () => new Map(packageOptions.map((pkg) => [pkg.id, pkg.name])),
+    () => new Map(packageOptions.map((pkg) => [pkg.id, packageTitle(pkg)])),
     [packageOptions]
+  )
+  const subscriptionPlanLabelMap = useMemo(
+    () =>
+      new Map(
+        subscriptionPlans.map((record) => [record.plan.id, planLabel(record)])
+      ),
+    [subscriptionPlans]
   )
   const userLabelMap = useMemo(
     () => new Map(users.map((user) => [user.id, formatUserLabel(user)])),
     [users]
   )
+  const selectedPackageSubscriptionPlan = useMemo(
+    () =>
+      subscriptionPlans.find(
+        (record) => record.plan.id === Number(packageForm.subscription_plan_id)
+      ),
+    [packageForm.subscription_plan_id, subscriptionPlans]
+  )
+  const selectedPackageSubscriptionPriceCents = subscriptionPlanPriceCents(
+    selectedPackageSubscriptionPlan
+  )
 
   const resetAgentForm = useCallback(() => {
     setAgentForm(emptyAgentForm)
     setAgentParentAgent(null)
+    setAgentDialogMode('create')
   }, [])
 
   const resetPackageForm = useCallback(() => {
     setPackageForm(emptyPackageForm)
-  }, [])
-
-  const resetPriceForm = useCallback(() => {
-    setPriceForm(emptyPriceForm)
-    setPriceParentAgent(null)
-    setPriceAgent(null)
   }, [])
 
   const resetGiftForm = useCallback(() => {
@@ -330,13 +428,26 @@ export function AgentAdmin() {
   }, [])
 
   const loadAgentOptions = useCallback(async () => {
-    const res = await adminSearchAgents({ p: 1, page_size: 100 }).catch(() => null)
+    const res = await adminSearchAgents({ p: 1, page_size: 100 }).catch(
+      () => null
+    )
     if (res?.success) setAgentOptions(res.data?.items || [])
   }, [])
 
   const loadPackageOptions = useCallback(async () => {
-    const res = await adminGetPackages({ p: 1, page_size: 100 }).catch(() => null)
+    const res = await adminGetPackages({ p: 1, page_size: 100 }).catch(
+      () => null
+    )
     if (res?.success) setPackageOptions(res.data?.items || [])
+  }, [])
+
+  const loadSubscriptionPlans = useCallback(async () => {
+    const res = await adminGetSubscriptionPlans().catch(() => null)
+    if (res?.success) {
+      setSubscriptionPlans(
+        (res.data || []).filter((record) => record.plan.enabled)
+      )
+    }
   }, [])
 
   const loadUsers = useCallback(async () => {
@@ -358,12 +469,14 @@ export function AgentAdmin() {
             setAgentTotal(res.data?.total || 0)
             setAgentOptions((current) => {
               const map = new Map(current.map((agent) => [agent.id, agent]))
-              for (const agent of res.data?.items || []) map.set(agent.id, agent)
+              for (const agent of res.data?.items || [])
+                map.set(agent.id, agent)
               return [...map.values()]
             })
           }
         }
         if (tab === 'packages') {
+          await loadSubscriptionPlans()
           const res = await adminGetPackages({
             p: packagePage,
             page_size: pageSize,
@@ -376,17 +489,6 @@ export function AgentAdmin() {
               for (const pkg of res.data?.items || []) map.set(pkg.id, pkg)
               return [...map.values()]
             })
-          }
-        }
-        if (tab === 'price') {
-          await Promise.all([loadPackageOptions(), loadAgentOptions()])
-          const res = await adminGetPriceConfigs({
-            p: pricePage,
-            page_size: pageSize,
-          }).catch(() => null)
-          if (res?.success) {
-            setPriceConfigs(res.data?.items || [])
-            setPriceTotal(res.data?.total || 0)
           }
         }
         if (tab === 'gift') {
@@ -443,40 +545,86 @@ export function AgentAdmin() {
       giftRulePage,
       loadAgentOptions,
       loadPackageOptions,
+      loadSubscriptionPlans,
       loadUsers,
       opsPage,
       packagePage,
-      pricePage,
       profitPage,
     ]
   )
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshTab(activeTab)
   }, [activeTab, refreshTab])
 
   const openDialog = useCallback(
     async (kind: DialogKind) => {
       setDialogKind(kind)
+      if (kind === 'agent') {
+        resetAgentForm()
+        setAgentDialogMode('create')
+      }
       if (kind === 'agent' || kind === 'ops') await loadUsers()
       if (kind === 'balance') await loadAgentOptions()
-      if (kind === 'price') await Promise.all([loadPackageOptions(), loadAgentOptions()])
       if (kind === 'gift') await loadPackageOptions()
+      if (kind === 'package') await loadSubscriptionPlans()
     },
-    [loadAgentOptions, loadPackageOptions, loadUsers]
+    [
+      loadAgentOptions,
+      loadPackageOptions,
+      loadSubscriptionPlans,
+      loadUsers,
+      resetAgentForm,
+    ]
+  )
+
+  const openEditAgentDialog = useCallback(
+    async (row: DistributionAgent) => {
+      setAgentDialogMode('edit')
+      setAgentForm({
+        id: String(row.id),
+        user_id: String(row.user_id),
+        name: row.name,
+        balance: String(row.balance),
+        parent_agent_id: String(row.parent_agent_id || 0),
+        level: String(row.level || 2),
+        contact: row.contact,
+        remark: row.remark,
+        status: row.status,
+      })
+      setAgentParentAgent(
+        agentOptions.find((agent) => agent.id === row.parent_agent_id) || null
+      )
+      setDialogKind('agent')
+      await loadUsers()
+    },
+    [agentOptions, loadUsers]
   )
 
   async function handleSaveAgent() {
-    await adminSaveAgent({
-      user_id: Number(agentForm.user_id),
-      name: agentForm.name,
-      balance: Number(agentForm.balance),
-      commission_bps: Number(agentForm.commission_bps),
-      parent_agent_id: Number(agentForm.parent_agent_id),
-      contact: agentForm.contact,
-      remark: agentForm.remark,
-      status: agentForm.status,
-    })
+    const payload =
+      agentDialogMode === 'edit'
+        ? {
+            id: Number(agentForm.id),
+            parent_agent_id: Number(agentForm.parent_agent_id || 0),
+            level: Number(agentForm.level || 2),
+          }
+        : {
+            user_id: Number(agentForm.user_id),
+            name: agentForm.name,
+            balance: Number(agentForm.balance),
+            parent_agent_id: Number(agentForm.parent_agent_id),
+            level: Number(agentForm.level || 2),
+            contact: agentForm.contact,
+            remark: agentForm.remark,
+            status: agentForm.status,
+          }
+    const res = await adminSaveAgent(payload)
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
     toast.success(t('Saved'))
     resetAgentForm()
     closeDialog()
@@ -485,11 +633,15 @@ export function AgentAdmin() {
   }
 
   async function handleAdjustBalance() {
-    await adminAdjustAgentBalance(
+    const res = await adminAdjustAgentBalance(
       Number(balanceAgentId),
       Number(balanceDelta),
       balanceRemark
     )
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
     toast.success(t('Saved'))
     resetBalanceForm()
     closeDialog()
@@ -497,16 +649,43 @@ export function AgentAdmin() {
   }
 
   async function handleSavePackage() {
-    await adminSavePackage({
-      name: packageForm.name,
-      sku: packageForm.sku,
-      description: packageForm.description,
+    const subscriptionPlanId = Number(packageForm.subscription_plan_id)
+    const agentPrice = Number(packageForm.agent_price)
+    const secondaryAgentPrice = Number(packageForm.secondary_agent_price)
+    if (!subscriptionPlanId || !selectedPackageSubscriptionPlan) {
+      toast.error(t('Please select a subscription plan.'))
+      return
+    }
+    if (agentPrice > secondaryAgentPrice) {
+      toast.error(
+        t(
+          'Tier 1 agent price must be less than or equal to tier 2 agent price.'
+        )
+      )
+      return
+    }
+    if (
+      agentPrice > selectedPackageSubscriptionPriceCents ||
+      secondaryAgentPrice > selectedPackageSubscriptionPriceCents
+    ) {
+      toast.error(
+        t(
+          'Agent prices must be less than or equal to the subscription plan price.'
+        )
+      )
+      return
+    }
+    const res = await adminSavePackage({
+      subscription_plan_id: subscriptionPlanId,
       status: packageForm.status,
-      agent_price: Number(packageForm.agent_price),
-      retail_price: Number(packageForm.retail_price),
-      credit_amount: Number(packageForm.credit_amount),
+      agent_price: agentPrice,
+      secondary_agent_price: secondaryAgentPrice,
       sort_order: Number(packageForm.sort_order),
     })
+    if (!res.success) {
+      toast.error(t(packageActionError(res.message)))
+      return
+    }
     toast.success(t('Saved'))
     resetPackageForm()
     closeDialog()
@@ -514,28 +693,8 @@ export function AgentAdmin() {
     await refreshTab('packages')
   }
 
-  async function handleSavePriceConfig() {
-    await adminSavePriceConfig({
-      scope_type: priceForm.scope_type,
-      package_id: Number(priceForm.package_id),
-      level: Number(priceForm.level),
-      parent_agent_id: Number(priceForm.parent_agent_id),
-      agent_id: Number(priceForm.agent_id),
-      unit_price: Number(priceForm.unit_price),
-      tier1_cost_price: Number(priceForm.tier1_cost_price),
-      tier2_cost_price: Number(priceForm.tier2_cost_price),
-      status: priceForm.status,
-      remark: priceForm.remark,
-    })
-    toast.success(t('Saved'))
-    resetPriceForm()
-    closeDialog()
-    setPricePage(1)
-    await refreshTab('price')
-  }
-
   async function handleSaveGiftRule() {
-    await adminSaveGiftRule({
+    const res = await adminSaveGiftRule({
       name: giftForm.name,
       package_id: Number(giftForm.package_id),
       gift_package_id: Number(giftForm.gift_package_id),
@@ -545,6 +704,10 @@ export function AgentAdmin() {
       expires_at: Number(giftForm.expires_at),
       status: giftForm.status,
     })
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
     toast.success(t('Saved'))
     resetGiftForm()
     closeDialog()
@@ -553,7 +716,11 @@ export function AgentAdmin() {
   }
 
   async function handleGrantOps() {
-    await adminGrantOpsAuthorization(Number(opsUserId), opsRemark)
+    const res = await adminGrantOpsAuthorization(Number(opsUserId), opsRemark)
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
     toast.success(t('Granted'))
     resetOpsForm()
     closeDialog()
@@ -561,20 +728,69 @@ export function AgentAdmin() {
     await refreshTab('ops')
   }
 
+  async function handleToggleAgentStatus(row: DistributionAgent) {
+    const res = await adminUpdateAgentStatus(
+      row.id,
+      nextDistributionStatus(row.status)
+    )
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Saved'))
+    await refreshTab('agents')
+  }
+
+  async function handleTogglePackageStatus(row: DistributionPackage) {
+    const res = await adminUpdatePackageStatus(
+      row.id,
+      nextDistributionStatus(row.status)
+    )
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Saved'))
+    await refreshTab('packages')
+  }
+
+  async function handleToggleGiftRuleStatus(row: DistributionGiftRule) {
+    const res = await adminUpdateGiftRuleStatus(
+      row.id,
+      nextDistributionStatus(row.status)
+    )
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Saved'))
+    await refreshTab('gift')
+  }
+
+  async function handleRevokeOps(row: DistributionOpsAuthorization) {
+    const res = await adminRevokeOpsAuthorization(row.user_id)
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Saved'))
+    await refreshTab('ops')
+  }
+
   const dialogTitle =
     dialogKind === 'agent'
-      ? t('Add Agent')
+      ? agentDialogMode === 'edit'
+        ? t('Edit Agent')
+        : t('Add Agent')
       : dialogKind === 'balance'
         ? t('Adjust Balance')
         : dialogKind === 'package'
           ? t('Add Package')
-          : dialogKind === 'price'
-            ? t('Add Price Config')
-            : dialogKind === 'gift'
-              ? t('Add Gift Rule')
-              : dialogKind === 'ops'
-                ? t('Grant Access')
-                : ''
+          : dialogKind === 'gift'
+            ? t('Add Gift Rule')
+            : dialogKind === 'ops'
+              ? t('Grant Access')
+              : ''
 
   return (
     <SectionPageLayout>
@@ -594,11 +810,12 @@ export function AgentAdmin() {
           <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
             <TabsTrigger value='agents'>{t('Agents')}</TabsTrigger>
             <TabsTrigger value='packages'>{t('Packages')}</TabsTrigger>
-            <TabsTrigger value='price'>{t('Price Configs')}</TabsTrigger>
             <TabsTrigger value='gift'>{t('Gift Rules')}</TabsTrigger>
             <TabsTrigger value='ops'>{t('Operations Access')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
-            <TabsTrigger value='attribution'>{t('Attribution Logs')}</TabsTrigger>
+            <TabsTrigger value='attribution'>
+              {t('Attribution Logs')}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value='agents' className='space-y-4'>
@@ -606,7 +823,10 @@ export function AgentAdmin() {
               title={t('Agents')}
               action={
                 <div className='flex flex-wrap gap-2'>
-                  <Button variant='outline' onClick={() => void openDialog('balance')}>
+                  <Button
+                    variant='outline'
+                    onClick={() => void openDialog('balance')}
+                  >
                     <Wallet className='mr-2 h-4 w-4' />
                     {t('Adjust Balance')}
                   </Button>
@@ -624,11 +844,13 @@ export function AgentAdmin() {
                     <th>{t('User')}</th>
                     <th>{t('Status')}</th>
                     <th>{t('Balance')}</th>
+                    <th>{t('Agent Level')}</th>
                     <th>{t('Parent')}</th>
+                    <th>{t('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {agents.length === 0 && <EmptyTableRow colSpan={5} />}
+                  {agents.length === 0 && <EmptyTableRow colSpan={7} />}
                   {agents.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>{row.name}</td>
@@ -637,9 +859,27 @@ export function AgentAdmin() {
                         <StatusBadge status={row.status} />
                       </td>
                       <td>{formatMoney(row.balance)}</td>
+                      <td>{`${t('Level')} ${row.level || 2}`}</td>
                       <td>
                         {agentLabelMap.get(row.parent_agent_id) ||
                           formatFallbackId(row.parent_agent_id)}
+                      </td>
+                      <td className='space-x-2 py-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void openEditAgentDialog(row)}
+                        >
+                          <GitFork className='mr-2 h-4 w-4' />
+                          {t('Adjust Hierarchy')}
+                        </Button>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void handleToggleAgentStatus(row)}
+                        >
+                          {t(row.status === 'enabled' ? 'Disable' : 'Enable')}
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -666,25 +906,40 @@ export function AgentAdmin() {
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='border-b text-left'>
-                    <th className='py-2'>{t('Name')}</th>
-                    <th>{t('SKU')}</th>
-                    <th>{t('Agent Price')}</th>
-                    <th>{t('Retail Price')}</th>
-                    <th>{t('Credit Amount')}</th>
+                    <th className='py-2'>{t('Subscription Plan')}</th>
+                    <th>{t('Tier 1 Agent Price (USD)')}</th>
+                    <th>{t('Tier 2 Agent Price (USD)')}</th>
+                    <th>{t('Sort Order')}</th>
                     <th>{t('Status')}</th>
+                    <th>{t('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {packages.length === 0 && <EmptyTableRow colSpan={6} />}
                   {packages.map((row) => (
                     <tr key={row.id} className='border-b'>
-                      <td className='py-2'>{row.name}</td>
-                      <td>{row.sku}</td>
+                      <td className='py-2'>
+                        <div className='font-medium'>{packageTitle(row)}</div>
+                        {packageSubtitle(row) && (
+                          <div className='text-muted-foreground text-xs'>
+                            {packageSubtitle(row)}
+                          </div>
+                        )}
+                      </td>
                       <td>{formatMoney(row.agent_price)}</td>
-                      <td>{formatMoney(row.retail_price)}</td>
-                      <td>{row.credit_amount}</td>
+                      <td>{formatMoney(row.secondary_agent_price)}</td>
+                      <td>{row.sort_order}</td>
                       <td>
                         <StatusBadge status={row.status} />
+                      </td>
+                      <td className='py-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void handleTogglePackageStatus(row)}
+                        >
+                          {t(row.status === 'enabled' ? 'Disable' : 'Enable')}
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -694,58 +949,6 @@ export function AgentAdmin() {
                 page={packagePage}
                 total={packageTotal}
                 onPageChange={setPackagePage}
-              />
-            </TabCard>
-          </TabsContent>
-
-          <TabsContent value='price' className='space-y-4'>
-            <TabCard
-              title={t('Price Configs')}
-              action={
-                <Button onClick={() => void openDialog('price')}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  {t('Add Price Config')}
-                </Button>
-              }
-            >
-              <table className='w-full text-sm'>
-                <thead>
-                  <tr className='border-b text-left'>
-                    <th className='py-2'>{t('Scope')}</th>
-                    <th>{t('Package')}</th>
-                    <th>{t('Unit Price')}</th>
-                    <th>{t('Status')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {priceConfigs.length === 0 && <EmptyTableRow colSpan={4} />}
-                  {priceConfigs.map((row) => (
-                    <tr key={row.id} className='border-b'>
-                      <td className='py-2'>
-                        {t(
-                          row.scope_type === 'global'
-                            ? 'Global'
-                            : row.scope_type === 'level'
-                              ? 'Level'
-                              : 'Agent'
-                        )}
-                      </td>
-                      <td>
-                        {packageLabelMap.get(row.package_id) ||
-                          formatFallbackId(row.package_id)}
-                      </td>
-                      <td>{formatMoney(row.unit_price)}</td>
-                      <td>
-                        <StatusBadge status={row.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <TablePager
-                page={pricePage}
-                total={priceTotal}
-                onPageChange={setPricePage}
               />
             </TabCard>
           </TabsContent>
@@ -767,10 +970,11 @@ export function AgentAdmin() {
                     <th>{t('Trigger')}</th>
                     <th>{t('Gift')}</th>
                     <th>{t('Status')}</th>
+                    <th>{t('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {giftRules.length === 0 && <EmptyTableRow colSpan={4} />}
+                  {giftRules.length === 0 && <EmptyTableRow colSpan={5} />}
                   {giftRules.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>{row.name}</td>
@@ -786,6 +990,15 @@ export function AgentAdmin() {
                       </td>
                       <td>
                         <StatusBadge status={row.status} />
+                      </td>
+                      <td className='py-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void handleToggleGiftRuleStatus(row)}
+                        >
+                          {t(row.status === 'enabled' ? 'Disable' : 'Enable')}
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -815,24 +1028,39 @@ export function AgentAdmin() {
                     <th className='py-2'>{t('User')}</th>
                     <th>{t('Status')}</th>
                     <th>{t('Granted')}</th>
+                    <th>{t('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {opsAuth.length === 0 && <EmptyTableRow colSpan={3} />}
+                  {opsAuth.length === 0 && <EmptyTableRow colSpan={4} />}
                   {opsAuth.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>
-                        {userLabelMap.get(row.user_id) || formatFallbackId(row.user_id)}
+                        {userLabelMap.get(row.user_id) ||
+                          formatFallbackId(row.user_id)}
                       </td>
                       <td>
                         <StatusBadge status={row.status} />
                       </td>
                       <td>{formatTime(row.granted_at)}</td>
+                      <td className='py-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void handleRevokeOps(row)}
+                        >
+                          {t('Revoke')}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <TablePager page={opsPage} total={opsTotal} onPageChange={setOpsPage} />
+              <TablePager
+                page={opsPage}
+                total={opsTotal}
+                onPageChange={setOpsPage}
+              />
             </TabCard>
           </TabsContent>
 
@@ -848,7 +1076,7 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {profit.length === 0 && <EmptyTableRow colSpan={4} />}
+                  {profit.length === 0 && <EmptyTableRow colSpan={3} />}
                   {profit.map((row) => (
                     <tr key={row.id} className='border-b'>
                       {/* <td className='py-2 font-mono text-xs'>{row.profit_no}</td> */}
@@ -892,8 +1120,8 @@ export function AgentAdmin() {
                         {userLabelMap.get(row.customer_user_id) ||
                           formatFallbackId(row.customer_user_id)}
                       </td>
-                      <td>{row.event_type}</td>
-                      <td>{row.source_type}</td>
+                      <td>{distributionSourceTypeLabel(row.event_type, t)}</td>
+                      <td>{distributionSourceTypeLabel(row.source_type, t)}</td>
                       <td>{formatTime(row.created_at)}</td>
                     </tr>
                   ))}
@@ -908,7 +1136,10 @@ export function AgentAdmin() {
           </TabsContent>
         </Tabs>
 
-        <Dialog open={dialogKind !== null} onOpenChange={(open) => !open && closeDialog()}>
+        <Dialog
+          open={dialogKind !== null}
+          onOpenChange={(open) => !open && closeDialog()}
+        >
           <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-2xl'>
             <DialogHeader>
               <DialogTitle>{dialogTitle}</DialogTitle>
@@ -945,93 +1176,226 @@ export function AgentAdmin() {
 
             {dialogKind === 'agent' && (
               <div className='grid gap-4 md:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label>{t('User')}</Label>
-                  <Select
-                    value={agentForm.user_id}
-                    onValueChange={(value) =>
-                      setAgentForm((state) => ({ ...state, user_id: value }))
-                    }
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select user')} />
-                    </SelectTrigger>
-                    <SelectContent alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        {users.map((user) => (
-                          <SelectItem key={user.id} value={String(user.id)}>
-                            {formatUserLabel(user)}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='space-y-2'>
-                  <Label>{t('Parent Agent')}</Label>
-                  <AgentCombobox
-                    value={agentForm.parent_agent_id || '0'}
-                    selectedAgent={agentParentAgent || undefined}
-                    onValueChange={(value) =>
-                      setAgentForm((state) => ({
-                        ...state,
-                        parent_agent_id: value,
-                      }))
-                    }
-                    onAgentSelected={setAgentParentAgent}
-                    placeholder={t('Select parent agent')}
-                    includeEmpty
-                    emptyLabel={t('No parent agent')}
-                  />
-                </div>
-                {(
-                  [
-                    ['name', 'Name'],
-                    ['balance', 'Balance'],
-                    ['commission_bps', 'Commission BPS'],
-                    ['contact', 'Contact'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div key={key} className='space-y-2'>
-                    <Label>{t(label)}</Label>
-                    <Input
-                      value={agentForm[key]}
-                      onChange={(e) =>
-                        setAgentForm((state) => ({
-                          ...state,
-                          [key]: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
-                <div className='space-y-2 md:col-span-2'>
-                  <Label>{t('Remark')}</Label>
-                  <Textarea
-                    value={agentForm.remark}
-                    onChange={(e) =>
-                      setAgentForm((state) => ({ ...state, remark: e.target.value }))
-                    }
-                  />
-                </div>
+                {agentDialogMode === 'create' && (
+                  <>
+                    <div className='space-y-2'>
+                      <Label>{t('User')}</Label>
+                      <Select
+                        value={agentForm.user_id}
+                        onValueChange={(value) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            user_id: value ?? '',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectDisplay
+                            label={userLabelMap.get(Number(agentForm.user_id))}
+                            placeholder={t('Select user')}
+                          />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {users.map((user) => (
+                              <SelectItem key={user.id} value={String(user.id)}>
+                                {formatUserLabel(user)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className='space-y-2'>
+                      <Label>{t('Name')}</Label>
+                      <Input
+                        value={agentForm.name}
+                        onChange={(e) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            name: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className='space-y-2'>
+                      <Label>{t('Balance')}</Label>
+                      <Input
+                        value={agentForm.balance}
+                        onChange={(e) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            balance: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className='space-y-2'>
+                      <Label>{t('Status')}</Label>
+                      <Select
+                        value={agentForm.status}
+                        onValueChange={(value) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            status: value ?? '',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectDisplay
+                            label={distributionStatusLabel(agentForm.status, t)}
+                            placeholder={t('Status')}
+                          />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {['enabled', 'disabled'].map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {t(
+                                  status === 'enabled' ? 'Enabled' : 'Disabled'
+                                )}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className='space-y-2 md:col-span-2'>
+                      <Label>{t('Contact')}</Label>
+                      <Input
+                        value={agentForm.contact}
+                        onChange={(e) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            contact: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className='space-y-2 md:col-span-2'>
+                      <Label>{t('Remark')}</Label>
+                      <Textarea
+                        value={agentForm.remark}
+                        onChange={(e) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            remark: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+                {agentDialogMode === 'edit' && (
+                  <>
+                    <div className='space-y-2 md:col-span-2'>
+                      <Label>{t('Parent Agent')}</Label>
+                      <AgentCombobox
+                        value={agentForm.parent_agent_id || '0'}
+                        selectedAgent={agentParentAgent || undefined}
+                        onValueChange={(value) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            parent_agent_id: value,
+                          }))
+                        }
+                        onAgentSelected={setAgentParentAgent}
+                        placeholder={t('Select parent agent')}
+                        includeEmpty
+                        emptyLabel={t('No parent agent')}
+                      />
+                    </div>
+                    <div className='space-y-2 md:col-span-2'>
+                      <Label>{t('Agent Level')}</Label>
+                      <Select
+                        value={agentForm.level}
+                        onValueChange={(value) =>
+                          setAgentForm((state) => ({
+                            ...state,
+                            level: value ?? '2',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectDisplay
+                            label={`${t('Level')} ${agentForm.level || '2'}`}
+                            placeholder={t('Select level')}
+                          />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {['1', '2'].map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {t('Level')} {level}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             {dialogKind === 'package' && (
               <div className='grid gap-4 md:grid-cols-2'>
+                <div className='space-y-2 md:col-span-2'>
+                  <Label>{t('Subscription Plan')}</Label>
+                  <Select
+                    value={packageForm.subscription_plan_id}
+                    onValueChange={(value) =>
+                      setPackageForm((state) => ({
+                        ...state,
+                        subscription_plan_id: value ?? '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectDisplay
+                        label={subscriptionPlanLabelMap.get(
+                          Number(packageForm.subscription_plan_id)
+                        )}
+                        placeholder={t('Select subscription plan')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {subscriptionPlans.map((record) => (
+                          <SelectItem
+                            key={record.plan.id}
+                            value={String(record.plan.id)}
+                          >
+                            {planLabel(record)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Tier 1 price must be less than or equal to tier 2 price and both must not exceed the subscription plan price.'
+                    )}
+                  </p>
+                </div>
                 {(
                   [
-                    ['name', 'Name'],
-                    ['sku', 'SKU'],
-                    ['agent_price', 'Agent Price'],
-                    ['retail_price', 'Retail Price'],
-                    ['credit_amount', 'Credit Amount'],
+                    ['agent_price', 'Tier 1 Agent Price (USD)'],
+                    ['secondary_agent_price', 'Tier 2 Agent Price (USD)'],
                     ['sort_order', 'Sort Order'],
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key} className='space-y-2'>
                     <Label>{t(label)}</Label>
                     <Input
+                      type='number'
+                      min={0}
+                      max={
+                        ['agent_price', 'secondary_agent_price'].includes(key)
+                          ? selectedPackageSubscriptionPriceCents
+                          : undefined
+                      }
+                      step='1'
                       value={packageForm[key]}
                       onChange={(e) =>
                         setPackageForm((state) => ({
@@ -1040,63 +1404,66 @@ export function AgentAdmin() {
                         }))
                       }
                     />
+                    {['agent_price', 'secondary_agent_price'].includes(key) && (
+                      <p className='text-muted-foreground text-xs'>
+                        {t(
+                          'Enter a USD amount in cents, for example 1000 means 10.00 USD.'
+                        )}
+                      </p>
+                    )}
                   </div>
                 ))}
-                <div className='space-y-2 md:col-span-2'>
-                  <Label>{t('Description')}</Label>
-                  <Textarea
-                    value={packageForm.description}
-                    onChange={(e) =>
+                <div className='space-y-2'>
+                  <Label>{t('Status')}</Label>
+                  <Select
+                    value={packageForm.status}
+                    onValueChange={(value) =>
                       setPackageForm((state) => ({
                         ...state,
-                        description: e.target.value,
+                        status: value ?? '',
                       }))
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {dialogKind === 'price' && (
-              <div className='grid gap-4 md:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label>{t('Scope Type')}</Label>
-                  <Select
-                    value={priceForm.scope_type}
-                    onValueChange={(value) =>
-                      setPriceForm((state) => ({ ...state, scope_type: value }))
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Scope Type')} />
+                      <SelectDisplay
+                        label={distributionStatusLabel(packageForm.status, t)}
+                        placeholder={t('Status')}
+                      />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
-                        {['global', 'level', 'agent'].map((scope) => (
-                          <SelectItem key={scope} value={scope}>
-                            {t(
-                              scope === 'global'
-                                ? 'Global'
-                                : scope === 'level'
-                                  ? 'Level'
-                                  : 'Agent'
-                            )}
+                        {['enabled', 'disabled'].map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {t(status === 'enabled' ? 'Enabled' : 'Disabled')}
                           </SelectItem>
                         ))}
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            )}
+
+            {dialogKind === 'price' && (
+              <div className='space-y-6'>
                 <div className='space-y-2'>
                   <Label>{t('Package')}</Label>
                   <Select
                     value={priceForm.package_id}
                     onValueChange={(value) =>
-                      setPriceForm((state) => ({ ...state, package_id: value }))
+                      setPriceForm((state) => ({
+                        ...state,
+                        package_id: value ?? '',
+                      }))
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select package')} />
+                      <SelectDisplay
+                        label={packageLabelMap.get(
+                          Number(priceForm.package_id)
+                        )}
+                        placeholder={t('Select package')}
+                      />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
@@ -1109,61 +1476,226 @@ export function AgentAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='space-y-2'>
-                  <Label>{t('Parent Agent')}</Label>
-                  <AgentCombobox
-                    value={priceForm.parent_agent_id || '0'}
-                    selectedAgent={priceParentAgent || undefined}
-                    onValueChange={(value) =>
-                      setPriceForm((state) => ({ ...state, parent_agent_id: value }))
-                    }
-                    onAgentSelected={setPriceParentAgent}
-                    placeholder={t('Select parent agent')}
-                    includeEmpty
-                    emptyLabel={t('No parent agent')}
-                  />
+
+                <div className='grid gap-4 rounded-md border p-4 md:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <Label>{t('Target Type')}</Label>
+                    <Select
+                      value={priceForm.target_type}
+                      onValueChange={(value) => {
+                        const targetType = value ?? 'level'
+                        setPriceForm((state) => ({
+                          ...state,
+                          target_type: targetType,
+                          customer_user_id:
+                            targetType === 'customer'
+                              ? state.customer_user_id
+                              : '',
+                          agent_level:
+                            targetType === 'level'
+                              ? state.agent_level || '1'
+                              : '',
+                        }))
+                      }}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectDisplay
+                          label={distributionPriceTargetLabel(
+                            priceForm.target_type,
+                            t
+                          )}
+                          placeholder={t('Target Type')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {['customer', 'level'].map((target) => (
+                            <SelectItem key={target} value={target}>
+                              {distributionPriceTargetLabel(target, t)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {priceForm.target_type === 'customer' ? (
+                    <div className='space-y-2'>
+                      <Label>{t('Customer')}</Label>
+                      <Select
+                        value={priceForm.customer_user_id}
+                        onValueChange={(value) =>
+                          setPriceForm((state) => ({
+                            ...state,
+                            customer_user_id: value ?? '',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectDisplay
+                            label={userLabelMap.get(
+                              Number(priceForm.customer_user_id)
+                            )}
+                            placeholder={t('Select user')}
+                          />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {users.map((user) => (
+                              <SelectItem key={user.id} value={String(user.id)}>
+                                {formatUserLabel(user)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className='space-y-2'>
+                      <Label>{t('Agent Level')}</Label>
+                      <Select
+                        value={priceForm.agent_level}
+                        onValueChange={(value) =>
+                          setPriceForm((state) => ({
+                            ...state,
+                            agent_level: value ?? '',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectDisplay
+                            label={
+                              priceForm.agent_level
+                                ? `${t('Agent Level')} ${priceForm.agent_level}`
+                                : ''
+                            }
+                            placeholder={t('Select level')}
+                          />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {['1', '2'].map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {t('Agent Level')} {level}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
-                <div className='space-y-2'>
-                  <Label>{t('Agent')}</Label>
-                  <AgentCombobox
-                    value={priceForm.agent_id || '0'}
-                    selectedAgent={priceAgent || undefined}
-                    onValueChange={(value) =>
-                      setPriceForm((state) => ({ ...state, agent_id: value }))
-                    }
-                    onAgentSelected={setPriceAgent}
-                    placeholder={t('Select agent')}
-                    includeEmpty
-                    emptyLabel={t('No agent')}
-                  />
-                </div>
-                {(
-                  [
-                    ['level', 'Level'],
-                    ['unit_price', 'Unit Price'],
-                    ['tier1_cost_price', 'Tier1 Cost'],
-                    ['tier2_cost_price', 'Tier2 Cost'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div key={key} className='space-y-2'>
-                    <Label>{t(label)}</Label>
+
+                <div className='grid gap-4 rounded-md border p-4 md:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <Label>{t('Price Type')}</Label>
+                    <Select
+                      value={priceForm.price_type}
+                      onValueChange={(value) =>
+                        setPriceForm((state) => ({
+                          ...state,
+                          price_type: value ?? 'fixed',
+                          price_value: '',
+                        }))
+                      }
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectDisplay
+                          label={distributionPriceTypeLabel(
+                            priceForm.price_type,
+                            t
+                          )}
+                          placeholder={t('Price Type')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {['fixed', 'discount'].map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {distributionPriceTypeLabel(type, t)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>
+                      {t(
+                        priceForm.price_type === 'discount'
+                          ? 'Discount'
+                          : 'Price'
+                      )}
+                    </Label>
                     <Input
-                      value={priceForm[key]}
+                      type='number'
+                      min={priceForm.price_type === 'discount' ? 1 : 0}
+                      max={priceForm.price_type === 'discount' ? 10 : undefined}
+                      step='1'
+                      value={priceForm.price_value}
+                      placeholder={
+                        priceForm.price_type === 'discount'
+                          ? t('Enter a discount from 1 to 10')
+                          : t('Enter the price in cents')
+                      }
                       onChange={(e) =>
                         setPriceForm((state) => ({
                           ...state,
-                          [key]: e.target.value,
+                          price_value: e.target.value,
                         }))
                       }
                     />
+                    <p className='text-muted-foreground text-xs'>
+                      {priceForm.price_type === 'discount'
+                        ? t(
+                            'Enter 1-10: 1 means 10% of the original price, 2 means 20%, and 10 means the original price.'
+                          )
+                        : t(
+                            'The price is stored in cents; for example, enter 1000 for 10.00.'
+                          )}
+                    </p>
                   </div>
-                ))}
-                <div className='space-y-2 md:col-span-2'>
+                </div>
+
+                <div className='grid gap-4 md:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <Label>{t('Status')}</Label>
+                    <Select
+                      value={priceForm.status}
+                      onValueChange={(value) =>
+                        setPriceForm((state) => ({
+                          ...state,
+                          status: value ?? '',
+                        }))
+                      }
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectDisplay
+                          label={distributionStatusLabel(priceForm.status, t)}
+                          placeholder={t('Status')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {['enabled', 'disabled'].map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {t(status === 'enabled' ? 'Enabled' : 'Disabled')}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className='space-y-2'>
                   <Label>{t('Remark')}</Label>
                   <Textarea
                     value={priceForm.remark}
                     onChange={(e) =>
-                      setPriceForm((state) => ({ ...state, remark: e.target.value }))
+                      setPriceForm((state) => ({
+                        ...state,
+                        remark: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -1177,11 +1709,17 @@ export function AgentAdmin() {
                   <Select
                     value={giftForm.package_id}
                     onValueChange={(value) =>
-                      setGiftForm((state) => ({ ...state, package_id: value }))
+                      setGiftForm((state) => ({
+                        ...state,
+                        package_id: value ?? '',
+                      }))
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select package')} />
+                      <SelectDisplay
+                        label={packageLabelMap.get(Number(giftForm.package_id))}
+                        placeholder={t('Select package')}
+                      />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
@@ -1201,12 +1739,17 @@ export function AgentAdmin() {
                     onValueChange={(value) =>
                       setGiftForm((state) => ({
                         ...state,
-                        gift_package_id: value,
+                        gift_package_id: value ?? '',
                       }))
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select gift package')} />
+                      <SelectDisplay
+                        label={packageLabelMap.get(
+                          Number(giftForm.gift_package_id)
+                        )}
+                        placeholder={t('Select gift package')}
+                      />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
@@ -1251,6 +1794,34 @@ export function AgentAdmin() {
                     }
                   />
                 </div>
+                <div className='space-y-2'>
+                  <Label>{t('Status')}</Label>
+                  <Select
+                    value={giftForm.status}
+                    onValueChange={(value) =>
+                      setGiftForm((state) => ({
+                        ...state,
+                        status: value ?? '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectDisplay
+                        label={distributionStatusLabel(giftForm.status, t)}
+                        placeholder={t('Status')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {['enabled', 'disabled'].map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {t(status === 'enabled' ? 'Enabled' : 'Disabled')}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
@@ -1260,10 +1831,13 @@ export function AgentAdmin() {
                   <Label>{t('User')}</Label>
                   <Select
                     value={opsUserId}
-                    onValueChange={(value) => setOpsUserId(value)}
+                    onValueChange={(value) => setOpsUserId(value ?? '')}
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Select user')} />
+                      <SelectDisplay
+                        label={userLabelMap.get(Number(opsUserId))}
+                        placeholder={t('Select user')}
+                      />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
@@ -1291,22 +1865,29 @@ export function AgentAdmin() {
                 {t('Cancel')}
               </Button>
               {dialogKind === 'balance' && (
-                <Button onClick={() => void handleAdjustBalance()}>{t('Save')}</Button>
+                <Button onClick={() => void handleAdjustBalance()}>
+                  {t('Save')}
+                </Button>
               )}
               {dialogKind === 'agent' && (
-                <Button onClick={() => void handleSaveAgent()}>{t('Save')}</Button>
+                <Button onClick={() => void handleSaveAgent()}>
+                  {t('Save')}
+                </Button>
               )}
               {dialogKind === 'package' && (
-                <Button onClick={() => void handleSavePackage()}>{t('Save')}</Button>
-              )}
-              {dialogKind === 'price' && (
-                <Button onClick={() => void handleSavePriceConfig()}>{t('Save')}</Button>
+                <Button onClick={() => void handleSavePackage()}>
+                  {t('Save')}
+                </Button>
               )}
               {dialogKind === 'gift' && (
-                <Button onClick={() => void handleSaveGiftRule()}>{t('Save')}</Button>
+                <Button onClick={() => void handleSaveGiftRule()}>
+                  {t('Save')}
+                </Button>
               )}
               {dialogKind === 'ops' && (
-                <Button onClick={() => void handleGrantOps()}>{t('Grant')}</Button>
+                <Button onClick={() => void handleGrantOps()}>
+                  {t('Grant')}
+                </Button>
               )}
             </DialogFooter>
           </DialogContent>

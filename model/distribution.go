@@ -8,6 +8,7 @@ type DistributionAgent struct {
 	Balance       int    `json:"balance" gorm:"not null;default:0"`
 	CommissionBps int    `json:"commission_bps" gorm:"not null;default:0"`
 	ParentAgentId int    `json:"parent_agent_id" gorm:"index;not null;default:0"`
+	Level         int    `json:"level" gorm:"index;not null;default:2"`
 	Contact       string `json:"contact" gorm:"type:varchar(255);default:''"`
 	Remark        string `json:"remark" gorm:"type:text"`
 	CreatedAt     int64  `json:"created_at" gorm:"bigint"`
@@ -22,17 +23,21 @@ func (DistributionAgent) TableName() string {
 }
 
 type DistributionPackage struct {
-	Id           int    `json:"id"`
-	Name         string `json:"name" gorm:"type:varchar(128);not null"`
-	Sku          string `json:"sku" gorm:"type:varchar(64);uniqueIndex;not null"`
-	Description  string `json:"description" gorm:"type:text"`
-	Status       string `json:"status" gorm:"type:varchar(32);index;not null;default:'enabled'"`
-	AgentPrice   int    `json:"agent_price" gorm:"not null;default:0"`
-	RetailPrice  int    `json:"retail_price" gorm:"not null;default:0"`
-	CreditAmount int    `json:"credit_amount" gorm:"not null;default:0"`
-	SortOrder    int    `json:"sort_order" gorm:"index;not null;default:0"`
-	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt    int64  `json:"updated_at" gorm:"bigint"`
+	Id                   int    `json:"id"`
+	SubscriptionPlanId   int    `json:"subscription_plan_id" gorm:"index;not null;default:0"`
+	SubscriptionTitle    string `json:"subscription_title" gorm:"type:varchar(128);default:''"`
+	SubscriptionSubtitle string `json:"subscription_subtitle" gorm:"type:varchar(255);default:''"`
+	Name                 string `json:"name" gorm:"type:varchar(128);not null"`
+	Sku                  string `json:"sku" gorm:"type:varchar(64);uniqueIndex;not null"`
+	Description          string `json:"description" gorm:"type:text"`
+	Status               string `json:"status" gorm:"type:varchar(32);index;not null;default:'enabled'"`
+	AgentPrice           int    `json:"agent_price" gorm:"not null;default:0"`
+	RetailPrice          int    `json:"retail_price" gorm:"not null;default:0"`
+	SecondaryAgentPrice  int    `json:"secondary_agent_price" gorm:"not null;default:0"`
+	CreditAmount         int    `json:"credit_amount" gorm:"not null;default:0"`
+	SortOrder            int    `json:"sort_order" gorm:"index;not null;default:0"`
+	CreatedAt            int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt            int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (DistributionPackage) TableName() string {
@@ -40,23 +45,44 @@ func (DistributionPackage) TableName() string {
 }
 
 type DistributionOrder struct {
-	Id               int    `json:"id"`
-	OrderNo          string `json:"order_no" gorm:"type:varchar(96);uniqueIndex;not null"`
-	IdempotencyKey   string `json:"idempotency_key" gorm:"type:varchar(128);index;not null"`
-	AgentId          int    `json:"agent_id" gorm:"index;not null"`
-	UserId           int    `json:"user_id" gorm:"index;not null"`
-	PackageId        int    `json:"package_id" gorm:"index;not null"`
-	Quantity         int    `json:"quantity" gorm:"not null;default:1"`
-	UnitAgentPrice   int    `json:"unit_agent_price" gorm:"not null;default:0"`
-	TotalAgentPrice  int    `json:"total_agent_price" gorm:"not null;default:0"`
-	RetailPrice      int    `json:"retail_price" gorm:"not null;default:0"`
-	CommissionBps    int    `json:"commission_bps" gorm:"not null;default:0"`
-	CommissionAmount int    `json:"commission_amount" gorm:"not null;default:0"`
-	Status           string `json:"status" gorm:"type:varchar(32);index;not null;default:'pending'"`
-	PaidAt           int64  `json:"paid_at" gorm:"bigint;default:0"`
-	FulfilledAt      int64  `json:"fulfilled_at" gorm:"bigint;default:0"`
-	CreatedAt        int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt        int64  `json:"updated_at" gorm:"bigint"`
+	Id                         int    `json:"id"`
+	OrderNo                    string `json:"order_no" gorm:"type:varchar(96);uniqueIndex;not null"`
+	IdempotencyKey             string `json:"idempotency_key" gorm:"type:varchar(128);index;not null"`
+	AgentId                    int    `json:"agent_id" gorm:"index;not null"`
+	UserId                     int    `json:"user_id" gorm:"index;not null"`
+	BuyerUserId                int    `json:"buyer_user_id" gorm:"index;not null;default:0"`
+	BuyerUsername              string `json:"buyer_username" gorm:"type:varchar(64);default:''"`
+	BuyerDisplayName           string `json:"buyer_display_name" gorm:"type:varchar(128);default:''"`
+	BuyerEmail                 string `json:"buyer_email" gorm:"type:varchar(255);default:''"`
+	PackageId                  int    `json:"package_id" gorm:"index;not null"`
+	SubscriptionPlanId         int    `json:"subscription_plan_id" gorm:"index;not null;default:0"`
+	SubscriptionTitle          string `json:"subscription_title" gorm:"type:varchar(128);default:''"`
+	SubscriptionSubtitle       string `json:"subscription_subtitle" gorm:"type:varchar(255);default:''"`
+	PackageName                string `json:"package_name" gorm:"type:varchar(128);default:''"`
+	PackageSku                 string `json:"package_sku" gorm:"type:varchar(64);default:''"`
+	PackageDescription         string `json:"package_description" gorm:"type:text"`
+	PackageCreditAmount        int    `json:"package_credit_amount" gorm:"not null;default:0"`
+	RedeemCodeId               int    `json:"redeem_code_id" gorm:"index;not null;default:0"`
+	RedeemCode                 string `json:"redeem_code" gorm:"type:varchar(96);index;default:''"`
+	RedeemCodeOwnerUserId      int    `json:"redeem_code_owner_user_id" gorm:"index;not null;default:0"`
+	RedeemCodeOwnerUsername    string `json:"redeem_code_owner_username" gorm:"type:varchar(64);default:''"`
+	RedeemCodeOwnerDisplayName string `json:"redeem_code_owner_display_name" gorm:"type:varchar(128);default:''"`
+	RedeemCodeOwnerEmail       string `json:"redeem_code_owner_email" gorm:"type:varchar(255);default:''"`
+	OriginalAmount             int    `json:"original_amount" gorm:"not null;default:0"`
+	DiscountAmount             int    `json:"discount_amount" gorm:"not null;default:0"`
+	CreditDeductionAmount      int    `json:"credit_deduction_amount" gorm:"not null;default:0"`
+	PaidAmount                 int    `json:"paid_amount" gorm:"not null;default:0"`
+	Quantity                   int    `json:"quantity" gorm:"not null;default:1"`
+	UnitAgentPrice             int    `json:"unit_agent_price" gorm:"not null;default:0"`
+	TotalAgentPrice            int    `json:"total_agent_price" gorm:"not null;default:0"`
+	RetailPrice                int    `json:"retail_price" gorm:"not null;default:0"`
+	CommissionBps              int    `json:"commission_bps" gorm:"not null;default:0"`
+	CommissionAmount           int    `json:"commission_amount" gorm:"not null;default:0"`
+	Status                     string `json:"status" gorm:"type:varchar(32);index;not null;default:'pending'"`
+	PaidAt                     int64  `json:"paid_at" gorm:"bigint;default:0"`
+	FulfilledAt                int64  `json:"fulfilled_at" gorm:"bigint;default:0"`
+	CreatedAt                  int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt                  int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (DistributionOrder) TableName() string {
@@ -75,6 +101,9 @@ type DistributionInventory struct {
 	AssignedTo   int    `json:"assigned_to" gorm:"index;not null;default:0"`
 	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt    int64  `json:"updated_at" gorm:"bigint"`
+	Username     string `json:"username,omitempty" gorm:"-"`
+	DisplayName  string `json:"display_name,omitempty" gorm:"-"`
+	Email        string `json:"email,omitempty" gorm:"-"`
 }
 
 func (DistributionInventory) TableName() string {
@@ -159,14 +188,12 @@ func (DistributionProfitLog) TableName() string {
 
 type DistributionPriceConfig struct {
 	Id              int    `json:"id"`
-	ScopeType       string `json:"scope_type" gorm:"type:varchar(32);index;not null"`
 	PackageId       int    `json:"package_id" gorm:"index;not null"`
-	Level           int    `json:"level" gorm:"index;not null;default:0"`
-	ParentAgentId   int    `json:"parent_agent_id" gorm:"index;not null;default:0"`
-	AgentId         int    `json:"agent_id" gorm:"index;not null;default:0"`
-	UnitPrice       int    `json:"unit_price" gorm:"not null;default:0"`
-	Tier1CostPrice  int    `json:"tier1_cost_price" gorm:"not null;default:0"`
-	Tier2CostPrice  int    `json:"tier2_cost_price" gorm:"not null;default:0"`
+	TargetType      string `json:"target_type" gorm:"type:varchar(32);index;not null;default:'level'"`
+	CustomerUserId  int    `json:"customer_user_id" gorm:"index;not null;default:0"`
+	AgentLevel      int    `json:"agent_level" gorm:"index;not null;default:0"`
+	PriceType       string `json:"price_type" gorm:"type:varchar(32);index;not null;default:'fixed'"`
+	PriceValue      int    `json:"price_value" gorm:"not null;default:0"`
 	Status          string `json:"status" gorm:"type:varchar(32);index;not null;default:'enabled'"`
 	CreatedByUserId int    `json:"created_by_user_id" gorm:"index;not null;default:0"`
 	UpdatedByUserId int    `json:"updated_by_user_id" gorm:"index;not null;default:0"`
@@ -212,6 +239,9 @@ type DistributionCustomerOwnership struct {
 	BoundAt        int64  `json:"bound_at" gorm:"bigint;index;not null;default:0"`
 	CreatedAt      int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt      int64  `json:"updated_at" gorm:"bigint"`
+	Username       string `json:"username,omitempty" gorm:"-"`
+	DisplayName    string `json:"display_name,omitempty" gorm:"-"`
+	Email          string `json:"email,omitempty" gorm:"-"`
 }
 
 func (DistributionCustomerOwnership) TableName() string {
@@ -240,6 +270,7 @@ func (DistributionCustomerAttributionLog) TableName() string {
 type DistributionPromoCode struct {
 	Id             int    `json:"id"`
 	AgentId        int    `json:"agent_id" gorm:"index;not null"`
+	PackageId      int    `json:"package_id" gorm:"index;not null;default:0"`
 	Code           string `json:"code" gorm:"type:varchar(64);uniqueIndex;not null"`
 	Status         string `json:"status" gorm:"type:varchar(32);index;not null;default:'enabled'"`
 	DiscountType   string `json:"discount_type" gorm:"type:varchar(32);not null"`
@@ -250,6 +281,7 @@ type DistributionPromoCode struct {
 	ExpiresAt      int64  `json:"expires_at" gorm:"bigint;index;not null;default:0"`
 	CreatedAt      int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt      int64  `json:"updated_at" gorm:"bigint"`
+	PackageName    string `json:"package_name,omitempty" gorm:"-"`
 }
 
 func (DistributionPromoCode) TableName() string {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -114,14 +115,12 @@ func TestDistributionStableBusinessNumbers(t *testing.T) {
 	t.Parallel()
 
 	orderNo := BuildPurchaseOrderNo(12, 34, "idem-key-1")
-	if orderNo != BuildPurchaseOrderNo(12, 34, "idem-key-1") {
-		t.Fatalf("purchase order number should be stable")
+	nextOrderNo := BuildPurchaseOrderNo(12, 34, "idem-key-1")
+	if orderNo == nextOrderNo {
+		t.Fatalf("purchase order number should be unique")
 	}
-	if orderNo == BuildPurchaseOrderNo(12, 35, "idem-key-1") {
-		t.Fatalf("purchase order number should include package id")
-	}
-	if !strings.HasPrefix(orderNo, "distribution_order_idem_") {
-		t.Fatalf("unexpected purchase order prefix: %s", orderNo)
+	if _, err := strconv.ParseInt(orderNo, 10, 64); err != nil {
+		t.Fatalf("purchase order number should be snowflake numeric string: %s", orderNo)
 	}
 
 	refNo := BuildBalanceRef(12, "idem-key-1")
@@ -219,21 +218,24 @@ func TestResolveDistributionAgentPrice(t *testing.T) {
 	t.Parallel()
 
 	configs := []DistributionPriceConfigRule{
-		{ScopeType: DistributionPriceScopeGlobal, UnitPrice: 300, Status: DistributionStatusEnabled},
-		{ScopeType: DistributionPriceScopeLevel, Level: 2, UnitPrice: 200, Status: DistributionStatusEnabled},
-		{ScopeType: DistributionPriceScopeAgent, AgentId: 9, UnitPrice: 100, Status: DistributionStatusEnabled},
+		{TargetType: DistributionPriceTargetLevel, AgentLevel: 1, PriceType: DistributionPriceTypeFixed, PriceValue: 300, Status: DistributionStatusEnabled},
+		{TargetType: DistributionPriceTargetLevel, AgentLevel: 2, PriceType: DistributionPriceTypeDiscount, PriceValue: 8, Status: DistributionStatusEnabled},
+		{TargetType: DistributionPriceTargetCustomer, CustomerUserId: 9, PriceType: DistributionPriceTypeFixed, PriceValue: 100, Status: DistributionStatusEnabled},
 	}
 
-	if got := ResolveDistributionAgentPrice(500, 9, 2, configs); got != 100 {
-		t.Fatalf("agent scope should win, got %d", got)
+	if got := ResolveDistributionAgentPrice(500, 1, configs); got != 300 {
+		t.Fatalf("fixed level price should win, got %d", got)
 	}
-	if got := ResolveDistributionAgentPrice(500, 8, 2, configs); got != 200 {
-		t.Fatalf("level scope should win, got %d", got)
+	if got := ResolveDistributionAgentPrice(500, 2, configs); got != 400 {
+		t.Fatalf("discount level price should apply, got %d", got)
 	}
-	if got := ResolveDistributionAgentPrice(500, 8, 5, configs); got != 300 {
-		t.Fatalf("global scope should win, got %d", got)
+	if got := ResolveDistributionAgentPrice(500, 3, configs); got != 500 {
+		t.Fatalf("fallback should use package default, got %d", got)
 	}
-	if got := ResolveDistributionAgentPrice(500, 8, 5, nil); got != 500 {
+	if got := ResolveDistributionCustomerPrice(500, 9, configs); got != 100 {
+		t.Fatalf("customer fixed price should win, got %d", got)
+	}
+	if got := ResolveDistributionCustomerPrice(500, 8, configs); got != 500 {
 		t.Fatalf("fallback should use package default, got %d", got)
 	}
 }

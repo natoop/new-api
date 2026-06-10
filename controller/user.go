@@ -606,7 +606,8 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if updatedUser.Role == common.RoleAgentUser {
+	if originUser.Role != common.RoleAgentUser && updatedUser.Role == common.RoleAgentUser {
+		updatedUser.InviterId = originUser.InviterId
 		if _, err := service.AdminEnsureDistributionAgentForUser(&updatedUser); err != nil {
 			common.ApiError(c, err)
 			return
@@ -878,6 +879,7 @@ func CreateUser(c *gin.Context) {
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
+		InviterId:   user.InviterId,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
 	if err := cleanUser.Insert(0); err != nil {
@@ -885,7 +887,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	if cleanUser.Role == common.RoleAgentUser {
-		if _, err := service.AdminEnsureDistributionAgentForUser(&cleanUser); err != nil {
+		if _, err := service.AdminCreateDistributionAgentForUser(&cleanUser); err != nil {
 			common.ApiError(c, err)
 			return
 		}

@@ -30,6 +30,7 @@ export interface DistributionAgent {
   balance: number
   commission_bps: number
   parent_agent_id: number
+  level: number
   contact: string
   remark: string
   created_at: number
@@ -41,12 +42,16 @@ export interface DistributionAgent {
 
 export interface DistributionPackage {
   id: number
+  subscription_plan_id: number
+  subscription_title: string
+  subscription_subtitle: string
   name: string
   sku: string
   description: string
   status: string
   agent_price: number
   retail_price: number
+  secondary_agent_price: number
   credit_amount: number
   sort_order: number
 }
@@ -62,6 +67,9 @@ export interface DistributionInventory {
   inventory_no: string
   assigned_to: number
   created_at: number
+  username?: string
+  display_name?: string
+  email?: string
 }
 
 export interface DistributionLedger {
@@ -107,6 +115,8 @@ export interface DistributionInvitation {
 export interface DistributionPromoCode {
   id: number
   agent_id: number
+  package_id: number
+  package_name?: string
   code: string
   status: string
   discount_type: string
@@ -124,6 +134,9 @@ export interface DistributionCustomerOwnership {
   source_type: string
   source_no: string
   bound_at: number
+  username?: string
+  display_name?: string
+  email?: string
 }
 
 export interface DistributionAttributionLog {
@@ -139,14 +152,12 @@ export interface DistributionAttributionLog {
 
 export interface DistributionPriceConfig {
   id: number
-  scope_type: string
   package_id: number
-  level: number
-  parent_agent_id: number
-  agent_id: number
-  unit_price: number
-  tier1_cost_price: number
-  tier2_cost_price: number
+  target_type: string
+  customer_user_id: number
+  agent_level: number
+  price_type: string
+  price_value: number
   status: string
   remark: string
 }
@@ -194,4 +205,23 @@ export interface DistributionUserOption {
   email?: string
   role: number
   aff_code?: string
+}
+
+export interface DistributionInventoryPackageOption {
+  package_id: number
+  package_name: string
+}
+
+export interface DistributionSubscriptionPlan {
+  id: number
+  title: string
+  subtitle?: string
+  price_amount: number
+  currency: string
+  enabled: boolean
+  total_amount: number
+}
+
+export interface DistributionSubscriptionPlanRecord {
+  plan: DistributionSubscriptionPlan
 }

@@ -28,9 +28,7 @@ func CreateDistributionInvitation(inviterUserID int, input DistributionInvitatio
 	if input.InviteeEmail == "" {
 		return nil, fmt.Errorf("invitee_email cannot be empty")
 	}
-	if input.Level < 0 {
-		return nil, fmt.Errorf("level cannot be negative")
-	}
+	input.Level = DistributionAgentLevelSecondary
 	key, err := NormalizeIdempotencyKey(input.IdempotencyKey)
 	if err != nil {
 		return nil, err
@@ -121,11 +119,23 @@ func AcceptDistributionInvitation(inviteeUserID int, input DistributionInvitatio
 		if agentName == "" {
 			agentName = fmt.Sprintf("user-%d", inviteeUserID)
 		}
+		parentAgentID := 0
+		if invitation.ParentAgentId > 0 {
+			var parent model.DistributionAgent
+			err := tx.Select("id, level").Where("id = ?", invitation.ParentAgentId).First(&parent).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			if err == nil && parent.Level == DistributionAgentLevelPrimary {
+				parentAgentID = parent.Id
+			}
+		}
 		agent := model.DistributionAgent{
 			UserId:        inviteeUserID,
 			Name:          agentName,
 			Status:        DistributionStatusEnabled,
-			ParentAgentId: invitation.ParentAgentId,
+			ParentAgentId: parentAgentID,
+			Level:         DistributionAgentLevelSecondary,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -146,7 +156,12 @@ func AcceptDistributionInvitation(inviteeUserID int, input DistributionInvitatio
 		if err := tx.Save(&invitation).Error; err != nil {
 			return err
 		}
-		return bindDistributionCustomer(tx, inviteeUserID, invitation.ParentAgentId, DistributionCustomerEventBind, DistributionSourceInvitation, invitation.Id, invitation.InvitationNo, 0, "distribution invitation accepted", now)
+		if parentAgentID > 0 {
+			if err := bindDistributionCustomer(tx, inviteeUserID, parentAgentID, DistributionCustomerEventBind, DistributionSourceInvitation, invitation.Id, invitation.InvitationNo, 0, "distribution invitation accepted", now); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
