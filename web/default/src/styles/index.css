@@ -55,6 +55,21 @@ For commercial licensing, please contact support@quantumnous.com
      * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
      * in theme-presets.css). Defaults to the project's humanist sans. */
     font-family: var(--font-body);
+    /* Relaxed body leading — Outlook/Notion reading density. Utility
+     * `leading-*` classes still win (utilities layer beats base). */
+    line-height: 1.6;
+  }
+
+  /* Editorial hierarchy: titles sit at weight 600 with a touch of negative
+   * tracking; body copy stays at 400. The serif font axis re-tunes these
+   * via its own attribute-scoped rules in theme-presets.css. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight;
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */

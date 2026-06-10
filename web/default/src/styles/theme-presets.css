@@ -293,6 +293,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ── Simple Large-font ────────────────────────────────────────────────── */
 [data-theme-preset='simple-large'] {
+  /* Neutral monochrome gradient — this preset is deliberately colorless. */
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    color-mix(in oklch, var(--primary) 70%, var(--muted-foreground)) 100%
+  );
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.15 0 0);
   --card: oklch(1 0 0);
@@ -421,6 +427,14 @@ For commercial licensing, please contact support@quantumnous.com
 [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
   ):not([data-theme-preset='simple-large']) {
+  /* Re-anchor the brand gradient on the preset's own primary so the default
+   * indigo→violet pair never leaks into other palettes. Resolves correctly
+   * in both modes because var(--primary) is evaluated at use-time. */
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    color-mix(in oklch, var(--primary) 72%, var(--secondary)) 100%
+  );
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -484,6 +498,13 @@ For commercial licensing, please contact support@quantumnous.com
  * OKLCH hue 38 = clay/coral (matches #d97757).
  */
 [data-theme-preset='anthropic'] {
+  /* Clay-anchored gradient (this preset opts out of the surface bridge,
+   * so it declares its own pair for both modes via var(--primary)). */
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    color-mix(in oklch, var(--primary) 78%, oklch(0.7 0.115 0)) 100%
+  );
   /* Canvas + ink — the defining pair. */
   --background: oklch(0.984 0.004 95); /* ≈ #faf9f5 cream */
   --foreground: oklch(0.205 0.005 60); /* ≈ #141413 ink */
