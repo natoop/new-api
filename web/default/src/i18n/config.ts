@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
+import { normalizeInterfaceLanguage } from './languages'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
 import ja from './locales/ja.json'
@@ -53,5 +54,15 @@ i18n
       caches: ['localStorage'],
     },
   })
+
+// One-time correction after init: legacy persisted values (e.g. localStorage
+// 'fr' from an older build) load a language the switcher no longer offers,
+// leaving the UI and the language switcher out of sync. Normalizing once here
+// re-aligns both (and updates the localStorage cache); since the normalized
+// value is a fixed point of normalizeInterfaceLanguage, this cannot loop.
+const normalizedLanguage = normalizeInterfaceLanguage(i18n.language)
+if (i18n.language !== normalizedLanguage) {
+  void i18n.changeLanguage(normalizedLanguage)
+}
 
 export default i18n
