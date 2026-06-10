@@ -446,6 +446,29 @@ func AdminListDistributionProfit(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func AdminListDistributionOrders(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	planID, _ := strconv.Atoi(c.Query("plan_id"))
+	startTime, _ := strconv.ParseInt(c.Query("start_time"), 10, 64)
+	endTime, _ := strconv.ParseInt(c.Query("end_time"), 10, 64)
+	orders, total, err := service.AdminListDistributionOrders(service.DistributionOrderListInput{
+		Keyword:   c.Query("keyword"),
+		PlanId:    planID,
+		Status:    c.Query("status"),
+		StartTime: startTime,
+		EndTime:   endTime,
+		StartIdx:  pageInfo.GetStartIdx(),
+		PageSize:  pageInfo.GetPageSize(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(orders)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func AdminListDistributionAttributionLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logs, total, err := service.AdminListDistributionAttributionLogs(pageInfo.GetStartIdx(), pageInfo.GetPageSize())

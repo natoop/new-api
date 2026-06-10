@@ -75,6 +75,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.GET("/logout", controller.Logout)
 			userRoute.POST("/epay/notify", anonymousRequestBodyLimit, controller.EpayNotify)
 			userRoute.GET("/epay/notify", controller.EpayNotify)
+			userRoute.POST("/xunhu/notify", anonymousRequestBodyLimit, controller.XunhuTopupNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
 
 			selfRoute := userRoute.Group("/")
@@ -97,6 +98,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
+				selfRoute.POST("/xunhu/pay", middleware.CriticalRateLimit(), controller.RequestXunhuTopup)
 				selfRoute.POST("/amount", controller.RequestAmount)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
@@ -114,6 +116,13 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/2fa/enable", controller.Enable2FA)
 				selfRoute.POST("/2fa/disable", controller.Disable2FA)
 				selfRoute.POST("/2fa/backup_codes", controller.RegenerateBackupCodes)
+
+				// User agreement consent routes
+				selfRoute.GET("/agreement/status", controller.GetUserAgreementStatus)
+				selfRoute.POST("/agreement/consent", controller.ConsentUserAgreement)
+
+				// Agent promotion progress (distribution marketing page)
+				selfRoute.GET("/agent-progress", controller.GetAgentProgress)
 
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
@@ -154,11 +163,13 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+			subscriptionRoute.POST("/promo/validate", middleware.CriticalRateLimit(), controller.ValidateSubscriptionPromo)
 			subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
+			subscriptionRoute.POST("/xunhu/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestXunhuPay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -209,6 +220,7 @@ func SetApiRouter(router *gin.Engine) {
 			agentAdminRoute.POST("/packages", controller.AdminCreateDistributionPackage)
 			agentAdminRoute.PUT("/packages/:id", controller.AdminUpdateDistributionPackage)
 			agentAdminRoute.PATCH("/packages/:id/status", controller.AdminUpdateDistributionPackageStatus)
+			agentAdminRoute.GET("/orders", controller.AdminListDistributionOrders)
 			agentAdminRoute.GET("/profit", controller.AdminListDistributionProfit)
 			agentAdminRoute.GET("/attribution", controller.AdminListDistributionAttributionLogs)
 			agentAdminRoute.GET("/gift-rules", controller.AdminListDistributionGiftRules)
@@ -225,6 +237,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
+		apiRouter.POST("/subscription/xunhu/notify", anonymousRequestBodyLimit, controller.SubscriptionXunhuNotify)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{

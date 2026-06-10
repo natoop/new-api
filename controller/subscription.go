@@ -23,7 +23,8 @@ type BillingPreferenceRequest struct {
 }
 
 type SubscriptionBalancePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId    int    `json:"plan_id"`
+	PromoCode string `json:"promo_code"` // 可选促销码，折后扣费
 }
 
 // ---- User APIs ----
@@ -109,7 +110,7 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 		return
 	}
 
-	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId, strings.TrimSpace(req.PromoCode)); err != nil {
 		common.ApiError(c, err)
 		return
 	}

@@ -13,11 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
+	"github.com/stripe/stripe-go/v81/coupon"
 	"github.com/thanhpk/randstr"
 )
 
 type SubscriptionStripePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId    int    `json:"plan_id"`
+	PromoCode string `json:"promo_code"` // 可选促销码：通过 Stripe 一次性 Coupon 实现首期折扣
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
@@ -76,28 +78,38 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		}
 	}
 
+	promoCode := strings.TrimSpace(req.PromoCode)
+
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
-
-	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
-		return
-	}
 
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
 		PaymentProvider: model.PaymentProviderStripe,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		PromoCode:       promoCode,
 	}
-	if err := order.Insert(); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+	// 同一事务内创建订单并预占促销码次数（用尽/失效则拒单），order.Money 为折后金额
+	promo, err := model.CreateSubscriptionOrderWithPromoReserve(order, plan.PriceAmount, 0)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+	promoDiscountBps := 0
+	if promo != nil {
+		promoDiscountBps = promo.DiscountBps
+	}
+
+	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId, promoCode, promoDiscountBps)
+	if err != nil {
+		// 拉起失败：订单置过期并回补预占的促销码次数
+		_ = model.ExpireSubscriptionOrder(referenceId, model.PaymentProviderStripe)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
@@ -109,7 +121,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
-func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string) (string, error) {
+func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, promoCode string, promoDiscountBps int) (string, error) {
 	stripe.Key = setting.StripeApiSecret
 
 	params := &stripe.CheckoutSessionParams{
@@ -123,6 +135,21 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 			},
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+	}
+
+	// 促销码：Stripe 订阅按 PriceId 计价，折扣通过动态创建一次性 Coupon 实现（仅首期生效）
+	if promoCode != "" && promoDiscountBps > 0 && promoDiscountBps < 10000 {
+		stripeCoupon, err := coupon.New(&stripe.CouponParams{
+			PercentOff: stripe.Float64(float64(promoDiscountBps) / 100.0),
+			Duration:   stripe.String(string(stripe.CouponDurationOnce)),
+			Name:       stripe.String("PROMO " + promoCode),
+		})
+		if err != nil {
+			return "", err
+		}
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{Coupon: stripe.String(stripeCoupon.ID)},
+		}
 	}
 
 	if "" == customerId {

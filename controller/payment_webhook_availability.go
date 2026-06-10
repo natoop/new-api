@@ -92,6 +92,25 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+func isXunhuChannelConfigured(appId string, appSecret string) bool {
+	return strings.TrimSpace(appId) != "" && strings.TrimSpace(appSecret) != ""
+}
+
+func isXunhuTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	if !setting.XunhuEnabled {
+		return false
+	}
+	return isXunhuChannelConfigured(setting.XunhuWechatAppId, setting.XunhuWechatAppSecret) ||
+		isXunhuChannelConfigured(setting.XunhuAlipayAppId, setting.XunhuAlipayAppSecret)
+}
+
+func isXunhuWebhookEnabled() bool {
+	return isXunhuTopUpEnabled()
+}
+
 func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

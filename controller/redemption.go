@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,6 +13,53 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// validateRedemptionTyped 校验并规整类型化兑换码字段（type/plan_id/discount_bps/max_uses）。
+// 返回 (ok, errMsg)。会原地修改 redemption。
+func validateRedemptionTyped(redemption *model.Redemption) (bool, string) {
+	redemption.Type = strings.TrimSpace(redemption.Type)
+	if redemption.Type == "" {
+		redemption.Type = model.RedemptionTypeBalance
+	}
+	switch redemption.Type {
+	case model.RedemptionTypeBalance:
+		redemption.PlanId = 0
+		redemption.DiscountBps = 0
+		redemption.MaxUses = 0
+	case model.RedemptionTypePlan:
+		if redemption.PlanId <= 0 {
+			return false, "套餐码必须指定套餐"
+		}
+		plan, err := model.GetSubscriptionPlanById(redemption.PlanId)
+		if err != nil {
+			return false, "套餐不存在"
+		}
+		if !plan.Enabled {
+			return false, "套餐未启用"
+		}
+		redemption.DiscountBps = 0
+		redemption.MaxUses = 0
+	case model.RedemptionTypePromo:
+		if redemption.DiscountBps <= 0 || redemption.DiscountBps >= 10000 {
+			return false, "促销码折扣需为 1-9999 的万分比（如 2000=立减20%）"
+		}
+		if redemption.MaxUses < 0 {
+			return false, "促销码可用次数不能为负数"
+		}
+		if redemption.PlanId > 0 {
+			plan, err := model.GetSubscriptionPlanById(redemption.PlanId)
+			if err != nil {
+				return false, "套餐不存在"
+			}
+			if !plan.Enabled {
+				return false, "套餐未启用"
+			}
+		}
+	default:
+		return false, "无效的兑换码类型"
+	}
+	return true, ""
+}
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
@@ -87,6 +135,10 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
+	if valid, msg := validateRedemptionTyped(&redemption); !valid {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+		return
+	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
@@ -97,6 +149,10 @@ func AddRedemption(c *gin.Context) {
 			CreatedTime: common.GetTimestamp(),
 			Quota:       redemption.Quota,
 			ExpiredTime: redemption.ExpiredTime,
+			Type:        redemption.Type,
+			PlanId:      redemption.PlanId,
+			DiscountBps: redemption.DiscountBps,
+			MaxUses:     redemption.MaxUses,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -150,10 +206,18 @@ func UpdateRedemption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
+		if valid, msg := validateRedemptionTyped(&redemption); !valid {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+			return
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
+		cleanRedemption.Type = redemption.Type
+		cleanRedemption.PlanId = redemption.PlanId
+		cleanRedemption.DiscountBps = redemption.DiscountBps
+		cleanRedemption.MaxUses = redemption.MaxUses
 	}
 	if statusOnly != "" {
 		cleanRedemption.Status = redemption.Status

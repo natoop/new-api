@@ -119,6 +119,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// 订阅/余额付费成功后，检查邀请人是否满足自然晋升代理条件（model 钩子解耦，避免 model -> service 依赖）
+	model.RegisterSubscriptionPaidHook(service.MaybePromoteInviterToAgent)
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

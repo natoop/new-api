@@ -114,6 +114,12 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["XunhuEnabled"] = strconv.FormatBool(setting.XunhuEnabled)
+	common.OptionMap["XunhuWechatAppId"] = setting.XunhuWechatAppId
+	common.OptionMap["XunhuWechatAppSecret"] = setting.XunhuWechatAppSecret
+	common.OptionMap["XunhuAlipayAppId"] = setting.XunhuAlipayAppId
+	common.OptionMap["XunhuAlipayAppSecret"] = setting.XunhuAlipayAppSecret
+	common.OptionMap["XunhuGatewayUrl"] = setting.XunhuGatewayUrl
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -462,6 +468,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "XunhuEnabled":
+		setting.XunhuEnabled = value == "true"
+	case "XunhuWechatAppId":
+		setting.XunhuWechatAppId = value
+	case "XunhuWechatAppSecret":
+		setting.XunhuWechatAppSecret = value
+	case "XunhuAlipayAppId":
+		setting.XunhuAlipayAppId = value
+	case "XunhuAlipayAppSecret":
+		setting.XunhuAlipayAppSecret = value
+	case "XunhuGatewayUrl":
+		setting.XunhuGatewayUrl = value
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

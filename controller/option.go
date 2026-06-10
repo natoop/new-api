@@ -331,6 +331,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "legal.user_agreement_version":
+		// 与 user_agreement_consents.version varchar(32) 对齐，超长拒绝
+		if len(option.Value.(string)) > 32 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "协议版本号长度不能超过 32 个字符",
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

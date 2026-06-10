@@ -13,6 +13,7 @@ import (
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Subscription duration units
@@ -216,6 +217,38 @@ type SubscriptionOrder struct {
 	CompleteTime    int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+
+	// PromoCode 下单时使用的促销码（redemptions.key），用于追溯与回调消耗次数；空表示未使用
+	PromoCode string `json:"promo_code" gorm:"type:varchar(64);default:''"`
+}
+
+// subscriptionPaidHook 订阅付费成功钩子（pending→success 真正翻转后异步触发）。
+var subscriptionPaidHook func(userId int)
+
+// RegisterSubscriptionPaidHook 注册订阅付费成功钩子（在 main 启动时注册，避免 model→service 依赖）。
+func RegisterSubscriptionPaidHook(f func(userId int)) {
+	subscriptionPaidHook = f
+}
+
+// FireSubscriptionPaidHook 对外导出付费成功钩子触发，供充值成功路径复用
+// （口径对齐：晋升统计含 top_ups，触发点也应覆盖充值成功）。内部异步 + recover。
+func FireSubscriptionPaidHook(userId int) {
+	fireSubscriptionPaidHook(userId)
+}
+
+func fireSubscriptionPaidHook(userId int) {
+	hook := subscriptionPaidHook
+	if hook == nil || userId <= 0 {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				common.SysError(fmt.Sprintf("subscription paid hook panic: %v", r))
+			}
+		}()
+		hook(userId)
+	}()
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -227,6 +260,47 @@ func (o *SubscriptionOrder) Insert() error {
 
 func (o *SubscriptionOrder) Update() error {
 	return DB.Save(o).Error
+}
+
+// CreateSubscriptionOrderWithPromoReserve 在同一事务内创建订阅订单并原子预占促销码：
+//   - order.PromoCode 非空时调用 ConsumePromoRedemptionTx 预占一次使用次数，
+//     用尽/失效则整体回滚拒单（异步支付通道防绕过 max_uses 的预占模式）；
+//   - 按预占到的折扣以 planPrice 重算 order.Money；
+//   - minMoney > 0 时校验折后金额下限（如 epay/虎皮椒要求 >= 0.01）。
+//
+// 返回预占到的促销码（未使用促销码时为 nil）。订单后续过期/取消需走
+// ExpireSubscriptionOrder 回补预占次数；CompleteSubscriptionOrder 不再二次消耗。
+func CreateSubscriptionOrderWithPromoReserve(order *SubscriptionOrder, planPrice float64, minMoney float64) (*Redemption, error) {
+	if order == nil {
+		return nil, errors.New("order is nil")
+	}
+	var promo *Redemption
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		order.Money = planPrice
+		if order.PromoCode != "" {
+			p, err := ConsumePromoRedemptionTx(tx, order.PromoCode, order.PlanId)
+			if err != nil {
+				return err
+			}
+			promo = p
+			order.Money = ApplyPromoDiscount(planPrice, p.DiscountBps)
+		}
+		if minMoney > 0 && order.Money < minMoney {
+			return errors.New("折后金额过低")
+		}
+		if order.CreateTime == 0 {
+			order.CreateTime = common.GetTimestamp()
+		}
+		if err := tx.Create(order).Error; err != nil {
+			common.SysError("failed to create subscription order: " + err.Error())
+			return errors.New("创建订单失败")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return promo, nil
 }
 
 func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
@@ -468,7 +542,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampWith(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -533,9 +607,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
+	completed := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
@@ -547,7 +622,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		// 事务内必须复用 tx 查询，避免占用第二个连接（单连接场景会死锁）
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -562,6 +638,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
 		}
+		// 促销码次数已在下单时（CreateSubscriptionOrderWithPromoReserve /
+		// PurchaseSubscriptionWithBalance）原子预占，此处不再消耗，避免双扣。
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
 		if providerPayload != "" {
@@ -577,6 +655,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		completed = true
 		return nil
 	})
 	if err != nil {
@@ -588,6 +667,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
+	}
+	if completed {
+		fireSubscriptionPaidHook(logUserId)
 	}
 	return nil
 }
@@ -638,7 +720,7 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
@@ -649,7 +731,16 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		}
 		order.Status = common.TopUpStatusExpired
 		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		// 回补下单时预占的促销码次数（原子 UPDATE，used_count > 0 防负数）
+		if order.PromoCode != "" {
+			if _, err := refundPromoUseRowsTx(tx, order.PromoCode); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -691,10 +782,12 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
-func PurchaseSubscriptionWithBalance(userId int, planId int) error {
+// promoCode 可选：传入促销码时按折后金额扣费，并在同一事务内消耗促销码次数。
+func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
 	}
+	promoCode = strings.TrimSpace(promoCode)
 
 	var logPlanTitle string
 	var logMoney float64
@@ -715,7 +808,16 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			return errors.New("该套餐不允许使用余额兑换")
 		}
 
-		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+		finalMoney := plan.PriceAmount
+		if promoCode != "" {
+			promo, err := ConsumePromoRedemptionTx(tx, promoCode, plan.Id)
+			if err != nil {
+				return err
+			}
+			finalMoney = ApplyPromoDiscount(plan.PriceAmount, promo.DiscountBps)
+		}
+
+		requiredQuota, err := calcSubscriptionBalanceQuota(finalMoney)
 		if err != nil {
 			return err
 		}
@@ -743,7 +845,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		order := &SubscriptionOrder{
 			UserId:          userId,
 			PlanId:          plan.Id,
-			Money:           plan.PriceAmount,
+			Money:           finalMoney,
 			TradeNo:         tradeNo,
 			PaymentMethod:   PaymentMethodBalance,
 			PaymentProvider: PaymentProviderBalance,
@@ -751,13 +853,14 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			CreateTime:      now,
 			CompleteTime:    now,
 			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
+			PromoCode:       promoCode,
 		}
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
 
 		logPlanTitle = plan.Title
-		logMoney = plan.PriceAmount
+		logMoney = finalMoney
 		chargedQuota = requiredQuota
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
 		return nil
@@ -775,7 +878,11 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		_ = UpdateUserGroupCache(userId, upgradeGroup)
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
+	if promoCode != "" {
+		msg += fmt.Sprintf("，促销码: %s", promoCode)
+	}
 	RecordLog(userId, LogTypeTopup, msg)
+	fireSubscriptionPaidHook(userId)
 	return nil
 }
 
