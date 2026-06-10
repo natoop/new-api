@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState, type ComponentProps } from 'react'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
@@ -41,19 +42,22 @@ type DatePickerProps = {
   selected: Date | undefined
   onSelect: (date: Date | undefined) => void
   placeholder?: string
+  disabled?: ComponentProps<typeof Calendar>['disabled']
 }
 
 export function DatePicker({
   selected,
   onSelect,
   placeholder,
+  disabled,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
+  const [open, setOpen] = useState(false)
   const placeholderText = placeholder ?? t('Pick a date')
   const calendarLocale =
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -75,10 +79,16 @@ export function DatePicker({
           mode='single'
           captionLayout='dropdown'
           selected={selected}
-          onSelect={onSelect}
+          onSelect={(date) => {
+            onSelect(date)
+            if (date) {
+              setOpen(false)
+            }
+          }}
           locale={calendarLocale}
-          disabled={(date: Date) =>
-            date > new Date() || date < new Date('1900-01-01')
+          disabled={
+            disabled ??
+            ((date: Date) => date > new Date() || date < new Date('1900-01-01'))
           }
         />
       </PopoverContent>

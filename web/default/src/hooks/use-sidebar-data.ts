@@ -22,6 +22,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Handshake,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -35,6 +36,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type SidebarData } from '@/components/layout/types'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -44,6 +47,9 @@ import { type SidebarData } from '@/components/layout/types'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const role = useAuthStore((state) => state.auth.user?.role ?? ROLE.GUEST)
+  const isAgent = role === ROLE.AGENT
+  const isAdmin = role >= ROLE.ADMIN
 
   return {
     navGroups: [
@@ -112,6 +118,21 @@ export function useSidebarData(): SidebarData {
           },
         ],
       },
+      ...(isAgent
+        ? [
+            {
+              id: 'agent',
+              title: t('Agent'),
+              items: [
+                {
+                  title: t('Agent Center'),
+                  url: '/agent',
+                  icon: Handshake,
+                },
+              ],
+            },
+          ]
+        : []),
       {
         id: 'admin',
         title: t('Admin'),
@@ -141,6 +162,15 @@ export function useSidebarData(): SidebarData {
             url: '/subscriptions',
             icon: CreditCard,
           },
+          ...(isAdmin
+            ? [
+                {
+                  title: t('Agent Management'),
+                  url: '/agent-admin',
+                  icon: Handshake,
+                },
+              ]
+            : []),
           {
             title: t('System Settings'),
             url: '/system-settings/site',

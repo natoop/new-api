@@ -480,7 +480,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 
 	// 聊天区域 - 所有用户都可以访问
 	defaultConfig["chat"] = map[string]interface{}{
-		"enabled":    true,
+		"enabled":    false,
 		"playground": true,
 		"chat":       true,
 	}
@@ -582,6 +582,13 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if updatedUser.Role == 0 {
+		updatedUser.Role = originUser.Role
+	}
+	if !common.IsValidateRole(updatedUser.Role) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, originUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -598,6 +605,20 @@ func UpdateUser(c *gin.Context) {
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if updatedUser.Role == common.RoleAgentUser {
+		if _, err := service.AdminEnsureDistributionAgentForUser(&updatedUser); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if originUser.Role != updatedUser.Role {
+		if err := model.InvalidateUserCache(updatedUser.Id); err != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", updatedUser.Id, err.Error()))
+		}
+		if err := model.InvalidateUserTokensCache(updatedUser.Id); err != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", updatedUser.Id, err.Error()))
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -840,6 +861,13 @@ func CreateUser(c *gin.Context) {
 	if user.DisplayName == "" {
 		user.DisplayName = user.Username
 	}
+	if user.Role == 0 {
+		user.Role = common.RoleCommonUser
+	}
+	if !common.IsValidateRole(user.Role) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	myRole := c.GetInt("role")
 	if user.Role >= myRole {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
@@ -855,6 +883,12 @@ func CreateUser(c *gin.Context) {
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if cleanUser.Role == common.RoleAgentUser {
+		if _, err := service.AdminEnsureDistributionAgentForUser(&cleanUser); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

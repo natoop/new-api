@@ -525,17 +525,27 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
 	}
+	if newUser.Role != 0 {
+		updates["role"] = newUser.Role
+	}
 	if updatePassword {
 		updates["password"] = newUser.Password
 	}
 
-	DB.First(&user, user.Id)
-	if err = DB.Model(user).Updates(updates).Error; err != nil {
+	result := DB.Model(&User{}).Where("id = ?", user.Id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("update user failed: affected rows = %d", result.RowsAffected)
+	}
+	var existingUser User
+	if err = DB.First(&existingUser, user.Id).Error; err != nil {
 		return err
 	}
 
 	// Update cache
-	return updateUserCache(*user)
+	return updateUserCache(existingUser)
 }
 
 func (user *User) ClearBinding(bindingType string) error {

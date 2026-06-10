@@ -285,6 +285,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := DB.AutoMigrate(distributionMigrationModels()...); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -330,6 +333,15 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+	}
+	for _, distributionModel := range distributionMigrationModels() {
+		migrations = append(migrations, struct {
+			model interface{}
+			name  string
+		}{
+			model: distributionModel,
+			name:  fmt.Sprintf("%T", distributionModel),
+		})
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
