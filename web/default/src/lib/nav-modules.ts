@@ -93,12 +93,26 @@ function parseAccess(raw: unknown, fallback: ModuleAccess): ModuleAccess {
   return { ...fallback }
 }
 
+/**
+ * Normalize the raw HeaderNavModules option into a plain record.
+ * Returns null ONLY when the option is missing/empty/unparseable — the
+ * caller treats null as "no admin config" and falls back to the full
+ * defaults (legacy sites). A present-but-partial record never falls back
+ * wholesale; per-key defaults are applied instead.
+ */
 function parseHeaderNavRecord(raw: unknown): Record<string, unknown> | null {
-  if (!raw || String(raw).trim() === '') return null
-  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
+  if (raw === null || raw === undefined) return null
+  if (typeof raw === 'string' && raw.trim() === '') return null
+  if (typeof raw === 'object') {
+    return Array.isArray(raw) ? null : (raw as Record<string, unknown>)
+  }
 
   try {
-    return JSON.parse(String(raw)) as Record<string, unknown>
+    const parsed = JSON.parse(String(raw)) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    return parsed as Record<string, unknown>
   } catch {
     return null
   }
@@ -120,15 +134,26 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
     }
 
     const fallback = result[key]
+    const fallbackBool = typeof fallback === 'boolean' ? fallback : true
+
     if (
-      typeof fallback === 'boolean' ||
       typeof value === 'boolean' ||
       typeof value === 'number' ||
       typeof value === 'string'
     ) {
+      // Explicit false/0/"false" must hide the module; unparseable values
+      // fall back to the per-key default.
+      result[key] = parseHeaderNavBoolean(value, fallbackBool)
+      return
+    }
+
+    // Object form ({ enabled: false }) on a simple boolean module: an
+    // explicit `enabled: false` must still hide the entry instead of
+    // silently falling back to the default (which used to fail open).
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
       result[key] = parseHeaderNavBoolean(
-        value,
-        typeof fallback === 'boolean' ? fallback : true
+        (value as Record<string, unknown>).enabled,
+        fallbackBool
       )
     }
   })
@@ -196,14 +221,21 @@ export function isSidebarModuleEnabled(
   if (!raw || String(raw).trim() === '') return true
 
   try {
-    const parsed = JSON.parse(String(raw)) as Record<
-      string,
-      Record<string, boolean>
-    >
-    const sectionConfig = parsed[section]
-    if (!sectionConfig) return true
-    if (sectionConfig.enabled === false) return false
-    if (sectionConfig[module] === false) return false
+    const parsed = JSON.parse(String(raw)) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // Unparseable/odd option value: behave like "no admin config".
+      return true
+    }
+    const sectionConfig = (parsed as Record<string, unknown>)[section]
+    // Section missing from an existing config falls back to the section
+    // default (visible) — only explicit false hides.
+    if (sectionConfig === undefined || sectionConfig === null) return true
+    // Boolean shorthand for a whole section must be honored.
+    if (typeof sectionConfig === 'boolean') return sectionConfig
+    if (typeof sectionConfig !== 'object') return true
+    const sectionRecord = sectionConfig as Record<string, unknown>
+    if (sectionRecord.enabled === false) return false
+    if (sectionRecord[module] === false) return false
     return true
   } catch {
     return true

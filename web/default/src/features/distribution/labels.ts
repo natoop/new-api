@@ -39,6 +39,22 @@ const statusLabels: Record<string, string> = {
   voided: 'Voided',
 }
 
+export const distributionOrderStatuses = [
+  'pending',
+  'paid',
+  'fulfilled',
+  'refunded',
+  'cancelled',
+] as const
+
+const orderStatusLabels: Record<string, string> = {
+  cancelled: 'Cancelled',
+  fulfilled: 'Fulfilled',
+  paid: 'Paid',
+  pending: 'Pending',
+  refunded: 'Refunded',
+}
+
 const scopeLabels: Record<string, string> = {
   agent: 'Agent',
   global: 'Global',
@@ -83,6 +99,14 @@ const discountTypeLabels: Record<string, string> = {
 export function distributionStatusLabel(status: string | undefined, t: Translate) {
   if (!status) return '-'
   return t(statusLabels[status] || status)
+}
+
+export function distributionOrderStatusLabel(
+  status: string | undefined,
+  t: Translate
+) {
+  if (!status) return '-'
+  return t(orderStatusLabels[status] || status)
 }
 
 export function distributionScopeLabel(scope: string | undefined, t: Translate) {

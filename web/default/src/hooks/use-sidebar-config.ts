@@ -21,12 +21,12 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 import type { NavGroup, NavItem } from '@/components/layout/types'
 
-type SidebarSectionConfig = {
+export type SidebarSectionConfig = {
   enabled: boolean
   [key: string]: boolean
 }
 
-type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
+export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 
 // User-layer config is shape-identical to admin, but may be null
 // to signal "no narrowing" (empty/invalid/legacy users).
@@ -118,9 +118,12 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
 }
 
 /**
- * Parse backend SidebarModulesAdmin configuration
+ * Parse backend SidebarModulesAdmin configuration.
+ * Exported so other consumers (e.g. the profile sidebar personalization
+ * card) share the exact same admin-config parsing instead of re-implementing
+ * it — admin config is the single authoritative visibility ceiling.
  */
-function parseSidebarConfig(
+export function parseSidebarConfig(
   value: string | null | undefined
 ): SidebarModulesAdminConfig {
   // If empty string, null, or undefined, use default config

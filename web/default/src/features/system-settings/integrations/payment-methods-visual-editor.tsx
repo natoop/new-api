@@ -72,6 +72,22 @@ const PAYMENT_TEMPLATES = [
     },
   },
   {
+    name: 'XunhuPay WeChat',
+    template: {
+      color: 'rgba(var(--semi-green-5), 1)',
+      name: '微信',
+      type: 'xunhu-wechat',
+    },
+  },
+  {
+    name: 'XunhuPay Alipay',
+    template: {
+      color: 'rgba(var(--semi-blue-5), 1)',
+      name: '支付宝',
+      type: 'xunhu-alipay',
+    },
+  },
+  {
     name: 'Custom',
     template: {
       color: 'black',

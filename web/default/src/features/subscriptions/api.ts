@@ -25,6 +25,9 @@ import type {
   CreateUserSubscriptionRequest,
   SubscriptionPayResponse,
   SubscriptionPayRequest,
+  SubscriptionPromoValidation,
+  SubscriptionXunhuPayRequest,
+  SubscriptionXunhuPayResult,
   SelfSubscriptionData,
 } from './types'
 
@@ -133,6 +136,27 @@ export async function paySubscriptionBalance(
   data: SubscriptionPayRequest
 ): Promise<SubscriptionPayResponse> {
   const res = await api.post('/api/subscription/balance/pay', data)
+  return res.data
+}
+
+// Xunhu (虎皮椒) WeChat Pay / Alipay — returns { pay_url, qr_url, order_no }.
+export async function paySubscriptionXunhu(
+  data: SubscriptionXunhuPayRequest
+): Promise<ApiResponse<SubscriptionXunhuPayResult>> {
+  const res = await api.post('/api/subscription/xunhu/pay', data, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+// Validates a promo code against a plan and returns the discounted price.
+export async function validateSubscriptionPromo(data: {
+  code: string
+  plan_id: number
+}): Promise<ApiResponse<SubscriptionPromoValidation>> {
+  const res = await api.post('/api/subscription/promo/validate', data, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

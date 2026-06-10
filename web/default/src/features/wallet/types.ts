@@ -33,7 +33,24 @@ export interface ApiResponse<T = unknown> {
  * Standard API response types
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
-export type RedemptionResponse = ApiResponse<number>
+
+/**
+ * Redemption result payload (POST /api/user/topup).
+ * Breaking change: data used to be a plain int (quota); now it is a structured
+ * object distinguishing balance codes from plan codes.
+ */
+export interface RedeemResultData {
+  /** Quota credited (balance type) */
+  quota: number
+  /** Redemption code type */
+  type: 'balance' | 'plan'
+  /** Activated plan id (plan type) */
+  plan_id?: number
+  /** Activated plan title (plan type) */
+  plan_title?: string
+}
+
+export type RedemptionResponse = ApiResponse<RedeemResultData | number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
@@ -148,6 +165,8 @@ export interface TopupInfo {
   waffo_min_topup?: number
   /** Whether Waffo Pancake topup is enabled */
   enable_waffo_pancake_topup?: boolean
+  /** Whether Xunhu (WeChat Pay / Alipay) topup is enabled */
+  enable_xunhu_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */

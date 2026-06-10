@@ -23,6 +23,7 @@ import {
   GitFork,
   Plus,
   RefreshCcw,
+  Search,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -68,9 +69,12 @@ import {
   adminUpdateAgentStatus,
   adminUpdateGiftRuleStatus,
   adminUpdatePackageStatus,
+  fetchAdminDistributionOrders,
 } from './api'
 import { DateRangeField } from './date-fields'
 import {
+  distributionOrderStatusLabel,
+  distributionOrderStatuses,
   distributionPriceTargetLabel,
   distributionPriceTypeLabel,
   distributionSourceTypeLabel,
@@ -81,6 +85,7 @@ import type {
   DistributionAttributionLog,
   DistributionGiftRule,
   DistributionOpsAuthorization,
+  DistributionOrderRecord,
   DistributionPackage,
   DistributionProfit,
   DistributionSubscriptionPlanRecord,
@@ -90,6 +95,7 @@ import type {
 type AdminTab =
   | 'agents'
   | 'packages'
+  | 'orders'
   | 'gift'
   | 'ops'
   | 'profit'
@@ -304,6 +310,14 @@ const emptyPriceForm = {
   remark: '',
 }
 
+const emptyOrderFilters = {
+  keyword: '',
+  plan_id: '',
+  status: '',
+  start_time: '',
+  end_time: '',
+}
+
 const emptyGiftForm = {
   name: '',
   package_id: '',
@@ -346,6 +360,11 @@ export function AgentAdmin() {
   const [attributionTotal, setAttributionTotal] = useState(0)
   const [giftRulePage, setGiftRulePage] = useState(1)
   const [giftRuleTotal, setGiftRuleTotal] = useState(0)
+  const [orders, setOrders] = useState<DistributionOrderRecord[]>([])
+  const [orderPage, setOrderPage] = useState(1)
+  const [orderTotal, setOrderTotal] = useState(0)
+  const [orderFilterDraft, setOrderFilterDraft] = useState(emptyOrderFilters)
+  const [orderFilters, setOrderFilters] = useState(emptyOrderFilters)
   const [opsPage, setOpsPage] = useState(1)
   const [opsTotal, setOpsTotal] = useState(0)
   const [balanceAgentId, setBalanceAgentId] = useState('')
@@ -491,6 +510,28 @@ export function AgentAdmin() {
             })
           }
         }
+        if (tab === 'orders') {
+          await loadSubscriptionPlans()
+          const res = await fetchAdminDistributionOrders({
+            p: orderPage,
+            page_size: pageSize,
+            keyword: orderFilters.keyword,
+            plan_id: orderFilters.plan_id
+              ? Number(orderFilters.plan_id)
+              : undefined,
+            status: orderFilters.status || undefined,
+            start_time: orderFilters.start_time
+              ? Number(orderFilters.start_time)
+              : undefined,
+            end_time: orderFilters.end_time
+              ? Number(orderFilters.end_time)
+              : undefined,
+          }).catch(() => null)
+          if (res?.success) {
+            setOrders(res.data?.items || [])
+            setOrderTotal(res.data?.total || 0)
+          }
+        }
         if (tab === 'gift') {
           await loadPackageOptions()
           const res = await adminGetGiftRules({
@@ -548,6 +589,8 @@ export function AgentAdmin() {
       loadSubscriptionPlans,
       loadUsers,
       opsPage,
+      orderFilters,
+      orderPage,
       packagePage,
       profitPage,
     ]
@@ -767,6 +810,17 @@ export function AgentAdmin() {
     await refreshTab('gift')
   }
 
+  function handleSearchOrders() {
+    setOrderPage(1)
+    setOrderFilters({ ...orderFilterDraft })
+  }
+
+  function handleResetOrderFilters() {
+    setOrderFilterDraft(emptyOrderFilters)
+    setOrderFilters({ ...emptyOrderFilters })
+    setOrderPage(1)
+  }
+
   async function handleRevokeOps(row: DistributionOpsAuthorization) {
     const res = await adminRevokeOpsAuthorization(row.user_id)
     if (!res.success) {
@@ -810,6 +864,7 @@ export function AgentAdmin() {
           <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
             <TabsTrigger value='agents'>{t('Agents')}</TabsTrigger>
             <TabsTrigger value='packages'>{t('Packages')}</TabsTrigger>
+            <TabsTrigger value='orders'>{t('Order Lookup')}</TabsTrigger>
             <TabsTrigger value='gift'>{t('Gift Rules')}</TabsTrigger>
             <TabsTrigger value='ops'>{t('Operations Access')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
@@ -949,6 +1004,178 @@ export function AgentAdmin() {
                 page={packagePage}
                 total={packageTotal}
                 onPageChange={setPackagePage}
+              />
+            </TabCard>
+          </TabsContent>
+
+          <TabsContent value='orders' className='space-y-4'>
+            <TabCard title={t('Order Lookup')}>
+              <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                <div className='space-y-2'>
+                  <Label>{t('Buyer')}</Label>
+                  <Input
+                    value={orderFilterDraft.keyword}
+                    placeholder={t(
+                      'Search buyer username, email or display name'
+                    )}
+                    onChange={(e) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        keyword: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Subscription Plan')}</Label>
+                  <Select
+                    value={orderFilterDraft.plan_id || 'all'}
+                    onValueChange={(value) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        plan_id: !value || value === 'all' ? '' : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectDisplay
+                        label={
+                          orderFilterDraft.plan_id
+                            ? subscriptionPlanLabelMap.get(
+                                Number(orderFilterDraft.plan_id)
+                              )
+                            : t('All Plans')
+                        }
+                        placeholder={t('All Plans')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='all'>{t('All Plans')}</SelectItem>
+                        {subscriptionPlans.map((record) => (
+                          <SelectItem
+                            key={record.plan.id}
+                            value={String(record.plan.id)}
+                          >
+                            {planLabel(record)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Status')}</Label>
+                  <Select
+                    value={orderFilterDraft.status || 'all'}
+                    onValueChange={(value) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        status: !value || value === 'all' ? '' : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectDisplay
+                        label={
+                          orderFilterDraft.status
+                            ? distributionOrderStatusLabel(
+                                orderFilterDraft.status,
+                                t
+                              )
+                            : t('All Status')
+                        }
+                        placeholder={t('All Status')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='all'>{t('All Status')}</SelectItem>
+                        {distributionOrderStatuses.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {distributionOrderStatusLabel(status, t)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='md:col-span-2'>
+                  <DateRangeField
+                    startLabel='Start Time'
+                    endLabel='End Time'
+                    startValue={orderFilterDraft.start_time}
+                    endValue={orderFilterDraft.end_time}
+                    onStartChange={(value) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        start_time: value,
+                      }))
+                    }
+                    onEndChange={(value) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        end_time: value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className='flex items-end gap-2'>
+                  <Button onClick={handleSearchOrders}>
+                    <Search className='mr-2 h-4 w-4' />
+                    {t('Search')}
+                  </Button>
+                  <Button variant='outline' onClick={handleResetOrderFilters}>
+                    {t('Reset')}
+                  </Button>
+                </div>
+              </div>
+              <table className='w-full text-sm'>
+                <thead>
+                  <tr className='border-b text-left'>
+                    <th className='py-2'>{t('Order No')}</th>
+                    <th>{t('Buyer')}</th>
+                    <th>{t('Subscription Plan')}</th>
+                    <th>{t('Paid Amount')}</th>
+                    <th>{t('Commission')}</th>
+                    <th>{t('Status')}</th>
+                    <th>{t('Created At')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.length === 0 && <EmptyTableRow colSpan={7} />}
+                  {orders.map((row) => (
+                    <tr key={row.id} className='border-b'>
+                      <td className='py-2 font-mono text-xs'>{row.order_no}</td>
+                      <td>
+                        <div className='font-medium'>
+                          {row.buyer_display_name?.trim() ||
+                            row.buyer_username?.trim() ||
+                            '-'}
+                        </div>
+                        {row.buyer_email && (
+                          <div className='text-muted-foreground text-xs'>
+                            {row.buyer_email}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {row.subscription_title || row.package_name || '-'}
+                      </td>
+                      <td>{formatMoney(row.paid_amount)}</td>
+                      <td>{formatMoney(row.commission_amount)}</td>
+                      <td>
+                        <StatusBadge status={row.status} />
+                      </td>
+                      <td>{formatTime(row.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePager
+                page={orderPage}
+                total={orderTotal}
+                onPageChange={setOrderPage}
               />
             </TabCard>
           </TabsContent>

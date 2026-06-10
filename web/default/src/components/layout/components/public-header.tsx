@@ -31,7 +31,6 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
 import { HeaderLogo } from './header-logo'
 
@@ -61,7 +60,7 @@ export interface PublicHeaderProps {
 
 export function PublicHeader(props: PublicHeaderProps) {
   const {
-    navLinks = defaultTopNavLinks,
+    navLinks,
     showThemeSwitch = true,
     showLanguageSwitcher = true,
     logo: customLogo,
@@ -94,7 +93,10 @@ export function PublicHeader(props: PublicHeaderProps) {
   const user = auth.user
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  // Admin-filtered backend links are authoritative; an empty list means the
+  // admin disabled every header module, so never fall back to unfiltered
+  // static links. An explicit navLinks prop is a deliberate caller override.
+  const links = navLinks ?? dynamicLinks
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)

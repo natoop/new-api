@@ -23,7 +23,6 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
 import { Header } from './header'
 import { SystemBrand } from './system-brand'
@@ -54,7 +53,9 @@ import { TopNav } from './top-nav'
  */
 type AppHeaderProps = {
   /**
-   * Custom navigation links, uses default global navigation or dynamically generated from backend if not provided
+   * Explicit navigation links override. When omitted, links are generated
+   * from the backend HeaderNavModules config (admin-filtered) — including
+   * the case where the admin disabled every module (empty nav).
    */
   navLinks?: TopNavLink[]
   /**
@@ -93,7 +94,7 @@ type AppHeaderProps = {
 }
 
 export function AppHeader({
-  navLinks = defaultTopNavLinks,
+  navLinks,
   showTopNav = true,
   leftContent,
   showSearch = true,
@@ -102,9 +103,13 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // Prioritize dynamically generated links from backend
+  // Backend-driven links are authoritative: useTopNavLinks already applies
+  // the admin HeaderNavModules filter, and an EMPTY result means the admin
+  // disabled every header module — never fall back to unfiltered static
+  // links in that case. An explicitly provided navLinks prop remains a
+  // deliberate caller override.
   const dynamicLinks = useTopNavLinks()
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  const links = navLinks ?? dynamicLinks
 
   // Notifications hook
   const notifications = useNotifications()

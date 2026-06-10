@@ -22,6 +22,10 @@ import { z } from 'zod'
 // Redemption Schema & Types
 // ============================================================================
 
+export const REDEMPTION_TYPE_VALUES = ['balance', 'plan', 'promo'] as const
+
+export type RedemptionType = (typeof REDEMPTION_TYPE_VALUES)[number]
+
 export const redemptionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
@@ -33,6 +37,11 @@ export const redemptionSchema = z.object({
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
   used_user_id: z.number(),
+  type: z.enum(REDEMPTION_TYPE_VALUES).catch('balance'), // balance | plan | promo
+  plan_id: z.number().catch(0), // plan type: subscription plan to activate
+  discount_bps: z.number().catch(0), // promo type: discount in basis points (2000 = 20% off)
+  max_uses: z.number().catch(0), // promo type: max uses, 0 = unlimited
+  used_count: z.number().catch(0), // promo type: times used
 })
 
 export type Redemption = z.infer<typeof redemptionSchema>
@@ -72,10 +81,21 @@ export interface SearchRedemptionsParams {
 export interface RedemptionFormData {
   id?: number
   name: string
+  type: RedemptionType
   quota: number
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update
+  plan_id?: number // Only for plan type
+  discount_bps?: number // Only for promo type
+  max_uses?: number // Only for promo type
+}
+
+// Minimal shape of a subscription plan used for the plan dropdown / title mapping
+export interface SubscriptionPlanOption {
+  id: number
+  title: string
+  enabled: boolean
 }
 
 // ============================================================================

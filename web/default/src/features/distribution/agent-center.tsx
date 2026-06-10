@@ -24,6 +24,7 @@ import {
   RefreshCcw,
   Search,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -481,6 +482,12 @@ export function AgentCenter() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Agent Center')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        <Link
+          to='/agent/guide'
+          className='text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline'
+        >
+          {t('Agent Program Guide')}
+        </Link>
         <Button variant='outline' onClick={() => void refresh(activeTab)}>
           <RefreshCcw className='mr-2 h-4 w-4' />
           {loading ? t('Loading') : t('Refresh')}

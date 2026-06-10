@@ -24,6 +24,7 @@ import type {
   GetRedemptionsResponse,
   SearchRedemptionsParams,
   RedemptionFormData,
+  SubscriptionPlanOption,
 } from './types'
 
 // ============================================================================
@@ -92,5 +93,17 @@ export async function deleteRedemption(id: number): Promise<ApiResponse> {
 // Delete invalid redemption codes (used, disabled, expired)
 export async function deleteInvalidRedemptions(): Promise<ApiResponse<number>> {
   const res = await api.delete('/api/redemption/invalid')
+  return res.data
+}
+
+// ============================================================================
+// Subscription Plans (data source for plan/promo typed redemption codes)
+// ============================================================================
+
+// Get subscription plans for the plan dropdown and plan_id -> title mapping
+export async function getRedemptionPlans(): Promise<
+  ApiResponse<SubscriptionPlanOption[]>
+> {
+  const res = await api.get('/api/subscription/admin/plans')
   return res.data
 }

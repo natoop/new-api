@@ -90,6 +90,38 @@ export interface PlanPayload {
 export interface SubscriptionPayRequest {
   plan_id: number
   payment_method?: string
+  /** Optional promo code — discounted amount is charged server-side. */
+  promo_code?: string
+}
+
+// ============================================================================
+// Promo Code & Xunhu (WeChat/Alipay) Payment
+// ============================================================================
+
+/** POST /api/subscription/promo/validate response data. */
+export interface SubscriptionPromoValidation {
+  code: string
+  plan_id: number
+  plan_title: string
+  currency: string
+  /** Discount in basis points, e.g. 2000 = 20% off. */
+  discount_bps: number
+  original_amount: number
+  final_amount: number
+}
+
+/** POST /api/subscription/xunhu/pay request body. */
+export interface SubscriptionXunhuPayRequest {
+  plan_id: number
+  pay_type: 'wechat' | 'alipay'
+  promo_code?: string
+}
+
+/** POST /api/subscription/xunhu/pay response data. */
+export interface SubscriptionXunhuPayResult {
+  pay_url?: string
+  qr_url?: string
+  order_no?: string
 }
 
 export interface SubscriptionPayResponse {

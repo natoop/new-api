@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LayoutDashboard } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { useStatus } from '@/hooks/use-status'
+import { parseSidebarConfig } from '@/hooks/use-sidebar-config'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -52,6 +54,17 @@ export function SidebarModulesCard() {
   const [config, setConfig] = useState<SidebarModulesConfig>({})
   const currentUser = useAuthStore((s) => s.auth.user)
   const setUser = useAuthStore((s) => s.auth.setUser)
+  const { status } = useStatus()
+
+  // Admin SidebarModulesAdmin config is the authoritative ceiling: modules
+  // disabled by the admin must not even be offered as toggles here.
+  const adminConfig = useMemo(
+    () =>
+      parseSidebarConfig(
+        status?.SidebarModulesAdmin as string | null | undefined
+      ),
+    [status?.SidebarModulesAdmin]
+  )
 
   const sectionDefs: SectionDef[] = [
     {
@@ -122,6 +135,28 @@ export function SidebarModulesCard() {
     },
   ]
 
+  // Only sections/modules the admin left enabled are rendered as toggles.
+  // A section disappears entirely when the admin disabled the whole section
+  // or every module inside it.
+  const visibleSections = useMemo(
+    () =>
+      sectionDefs
+        .map((sec) => {
+          const adminSection = adminConfig[sec.key]
+          if (!adminSection || adminSection.enabled === false) return null
+          const modules = sec.modules.filter(
+            (mod) => adminSection[mod.key] !== false
+          )
+          if (modules.length === 0) return null
+          return { ...sec, modules }
+        })
+        .filter((sec): sec is SectionDef => sec !== null),
+    // sectionDefs is rebuilt every render only for i18n strings; adminConfig
+    // is the only input that changes visibility.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [adminConfig, t]
+  )
+
   const loadConfig = useCallback(async () => {
     try {
       const res = await api.get('/api/user/self')
@@ -130,17 +165,13 @@ export function SidebarModulesCard() {
         const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
         setConfig(parsed)
       } else {
-        const defaults: SidebarModulesConfig = {}
-        for (const sec of sectionDefs) {
-          defaults[sec.key] = { enabled: true }
-          for (const mod of sec.modules) defaults[sec.key][mod.key] = true
-        }
-        setConfig(defaults)
+        // No stored personalization: an empty config means "everything on",
+        // since the switches treat missing keys as enabled.
+        setConfig({})
       }
     } catch {
       /* ignore */
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -168,7 +199,17 @@ export function SidebarModulesCard() {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const serialized = JSON.stringify(config)
+      // Persist only keys the admin allows: admin-disabled sections/modules
+      // are stripped from the payload so a user preference can never
+      // resurrect something the admin turned off.
+      const sanitized: SidebarModulesConfig = {}
+      for (const sec of visibleSections) {
+        sanitized[sec.key] = { enabled: config[sec.key]?.enabled !== false }
+        for (const mod of sec.modules) {
+          sanitized[sec.key][mod.key] = config[sec.key]?.[mod.key] !== false
+        }
+      }
+      const serialized = JSON.stringify(sanitized)
       const res = await api.put('/api/user/self', {
         sidebar_modules: serialized,
       })
@@ -190,12 +231,9 @@ export function SidebarModulesCard() {
   }
 
   const handleReset = () => {
-    const defaults: SidebarModulesConfig = {}
-    for (const sec of sectionDefs) {
-      defaults[sec.key] = { enabled: true }
-      for (const mod of sec.modules) defaults[sec.key][mod.key] = true
-    }
-    setConfig(defaults)
+    // Empty config = all admin-allowed modules visible (missing keys are
+    // treated as enabled); admin-disabled modules stay hidden regardless.
+    setConfig({})
     toast.success(t('Reset to default configuration'))
   }
 
@@ -217,7 +255,14 @@ export function SidebarModulesCard() {
         </div>
       </CardHeader>
       <CardContent className='space-y-4 p-3 sm:space-y-5 sm:p-5'>
-        {sectionDefs.map((section) => {
+        {visibleSections.length === 0 && (
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'All sidebar modules have been disabled by the administrator'
+            )}
+          </p>
+        )}
+        {visibleSections.map((section) => {
           const sectionEnabled = config[section.key]?.enabled !== false
           return (
             <div
@@ -266,14 +311,16 @@ export function SidebarModulesCard() {
           )
         })}
 
-        <div className='flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end'>
-          <Button variant='outline' onClick={handleReset}>
-            {t('Reset to Default')}
-          </Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </div>
+        {visibleSections.length > 0 && (
+          <div className='flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end'>
+            <Button variant='outline' onClick={handleReset}>
+              {t('Reset to Default')}
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? t('Saving...') : t('Save Changes')}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

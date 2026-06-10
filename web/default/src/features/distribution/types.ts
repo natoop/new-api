@@ -185,6 +185,25 @@ export interface DistributionOpsAuthorization {
   remark: string
 }
 
+export interface DistributionOrderRecord {
+  id: number
+  order_no: string
+  buyer_username?: string
+  buyer_display_name?: string
+  buyer_email?: string
+  subscription_plan_id: number
+  subscription_title?: string
+  package_name?: string
+  original_amount: number
+  discount_amount: number
+  paid_amount: number
+  commission_amount: number
+  status: string
+  paid_at?: number
+  fulfilled_at?: number
+  created_at: number
+}
+
 export interface DistributionProfile {
   agent: DistributionAgent
   available_inventory: number

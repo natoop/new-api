@@ -21,3 +21,22 @@ export type LegalDocumentResponse = {
   message?: string
   data?: string
 }
+
+export type AgreementStatusResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    required: boolean
+    version: string
+    agreed: boolean
+  }
+}
+
+export type AgreementConsentResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    version: string
+    agreed: boolean
+  }
+}

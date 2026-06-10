@@ -51,13 +51,13 @@ interface StatCardProps {
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'from-rose-500/80 via-rose-300/70 to-rose-200/20 dark:from-rose-400/70 dark:via-rose-500/30 dark:to-rose-500/5',
-  teal: 'from-teal-500/80 via-teal-300/70 to-teal-200/20 dark:from-teal-400/70 dark:via-teal-500/30 dark:to-teal-500/5',
+  rose: 'from-chart-5/80 via-chart-5/40 to-chart-5/10 dark:from-chart-5/70 dark:via-chart-5/30 dark:to-chart-5/5',
+  teal: 'from-primary/80 via-primary/40 to-primary/10 dark:from-primary/70 dark:via-primary/30 dark:to-primary/5',
   gray: 'from-muted-foreground/50 via-muted-foreground/20 to-transparent dark:from-muted-foreground/40 dark:via-muted-foreground/20',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'text-warning',
+  rose: 'text-chart-5',
   teal: 'text-primary',
   gray: 'text-muted-foreground',
 }
@@ -222,12 +222,12 @@ export function StatCard(props: StatCardProps) {
 
       {props.loading ? (
         <div className='flex flex-col gap-1.5'>
-          <Skeleton className='h-7 w-24' />
+          <Skeleton className='h-9 w-28' />
           <Skeleton className='h-3.5 w-32' />
         </div>
       ) : props.error ? (
         <div className='flex flex-col gap-1'>
-          <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
+          <div className='text-muted-foreground mt-0.5 font-mono text-lg font-bold tracking-tight break-all tabular-nums sm:text-3xl'>
             --
           </div>
           <p className='text-muted-foreground/60 text-xs'>
@@ -236,7 +236,7 @@ export function StatCard(props: StatCardProps) {
         </div>
       ) : (
         <div className='flex flex-col gap-1'>
-          <div className='text-foreground font-mono text-2xl font-semibold tracking-tight break-all tabular-nums'>
+          <div className='text-foreground font-mono text-3xl font-semibold tracking-tight break-all tabular-nums'>
             {props.value}
           </div>
           <p className='text-muted-foreground/60 text-xs leading-relaxed'>

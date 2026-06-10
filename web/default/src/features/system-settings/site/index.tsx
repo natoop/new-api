@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { SettingsPage } from '../components/settings-page'
 import type { SiteSettings } from '../types'
 import {
@@ -27,7 +28,7 @@ import {
 const defaultSiteSettings: SiteSettings = {
   'theme.frontend': 'default',
   Notice: '',
-  SystemName: 'New API',
+  SystemName: DEFAULT_SYSTEM_NAME,
   Logo: '',
   Footer: '',
   About: '',
@@ -35,6 +36,8 @@ const defaultSiteSettings: SiteSettings = {
   ServerAddress: '',
   'legal.user_agreement': '',
   'legal.privacy_policy': '',
+  'legal.user_agreement_version': '',
+  'legal.console_agreement_enabled': false,
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
 }

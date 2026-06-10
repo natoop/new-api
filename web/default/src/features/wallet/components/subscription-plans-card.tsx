@@ -540,7 +540,7 @@ export function SubscriptionPlansCard({
                 <Card
                   key={plan.id}
                   className={cn(
-                    'transition-shadow hover:shadow-md',
+                    'transition-shadow hover:shadow-sm',
                     isPopular && 'border-primary/70 shadow-sm'
                   )}
                 >

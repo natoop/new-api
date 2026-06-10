@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
@@ -34,6 +35,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetClose,
@@ -51,8 +60,13 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import {
+  createRedemption,
+  updateRedemption,
+  getRedemption,
+  getRedemptionPlans,
+} from '../api'
+import { SUCCESS_MESSAGES, getRedemptionTypeOptions } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -60,7 +74,7 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import { type Redemption } from '../types'
+import { type Redemption, type RedemptionType } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -148,6 +162,23 @@ export function RedemptionsMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
+  const codeType = form.watch('type')
+  const selectedPlanId = form.watch('plan_id')
+
+  const typeItems = useMemo(() => getRedemptionTypeOptions(t), [t])
+
+  // Subscription plans for the plan dropdown
+  const { data: plansData } = useQuery({
+    queryKey: ['redemption-plans'],
+    queryFn: getRedemptionPlans,
+    enabled: open,
+    staleTime: 60_000,
+  })
+  // Only enabled plans are selectable; keep the current plan visible when editing
+  const planItems = (plansData?.data ?? [])
+    .filter((plan) => plan.enabled || plan.id === selectedPlanId)
+    .map((plan) => ({ value: String(plan.id), label: plan.title }))
+
   return (
     <Sheet
       open={open}
@@ -200,32 +231,181 @@ export function RedemptionsMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='quota_dollars'
+                name='type'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{quotaLabel}</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type='number'
-                        step={tokensOnly ? 1 : 0.01}
-                        placeholder={quotaPlaceholder}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
-                    </FormControl>
+                    <FormLabel>{t('Code Type')}</FormLabel>
+                    <Select
+                      items={typeItems}
+                      value={field.value}
+                      onValueChange={(v) =>
+                        field.onChange(v as RedemptionType)
+                      }
+                      disabled={isUpdate}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {typeItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                     <FormDescription>
-                      {tokensOnly
-                        ? t('Enter the quota amount in tokens')
-                        : t('Enter the quota amount in {{currency}}', {
-                            currency: currencyLabel,
-                          })}
+                      {isUpdate
+                        ? t('Code type cannot be changed after creation')
+                        : t(
+                            'Balance code adds quota; plan code activates a subscription plan; promo code discounts plan purchase'
+                          )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {codeType === 'balance' && (
+                <FormField
+                  control={form.control}
+                  name='quota_dollars'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{quotaLabel}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step={tokensOnly ? 1 : 0.01}
+                          placeholder={quotaPlaceholder}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {tokensOnly
+                          ? t('Enter the quota amount in tokens')
+                          : t('Enter the quota amount in {{currency}}', {
+                              currency: currencyLabel,
+                            })}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {codeType === 'plan' && (
+                <FormField
+                  control={form.control}
+                  name='plan_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Plan')}</FormLabel>
+                      <Select
+                        items={planItems}
+                        value={field.value ? String(field.value) : null}
+                        onValueChange={(v) =>
+                          field.onChange(
+                            v ? parseInt(String(v), 10) : undefined
+                          )
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue
+                              placeholder={t('Select a plan')}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {planItems.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t('Plan to activate when this code is redeemed')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {codeType === 'promo' && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='discount_percent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Discount (%)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0.01}
+                            max={99.99}
+                            step={0.01}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : parseFloat(e.target.value)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Enter 20 to take 20% off plan purchase')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='max_uses'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Max Uses')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            value={field.value ?? 0}
+                            onChange={(e) =>
+                              field.onChange(
+                                parseInt(e.target.value, 10) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('0 means unlimited')}{' '}
+                          {t(
+                            'Promo codes are applied at plan checkout and cannot be redeemed directly'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
 
               <FormField
                 control={form.control}

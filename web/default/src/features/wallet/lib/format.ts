@@ -34,6 +34,21 @@ export function formatCreemPrice(
 }
 
 /**
+ * Format a subscription plan amount in the plan's own currency.
+ * CNY → ¥, USD → $; other codes fall back to "CODE amount".
+ */
+export function formatPlanAmount(
+  amount: number,
+  currency?: string | null
+): string {
+  const code = (currency || 'USD').trim().toUpperCase()
+  const value = amount.toFixed(2)
+  if (code === 'CNY') return `¥${value}`
+  if (code === 'USD') return `$${value}`
+  return `${code} ${value}`
+}
+
+/**
  * Format large quota numbers with K/M suffix
  */
 export function formatQuotaShort(quota: number): string {

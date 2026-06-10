@@ -29,12 +29,19 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
-import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
+import {
+  REDEMPTION_FILTER_EXPIRED,
+  REDEMPTION_STATUSES,
+  REDEMPTION_TYPE,
+  REDEMPTION_TYPES,
+} from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
-import { type Redemption } from '../types'
+import { type Redemption, type RedemptionType } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
-export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
+export function useRedemptionsColumns(
+  planTitles: Record<number, string> = {}
+): ColumnDef<Redemption>[] {
   const { t } = useTranslation()
   return [
     {
@@ -84,6 +91,52 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             {row.getValue('name')}
           </div>
         )
+      },
+    },
+    {
+      accessorKey: 'type',
+      meta: { label: t('Type'), mobileBadge: true },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Type')} />
+      ),
+      cell: ({ row }) => {
+        const redemption = row.original
+        const type = ((row.getValue('type') as string) ||
+          REDEMPTION_TYPE.BALANCE) as RedemptionType
+        const typeConfig =
+          REDEMPTION_TYPES[type] ?? REDEMPTION_TYPES[REDEMPTION_TYPE.BALANCE]
+
+        return (
+          <div className='flex flex-col gap-0.5'>
+            <StatusBadge
+              label={t(typeConfig.labelKey)}
+              variant={typeConfig.variant}
+              copyable={false}
+            />
+            {type === REDEMPTION_TYPE.PLAN && (
+              <span className='text-muted-foreground max-w-[150px] truncate text-xs'>
+                {planTitles[redemption.plan_id] ?? `#${redemption.plan_id}`}
+              </span>
+            )}
+            {type === REDEMPTION_TYPE.PROMO && (
+              <span className='text-muted-foreground text-xs whitespace-nowrap'>
+                {t('{{percent}}% off', {
+                  percent: redemption.discount_bps / 100,
+                })}
+                {' · '}
+                {t('Used {{used}}/{{total}}', {
+                  used: redemption.used_count ?? 0,
+                  total:
+                    redemption.max_uses > 0 ? redemption.max_uses : '∞',
+                })}
+              </span>
+            )}
+          </div>
+        )
+      },
+      filterFn: (row, id, value) => {
+        const type = (row.getValue(id) as string) || REDEMPTION_TYPE.BALANCE
+        return (value as string[]).includes(type)
       },
     },
     {
@@ -167,6 +220,15 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         <DataTableColumnHeader column={column} title={t('Quota')} />
       ),
       cell: ({ row }) => {
+        const redemption = row.original
+        // Quota only applies to balance codes (plan/promo may have quota = 0)
+        if (
+          redemption.type &&
+          redemption.type !== REDEMPTION_TYPE.BALANCE &&
+          redemption.quota === 0
+        ) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
         const quota = row.getValue('quota') as number
         return (
           <StatusBadge

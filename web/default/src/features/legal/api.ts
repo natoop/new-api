@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import type { LegalDocumentResponse } from './types'
+import type {
+  AgreementConsentResponse,
+  AgreementStatusResponse,
+  LegalDocumentResponse,
+} from './types'
 
 export async function getUserAgreement() {
   const res = await api.get<LegalDocumentResponse>('/api/user-agreement')
@@ -26,5 +30,20 @@ export async function getUserAgreement() {
 
 export async function getPrivacyPolicy() {
   const res = await api.get<LegalDocumentResponse>('/api/privacy-policy')
+  return res.data
+}
+
+export async function getAgreementStatus() {
+  const res = await api.get<AgreementStatusResponse>(
+    '/api/user/agreement/status'
+  )
+  return res.data
+}
+
+export async function consentAgreement(version: string) {
+  const res = await api.post<AgreementConsentResponse>(
+    '/api/user/agreement/consent',
+    { version }
+  )
   return res.data
 }

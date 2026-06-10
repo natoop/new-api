@@ -67,6 +67,8 @@ export type SiteSettings = {
   ServerAddress: string
   'legal.user_agreement': string
   'legal.privacy_policy': string
+  'legal.user_agreement_version': string
+  'legal.console_agreement_enabled': boolean
   HeaderNavModules: string
   SidebarModulesAdmin: string
 }

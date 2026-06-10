@@ -54,6 +54,10 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import {
+  getOptionValue,
+  useSystemOptions,
+} from '../hooks/use-system-options'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
@@ -142,6 +146,16 @@ const paymentSchema = z.object({
       })
     }
   }),
+  XunhuEnabled: z.boolean(),
+  XunhuWechatAppId: z.string(),
+  XunhuWechatAppSecret: z.string(),
+  XunhuAlipayAppId: z.string(),
+  XunhuAlipayAppSecret: z.string(),
+  XunhuGatewayUrl: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid URL starting with http:// or https://'),
   WaffoEnabled: z.boolean(),
   WaffoApiKey: z.string(),
   WaffoPrivateKey: z.string(),
@@ -163,9 +177,25 @@ const paymentSchema = z.object({
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
 type WaffoFormFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
+
+const XUNHU_OPTION_DEFAULTS = {
+  XunhuEnabled: false,
+  XunhuWechatAppId: '',
+  XunhuWechatAppSecret: '',
+  XunhuAlipayAppId: '',
+  XunhuAlipayAppSecret: '',
+  XunhuGatewayUrl: '',
+}
+
+type XunhuSettingsValues = typeof XUNHU_OPTION_DEFAULTS
+
+const XUNHU_DEFAULT_GATEWAY_URL = 'https://api.xunhupay.com/payment/do.html'
+
 type PaymentBaseFormValues = Omit<
   PaymentFormValues,
-  keyof WaffoFormFieldValues | keyof WaffoPancakeSettingsValues
+  | keyof WaffoFormFieldValues
+  | keyof WaffoPancakeSettingsValues
+  | keyof XunhuSettingsValues
 >
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
@@ -206,13 +236,24 @@ export function PaymentSettingsSection({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const updateOption = useUpdateOption()
+  const { data: systemOptionsData } = useSystemOptions()
+  const xunhuDefaultValues = React.useMemo<XunhuSettingsValues>(
+    () => getOptionValue(systemOptionsData?.data, XUNHU_OPTION_DEFAULTS),
+    [systemOptionsData?.data]
+  )
   const initialFormValues = React.useMemo<PaymentFormValues>(
     () => ({
       ...defaultValues,
       ...waffoDefaultValues,
       ...waffoPancakeDefaultValues,
+      ...xunhuDefaultValues,
     }),
-    [defaultValues, waffoDefaultValues, waffoPancakeDefaultValues]
+    [
+      defaultValues,
+      waffoDefaultValues,
+      waffoPancakeDefaultValues,
+      xunhuDefaultValues,
+    ]
   )
   const initialRef = React.useRef(initialFormValues)
   const defaultsSignature = React.useMemo(
@@ -419,6 +460,12 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
       CreemProducts: values.CreemProducts.trim(),
+      XunhuEnabled: values.XunhuEnabled,
+      XunhuWechatAppId: values.XunhuWechatAppId.trim(),
+      XunhuWechatAppSecret: values.XunhuWechatAppSecret.trim(),
+      XunhuAlipayAppId: values.XunhuAlipayAppId.trim(),
+      XunhuAlipayAppSecret: values.XunhuAlipayAppSecret.trim(),
+      XunhuGatewayUrl: removeTrailingSlash(values.XunhuGatewayUrl.trim()),
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
       WaffoMerchantId: values.WaffoMerchantId.trim(),
@@ -464,6 +511,14 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
       CreemProducts: initialRef.current.CreemProducts.trim(),
+      XunhuEnabled: initialRef.current.XunhuEnabled,
+      XunhuWechatAppId: initialRef.current.XunhuWechatAppId.trim(),
+      XunhuWechatAppSecret: initialRef.current.XunhuWechatAppSecret.trim(),
+      XunhuAlipayAppId: initialRef.current.XunhuAlipayAppId.trim(),
+      XunhuAlipayAppSecret: initialRef.current.XunhuAlipayAppSecret.trim(),
+      XunhuGatewayUrl: removeTrailingSlash(
+        initialRef.current.XunhuGatewayUrl.trim()
+      ),
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
       WaffoMerchantId: initialRef.current.WaffoMerchantId.trim(),
@@ -609,6 +664,51 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (sanitized.XunhuEnabled !== initial.XunhuEnabled) {
+      updates.push({ key: 'XunhuEnabled', value: sanitized.XunhuEnabled })
+    }
+
+    if (sanitized.XunhuWechatAppId !== initial.XunhuWechatAppId) {
+      updates.push({
+        key: 'XunhuWechatAppId',
+        value: sanitized.XunhuWechatAppId,
+      })
+    }
+
+    if (
+      sanitized.XunhuWechatAppSecret &&
+      sanitized.XunhuWechatAppSecret !== initial.XunhuWechatAppSecret
+    ) {
+      updates.push({
+        key: 'XunhuWechatAppSecret',
+        value: sanitized.XunhuWechatAppSecret,
+      })
+    }
+
+    if (sanitized.XunhuAlipayAppId !== initial.XunhuAlipayAppId) {
+      updates.push({
+        key: 'XunhuAlipayAppId',
+        value: sanitized.XunhuAlipayAppId,
+      })
+    }
+
+    if (
+      sanitized.XunhuAlipayAppSecret &&
+      sanitized.XunhuAlipayAppSecret !== initial.XunhuAlipayAppSecret
+    ) {
+      updates.push({
+        key: 'XunhuAlipayAppSecret',
+        value: sanitized.XunhuAlipayAppSecret,
+      })
+    }
+
+    if (sanitized.XunhuGatewayUrl !== initial.XunhuGatewayUrl) {
+      updates.push({
+        key: 'XunhuGatewayUrl',
+        value: sanitized.XunhuGatewayUrl,
+      })
     }
 
     if (sanitized.WaffoEnabled !== initial.WaffoEnabled) {
@@ -1505,6 +1605,164 @@ export function PaymentSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Configure Creem products. Provide a JSON array.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('XunhuPay Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for XunhuPay (虎皮椒) payment integration')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p>
+                {t(
+                  'WeChat Pay and Alipay use two independent appid/appsecret pairs in the XunhuPay dashboard. If only one pair is configured, users will only see the corresponding payment method.'
+                )}
+              </p>
+            </div>
+
+            <FormField
+              control={form.control}
+              name='XunhuEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable XunhuPay')}</FormLabel>
+                    <FormDescription>
+                      {t('Allow users to top up via XunhuPay')}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='XunhuWechatAppId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('WeChat Pay AppID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='201906xxxxx'
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('AppID of the WeChat channel in XunhuPay dashboard')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='XunhuWechatAppSecret'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('WeChat Pay AppSecret')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Enter new key to update')}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank unless rotating the secret')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='XunhuAlipayAppId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay AppID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='201906xxxxx'
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('AppID of the Alipay channel in XunhuPay dashboard')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='XunhuAlipayAppSecret'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay AppSecret')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Enter new key to update')}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank unless rotating the secret')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='XunhuGatewayUrl'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('XunhuPay gateway URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={XUNHU_DEFAULT_GATEWAY_URL}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Leave blank to use the default gateway {{url}}',
+                      { url: XUNHU_DEFAULT_GATEWAY_URL }
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

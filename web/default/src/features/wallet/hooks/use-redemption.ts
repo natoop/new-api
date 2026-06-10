@@ -19,47 +19,68 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
-import { getSelf } from '@/lib/api'
-import { formatQuota } from '@/lib/format'
 import { redeemTopupCode } from '../api'
+import type { RedeemResultData } from '../types'
 
 // ============================================================================
 // Redemption Hook
 // ============================================================================
 
+/**
+ * Normalized redemption outcome. The backend now returns
+ * { quota, type: "balance" | "plan", plan_id, plan_title }; legacy plain-int
+ * responses are normalized to a balance outcome for safety.
+ */
+export interface RedeemOutcome {
+  type: 'balance' | 'plan'
+  quota: number
+  planId?: number
+  planTitle?: string
+}
+
+function normalizeRedeemResult(data: RedeemResultData | number): RedeemOutcome {
+  if (typeof data === 'number') {
+    return { type: 'balance', quota: data }
+  }
+  return {
+    type: data.type === 'plan' ? 'plan' : 'balance',
+    quota: Number(data.quota) || 0,
+    planId: data.plan_id,
+    planTitle: data.plan_title,
+  }
+}
+
 export function useRedemption() {
   const [redeeming, setRedeeming] = useState(false)
 
-  const redeemCode = useCallback(async (code: string): Promise<boolean> => {
-    if (!code || code.trim() === '') {
-      toast.error(i18next.t('Please enter a redemption code'))
-      return false
-    }
-
-    try {
-      setRedeeming(true)
-      const response = await redeemTopupCode({ key: code })
-
-      if (response.success && response.data) {
-        const quotaAdded = response.data
-        toast.success(
-          i18next.t('Redemption successful! Added: {{quota}}', {
-            quota: formatQuota(quotaAdded),
-          })
-        )
-        await getSelf()
-        return true
+  const redeemCode = useCallback(
+    async (code: string): Promise<RedeemOutcome | null> => {
+      if (!code || code.trim() === '') {
+        toast.error(i18next.t('Please enter a redemption code'))
+        return null
       }
 
-      toast.error(response.message || i18next.t('Redemption failed'))
-      return false
-    } catch (_error) {
-      toast.error(i18next.t('Redemption failed'))
-      return false
-    } finally {
-      setRedeeming(false)
-    }
-  }, [])
+      try {
+        setRedeeming(true)
+        const response = await redeemTopupCode({ key: code.trim() })
+
+        if (response.success && response.data !== undefined) {
+          return normalizeRedeemResult(response.data)
+        }
+
+        // Promo codes are rejected here with a dedicated backend message
+        // ("促销码请在购买套餐时使用") — surface it as-is.
+        toast.error(response.message || i18next.t('Redemption failed'))
+        return null
+      } catch (_error) {
+        toast.error(i18next.t('Redemption failed'))
+        return null
+      } finally {
+        setRedeeming(false)
+      }
+    },
+    []
+  )
 
   return {
     redeeming,

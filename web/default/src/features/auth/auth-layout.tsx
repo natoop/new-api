@@ -49,11 +49,13 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1 className='text-xl font-semibold tracking-tight'>
+            {systemName}
+          </h1>
         )}
       </Link>
       <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+        <div className='bg-card sm:shadow-xs mx-auto flex w-full flex-col justify-center space-y-2 px-5 py-10 sm:w-[480px] sm:rounded-2xl sm:border sm:p-10'>
           {children}
         </div>
       </div>

@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
-import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
 
 interface PublicNavigationProps {
@@ -42,10 +41,11 @@ export function PublicNavigation({
   links: providedLinks,
   className,
 }: PublicNavigationProps = {}) {
-  // Use the same logic as AppHeader: prioritize dynamic links from backend
+  // Same rule as AppHeader: admin-filtered backend links are authoritative.
+  // An empty list means the admin disabled every header module — never fall
+  // back to unfiltered static links. Explicit `links` prop is an override.
   const dynamicLinks = useTopNavLinks()
-  const defaultLinks = providedLinks || defaultTopNavLinks
-  const links = dynamicLinks.length > 0 ? dynamicLinks : defaultLinks
+  const links = providedLinks ?? dynamicLinks
 
   return (
     <nav className={cn('hidden items-center gap-1 md:flex', className)}>

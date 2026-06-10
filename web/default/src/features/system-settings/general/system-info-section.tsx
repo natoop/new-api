@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -45,6 +46,8 @@ import {
   SettingsForm,
   SettingsFormGrid,
   SettingsFormGridItem,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
@@ -64,6 +67,8 @@ const _systemInfoSchema = z.object({
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
+    user_agreement_version: z.string().optional(),
+    console_agreement_enabled: z.boolean(),
   }),
 })
 
@@ -96,6 +101,12 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
+      user_agreement_version: normalizeValue(
+        defaultValues.legal?.user_agreement_version
+      ),
+      console_agreement_enabled: Boolean(
+        defaultValues.legal?.console_agreement_enabled
+      ),
     },
   }
 
@@ -114,6 +125,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
+      user_agreement_version: z.string().optional(),
+      console_agreement_enabled: z.boolean(),
     }),
   })
 
@@ -376,6 +389,51 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='legal.user_agreement_version'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Agreement Version')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('e.g. v1.0')} {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Changing the version will require all users to re-sign the agreement'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='legal.console_agreement_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Force Agreement Signing in Console')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, users must sign the latest agreement version before using the console'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </SettingsSwitchItem>
                 )}
               />
             </SettingsFormGrid>

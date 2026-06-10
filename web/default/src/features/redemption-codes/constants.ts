@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
 import { type StatusBadgeProps } from '@/components/status-badge'
+import { type RedemptionType } from './types'
 
 // ============================================================================
 // Redemption Status Configuration
@@ -73,6 +74,48 @@ export function getRedemptionStatusOptions(t: TFunction) {
       value: REDEMPTION_FILTER_EXPIRED,
     },
   ]
+}
+
+// ============================================================================
+// Redemption Type Configuration
+// ============================================================================
+
+export const REDEMPTION_TYPE = {
+  BALANCE: 'balance',
+  PLAN: 'plan',
+  PROMO: 'promo',
+} as const satisfies Record<string, RedemptionType>
+
+// labelKey values are i18n keys; use t(config.labelKey) in components
+export const REDEMPTION_TYPES: Record<
+  RedemptionType,
+  Pick<StatusBadgeProps, 'variant'> & {
+    labelKey: string
+    value: RedemptionType
+  }
+> = {
+  [REDEMPTION_TYPE.BALANCE]: {
+    labelKey: 'Balance Code',
+    variant: 'info',
+    value: REDEMPTION_TYPE.BALANCE,
+  },
+  [REDEMPTION_TYPE.PLAN]: {
+    labelKey: 'Plan Code',
+    variant: 'success',
+    value: REDEMPTION_TYPE.PLAN,
+  },
+  [REDEMPTION_TYPE.PROMO]: {
+    labelKey: 'Promo Code',
+    variant: 'warning',
+    value: REDEMPTION_TYPE.PROMO,
+  },
+} as const
+
+export function getRedemptionTypeOptions(t: TFunction) {
+  return Object.values(REDEMPTION_TYPES).map((config) => ({
+    label: t(config.labelKey),
+    value: config.value,
+  }))
 }
 
 // ============================================================================

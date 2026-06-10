@@ -27,6 +27,7 @@ import type {
   DistributionInvitation,
   DistributionLedger,
   DistributionOpsAuthorization,
+  DistributionOrderRecord,
   DistributionPackage,
   DistributionInventoryPackageOption,
   DistributionProfile,
@@ -86,6 +87,22 @@ async function getSilent<T>(
 
 export async function getAgentProfile() {
   return getSilent<DistributionProfile | null>('/api/agent/profile', null)
+}
+
+export interface AgentPromotionProgress {
+  invited_count: number
+  paid_count: number
+  required_invites: number
+  required_paid: number
+  is_agent: boolean
+  aff_code: string
+}
+
+export async function getAgentPromotionProgress() {
+  return getSilent<AgentPromotionProgress | null>(
+    '/api/user/agent-progress',
+    null
+  )
 }
 
 export async function getAgentPackages(
@@ -398,6 +415,31 @@ export async function adminGetAttribution(
   const res = await api.get<
     ApiResponse<PaginatedData<DistributionAttributionLog>>
   >(`/api/agent-admin/attribution?${query.toString()}`)
+  return res.data
+}
+
+export async function fetchAdminDistributionOrders(
+  params: {
+    p?: number
+    page_size?: number
+    keyword?: string
+    plan_id?: number
+    status?: string
+    start_time?: number
+    end_time?: number
+  } = {}
+) {
+  const query = new URLSearchParams()
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  if (params.keyword?.trim()) query.set('keyword', params.keyword.trim())
+  if (params.plan_id) query.set('plan_id', String(params.plan_id))
+  if (params.status) query.set('status', params.status)
+  if (params.start_time) query.set('start_time', String(params.start_time))
+  if (params.end_time) query.set('end_time', String(params.end_time))
+  const res = await api.get<
+    ApiResponse<PaginatedData<DistributionOrderRecord>>
+  >(`/api/agent-admin/orders?${query.toString()}`)
   return res.data
 }
 
