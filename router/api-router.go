@@ -171,6 +171,17 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/xunhu/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestXunhuPay)
 		}
+		// Operations analytics console (admin) — aggregated revenue,
+		// user growth, payment-provider and channel-health metrics.
+		opsRoute := apiRouter.Group("/ops")
+		opsRoute.Use(middleware.AdminAuth())
+		{
+			opsRoute.GET("/overview", controller.GetOpsOverview)
+			opsRoute.GET("/revenue-trend", controller.GetOpsRevenueTrend)
+			opsRoute.GET("/user-growth", controller.GetOpsUserGrowth)
+			opsRoute.GET("/payment-providers", controller.GetOpsPaymentProviders)
+		}
+
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
 		{

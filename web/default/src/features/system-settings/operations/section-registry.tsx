@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { OperationsAnalyticsSection } from './analytics/operations-analytics-section'
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
@@ -27,6 +28,11 @@ import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const OPERATIONS_SECTIONS = [
+  {
+    id: 'analytics',
+    titleKey: 'Operations Analytics',
+    build: (_settings: OperationsSettings) => <OperationsAnalyticsSection />,
+  },
   {
     id: 'behavior',
     titleKey: 'System Behavior',
@@ -161,7 +167,7 @@ const operationsRegistry = createSectionRegistry<
   [string | null | undefined, number | null | undefined]
 >({
   sections: OPERATIONS_SECTIONS,
-  defaultSection: 'behavior',
+  defaultSection: 'analytics',
   basePath: '/system-settings/operations',
   urlStyle: 'path',
 })

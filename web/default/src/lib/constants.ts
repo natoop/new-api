@@ -23,7 +23,7 @@ For commercial licensing, please contact support@quantumnous.com
 // System Configuration Defaults (deployment display-name layer only;
 // upstream project attribution is configured elsewhere and must stay intact)
 export const DEFAULT_SYSTEM_NAME = 'GosWith'
-export const DEFAULT_LOGO = '/goswith-logo.svg'
+export const DEFAULT_LOGO = '/goswith-mark-square.png'
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

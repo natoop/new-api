@@ -115,13 +115,14 @@ For commercial licensing, please contact support@quantumnous.com
    * in theme-presets.css. Default mirrors `--font-sans` so behavior is
    * identical when no font preference is set. */
   --font-body: var(--font-sans);
-  /* GosWith brand gradient — restrained indigo → violet (Stripe/Linear
-   * register). Reserved for the logomark, auth hero and rare hero CTAs;
-   * everyday surfaces stay neutral and only --primary carries the brand. */
+  /* GosWith brand gradient — azure → fresh-green, sampled from the GS
+   * logomark (#0190EF → #66C74B). Reserved for the logomark, auth hero and
+   * rare hero CTAs; everyday surfaces stay neutral and only --primary
+   * carries the brand. */
   --brand-gradient: linear-gradient(
     135deg,
-    oklch(0.52 0.21 272) 0%,
-    oklch(0.55 0.23 295) 100%
+    oklch(0.58 0.17 248) 0%,
+    oklch(0.72 0.186 139) 100%
   );
   /* Neutral gray canvas with a whisper of cool tint; pure-white cards
    * "float" on it with 1px borders + xs shadows instead of heavy elevation. */
@@ -131,15 +132,16 @@ For commercial licensing, please contact support@quantumnous.com
   --card-foreground: oklch(0.165 0.006 270);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.165 0.006 270);
-  /* Single brand primary: refined indigo (≈ #4f46e5 family). */
-  --primary: oklch(0.51 0.22 277);
-  --primary-foreground: oklch(0.985 0.002 277);
-  --secondary: oklch(0.955 0.006 277);
-  --secondary-foreground: oklch(0.24 0.03 277);
+  /* Single brand primary: azure blue sampled from the GS logomark
+   * (≈ #0190EF family), deepened for white-text legibility on buttons. */
+  --primary: oklch(0.55 0.18 248);
+  --primary-foreground: oklch(0.985 0.002 248);
+  --secondary: oklch(0.955 0.006 248);
+  --secondary-foreground: oklch(0.24 0.03 248);
   --muted: oklch(0.963 0.003 270);
-  --muted-foreground: oklch(0.49 0.012 272);
-  --accent: oklch(0.945 0.009 277);
-  --accent-foreground: oklch(0.24 0.03 277);
+  --muted-foreground: oklch(0.49 0.012 250);
+  --accent: oklch(0.945 0.009 248);
+  --accent-foreground: oklch(0.24 0.03 248);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --success: oklch(0.596 0.145 163.225);
@@ -152,9 +154,9 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral-foreground: oklch(0.145 0 0);
   --border: oklch(0.922 0.004 270);
   --input: oklch(0.912 0.005 270);
-  --ring: oklch(0.58 0.18 277);
+  --ring: oklch(0.6 0.15 248);
   /* Google-spirit accent quartet — blue / green / amber / coral tuned in
-   * OKLCH to sit comfortably next to the indigo brand primary. Used for
+   * OKLCH to sit comfortably next to the azure brand primary. Used for
    * stat-card icon chips, benefit icons, status dots and the chart axis;
    * the brand CTA itself stays on --primary / --brand-gradient. */
   --accent-blue: oklch(0.58 0.17 255);
@@ -172,23 +174,23 @@ For commercial licensing, please contact support@quantumnous.com
    * `.ambient-glow` helper — low-alpha radial washes that give "air" to
    * flat white canvases. Dark mode dials alpha further down. */
   --ambient-1: color-mix(in oklch, var(--primary) 14%, transparent);
-  --ambient-2: oklch(0.6 0.19 303 / 0.1);
-  --ambient-3: oklch(0.72 0.12 200 / 0.1);
-  /* Chart palette: indigo brand anchor + the Google-spirit accents. */
-  --chart-1: oklch(0.55 0.21 277);
+  --ambient-2: oklch(0.72 0.17 145 / 0.1);
+  --ambient-3: oklch(0.72 0.12 220 / 0.1);
+  /* Chart palette: azure brand anchor + the Google-spirit accents. */
+  --chart-1: oklch(0.58 0.16 248);
   --chart-2: var(--accent-blue);
   --chart-3: var(--accent-green);
   --chart-4: var(--accent-amber);
   --chart-5: var(--accent-coral);
   --sidebar: oklch(0.974 0.003 272);
   --sidebar-foreground: oklch(0.27 0.01 270);
-  --sidebar-primary: oklch(0.51 0.22 277);
-  --sidebar-primary-foreground: oklch(0.985 0.002 277);
-  /* Active nav item: soft indigo wash + deep indigo label. */
-  --sidebar-accent: oklch(0.932 0.018 277);
-  --sidebar-accent-foreground: oklch(0.38 0.13 277);
+  --sidebar-primary: oklch(0.55 0.18 248);
+  --sidebar-primary-foreground: oklch(0.985 0.002 248);
+  /* Active nav item: soft azure wash + deep azure label. */
+  --sidebar-accent: oklch(0.94 0.022 248);
+  --sidebar-accent-foreground: oklch(0.42 0.13 248);
   --sidebar-border: oklch(0.922 0.004 270);
-  --sidebar-ring: oklch(0.58 0.18 277);
+  --sidebar-ring: oklch(0.6 0.15 248);
   --skeleton-base: oklch(0.963 0.003 270);
   --skeleton-highlight: oklch(0.985 0.0015 270);
 }
@@ -198,8 +200,8 @@ For commercial licensing, please contact support@quantumnous.com
    * raised cards and deliberately low-contrast hairline borders. */
   --brand-gradient: linear-gradient(
     135deg,
-    oklch(0.6 0.19 272) 0%,
-    oklch(0.63 0.2 295) 100%
+    oklch(0.64 0.16 248) 0%,
+    oklch(0.76 0.17 139) 100%
   );
   --background: oklch(0.155 0.005 280);
   --foreground: oklch(0.96 0.003 280);
@@ -207,9 +209,9 @@ For commercial licensing, please contact support@quantumnous.com
   --card-foreground: oklch(0.96 0.003 280);
   --popover: oklch(0.228 0.006 280);
   --popover-foreground: oklch(0.96 0.003 280);
-  /* Brand indigo, lifted for dark-surface legibility. */
-  --primary: oklch(0.65 0.18 277);
-  --primary-foreground: oklch(0.985 0.002 277);
+  /* Brand azure, lifted for dark-surface legibility. */
+  --primary: oklch(0.68 0.15 248);
+  --primary-foreground: oklch(0.985 0.002 248);
   --secondary: oklch(0.26 0.008 280);
   --secondary-foreground: oklch(0.96 0.003 280);
   --muted: oklch(0.236 0.006 280);
@@ -228,7 +230,7 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral-foreground: oklch(0.145 0 0);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.62 0.15 277);
+  --ring: oklch(0.65 0.13 248);
   /* Accent quartet lifted for dark-surface legibility. */
   --accent-blue: oklch(0.68 0.15 255);
   --accent-green: oklch(0.7 0.14 155);
@@ -241,22 +243,22 @@ For commercial licensing, please contact support@quantumnous.com
   --glass-highlight: oklch(1 0 0 / 0.09);
   /* Ambient blobs sit much quieter on dark canvases. */
   --ambient-1: color-mix(in oklch, var(--primary) 10%, transparent);
-  --ambient-2: oklch(0.63 0.2 303 / 0.07);
-  --ambient-3: oklch(0.75 0.11 200 / 0.06);
-  --chart-1: oklch(0.65 0.18 277);
+  --ambient-2: oklch(0.72 0.16 145 / 0.07);
+  --ambient-3: oklch(0.75 0.11 220 / 0.06);
+  --chart-1: oklch(0.68 0.15 248);
   --chart-2: var(--accent-blue);
   --chart-3: var(--accent-green);
   --chart-4: var(--accent-amber);
   --chart-5: var(--accent-coral);
   --sidebar: oklch(0.128 0.004 280);
   --sidebar-foreground: oklch(0.93 0.004 280);
-  --sidebar-primary: oklch(0.65 0.18 277);
-  --sidebar-primary-foreground: oklch(0.985 0.002 277);
-  /* Active nav item: muted indigo wash + near-white label. */
-  --sidebar-accent: oklch(0.282 0.04 277);
-  --sidebar-accent-foreground: oklch(0.94 0.015 277);
+  --sidebar-primary: oklch(0.68 0.15 248);
+  --sidebar-primary-foreground: oklch(0.985 0.002 248);
+  /* Active nav item: muted azure wash + near-white label. */
+  --sidebar-accent: oklch(0.3 0.05 248);
+  --sidebar-accent-foreground: oklch(0.94 0.02 248);
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.62 0.15 277);
+  --sidebar-ring: oklch(0.65 0.13 248);
   --skeleton-base: oklch(0.26 0.006 280);
   --skeleton-highlight: oklch(0.36 0.006 280);
 }

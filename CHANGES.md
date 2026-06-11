@@ -172,3 +172,27 @@
 
 **九、联系我们**
 如对本协议或服务有任何疑问，请联系：本站公示的联系方式或站内工单。
+
+---
+
+## 增补：运营分析看板 + Logo/配色焕新（agent-phase2 续）
+
+### A. 品牌 Logo 与配色
+- 用户提供的真 logo（蓝→绿渐变 GS 箭头）裁出图标，去白底转透明，替换站标/favicon/apple-touch：`web/default/public/goswith-mark-square.png`、`logo.png`、`favicon.ico`（原 `goswith-source.png` 为品牌母版）。站名文字仍为 **GosWith**（仅换图，不改文字）。
+- 主题色由靛紫（indigo-violet, hue 277）重锚到 logo 蓝（hue 248）、品牌渐变改蓝→绿、环境光斑紫→绿：`web/default/src/styles/theme.css`（`--primary`/`--brand-gradient`/`--chart-1`/`--ring`/`--sidebar-*`/`--ambient-2` 等，light+dark 双模式）。首页 Hero/CTA 标题渐变与背景光斑同步改蓝绿（`features/home/components/sections/hero.tsx`、`cta.tsx`）。
+- `DEFAULT_LOGO` 指向新 PNG（`web/default/src/lib/constants.ts`）；删除旧靛紫 `goswith-logo.svg`。
+
+### B. 管理员「运营分析看板」（原 Operations 页仅有配置开关，现补真实运营数据）
+- 后端新增聚合接口（AdminAuth，GORM 跨库，Go 内分桶不依赖 DB 日期函数）：
+  - `GET /api/ops/overview`（营收/订单/成功率/新增·活跃·总用户/消费 quota·请求·token/渠道健康）
+  - `GET /api/ops/revenue-trend`、`GET /api/ops/user-growth`、`GET /api/ops/payment-providers`
+  - 文件：`controller/ops_analytics.go`（新）、`model/ops_analytics.go`（新）、`router/api-router.go` 注册 `/api/ops`
+  - 复用既有 `model.SumUsedQuota` 取消费/请求/token；复用 topup/user/channel model
+- 前端新增运营分析 section，并设为 Operations 页**默认落地页**（原 7 个配置 section 降为后续 tab）：
+  - `web/default/src/features/system-settings/operations/analytics/`（`api.ts`/`ops-charts.tsx`/`operations-analytics-section.tsx`）
+  - KPI 卡复用 `StatCard`；趋势/增长用 VChart 面积/柱图；支付网关与渠道健康为自绘面板；7/30/90 天切换 + 刷新
+  - 注册：`operations/section-registry.tsx`（id `analytics`，`defaultSection` 改为 `analytics`）
+  - i18n 六语言补 30 个 key（zh 中文，其余英文回退）
+- 设计语言向 Google/Apple 商业化靠拢：四色点缀、玻璃卡、统一圆角与间距、清晰主操作。
+
+> 上线前仍需：配虎皮椒 appid/secret + ServerAddress；运营接口已就绪、空库返回 0 不报错（已用 SQLite 冒烟验证营收/成功率/支付网关/用户增长聚合正确）。
