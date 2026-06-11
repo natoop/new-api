@@ -89,6 +89,58 @@ func SumConsumptionInRange(start, end int64) (ConsumeStat, error) {
 	return s, err
 }
 
+// SubscriptionOrderRow is a lightweight projection of a subscription-plan
+// purchase, windowed by create_time.
+type SubscriptionOrderRow struct {
+	CreateTime int64   `json:"create_time"`
+	Money      float64 `json:"money"`
+	PlanId     int     `json:"plan_id"`
+	Status     string  `json:"status"`
+}
+
+// GetSubscriptionOrdersInRange returns subscription orders created within
+// [start, end).
+func GetSubscriptionOrdersInRange(start, end int64) ([]SubscriptionOrderRow, error) {
+	rows := make([]SubscriptionOrderRow, 0)
+	err := DB.Model(&SubscriptionOrder{}).
+		Select("create_time", "money", "plan_id", "status").
+		Where("create_time >= ? AND create_time < ?", start, end).
+		Find(&rows).Error
+	return rows, err
+}
+
+// PlanSales is the per-plan sales rollup for the popularity ranking.
+type PlanSales struct {
+	PlanId     int     `json:"plan_id"`
+	Title      string  `json:"title"`
+	SalesCount int64   `json:"sales_count"`
+	Revenue    float64 `json:"revenue"`
+}
+
+// GetSubscriptionPlanSales aggregates successful subscription orders per plan,
+// joined to plan titles, ordered by sales volume. COALESCE keeps it cross-DB.
+func GetSubscriptionPlanSales(start, end int64) ([]PlanSales, error) {
+	rows := make([]PlanSales, 0)
+	err := DB.Table("subscription_orders as so").
+		Select("sp.id as plan_id, sp.title as title, COUNT(*) as sales_count, COALESCE(SUM(so.money),0) as revenue").
+		Joins("JOIN subscription_plans sp ON sp.id = so.plan_id").
+		Where("so.status = ? AND so.create_time >= ? AND so.create_time < ?", common.TopUpStatusSuccess, start, end).
+		Group("sp.id, sp.title").
+		Order("sales_count DESC").
+		Scan(&rows).Error
+	return rows, err
+}
+
+// CountActiveUsersSince returns the number of distinct users with consumption
+// logs since ts — used as a near-real-time "online users" approximation.
+func CountActiveUsersSince(ts int64) (int64, error) {
+	var n int64
+	err := LOG_DB.Model(&Log{}).
+		Where("type = ? AND created_at >= ?", LogTypeConsume, ts).
+		Distinct("user_id").Count(&n).Error
+	return n, err
+}
+
 // ChannelHealth captures channel status distribution for the ops console.
 type ChannelHealth struct {
 	Total            int64 `json:"total"`

@@ -180,6 +180,7 @@ func SetApiRouter(router *gin.Engine) {
 			opsRoute.GET("/revenue-trend", controller.GetOpsRevenueTrend)
 			opsRoute.GET("/user-growth", controller.GetOpsUserGrowth)
 			opsRoute.GET("/payment-providers", controller.GetOpsPaymentProviders)
+			opsRoute.GET("/plan-sales", controller.GetOpsPlanSales)
 		}
 
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")

@@ -4845,5 +4845,19 @@
   "New users per day": "New users per day",
   "Payment providers": "Payment providers",
   "Channel health": "Channel health",
-  "Refresh": "Refresh"
+  "Refresh": "Refresh",
+  "Operations Dashboard": "Operations Dashboard",
+  "Platform revenue": "Platform revenue",
+  "Top-up + subscription, period": "Top-up + subscription, period",
+  "Top-up": "Top-up",
+  "Subscription": "Subscription",
+  "Online users": "Online users",
+  "Active in last 15 min": "Active in last 15 min",
+  "Subscription sales": "Subscription sales",
+  "Plan orders in period": "Plan orders in period",
+  "Top-up orders": "Top-up orders",
+  "Platform revenue trend": "Platform revenue trend",
+  "Plan sales ranking": "Plan sales ranking",
+  "No plan sales in this period": "No plan sales in this period",
+  "sold": "sold"
 }

@@ -30,7 +30,7 @@ import { createSectionRegistry } from '../utils/section-registry'
 const OPERATIONS_SECTIONS = [
   {
     id: 'analytics',
-    titleKey: 'Operations Analytics',
+    titleKey: 'Operations Dashboard',
     build: (_settings: OperationsSettings) => <OperationsAnalyticsSection />,
   },
   {

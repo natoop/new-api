@@ -4845,5 +4845,19 @@
   "New users per day": "每日新增用户",
   "Payment providers": "支付渠道",
   "Channel health": "渠道健康",
-  "Refresh": "刷新"
+  "Refresh": "刷新",
+  "Operations Dashboard": "运营看板",
+  "Platform revenue": "平台总收入",
+  "Top-up + subscription, period": "充值 + 订阅（周期内）",
+  "Top-up": "充值",
+  "Subscription": "订阅",
+  "Online users": "在线用户",
+  "Active in last 15 min": "近 15 分钟活跃",
+  "Subscription sales": "订阅销售",
+  "Plan orders in period": "周期内套餐订单",
+  "Top-up orders": "充值订单",
+  "Platform revenue trend": "平台收入趋势",
+  "Plan sales ranking": "套餐销售排行",
+  "No plan sales in this period": "本周期暂无套餐销售",
+  "sold": "份"
 }

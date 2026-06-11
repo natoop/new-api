@@ -196,3 +196,25 @@
 - 设计语言向 Google/Apple 商业化靠拢：四色点缀、玻璃卡、统一圆角与间距、清晰主操作。
 
 > 上线前仍需：配虎皮椒 appid/secret + ServerAddress；运营接口已就绪、空库返回 0 不报错（已用 SQLite 冒烟验证营收/成功率/支付网关/用户增长聚合正确）。
+
+---
+
+## 增补 2：品牌更名 Goswich + 运营看板扩充（销售/收入/在线）
+
+### 品牌更名 GosWith → Goswich（按用户 logo 图 wordmark，title case 取美观）
+- 前端：`DEFAULT_SYSTEM_NAME`、index.html title/meta、`agent-guide.tsx`、主题注释
+- 后端：`common/constants.go` `SystemName`、`setting/system_setting/legal.go` 协议文案
+- logo 资产 `goswith-*` → `goswich-*`（站标/apple-touch/`DEFAULT_LOGO` 同步）
+- 上游 new-api / QuantumNous 署名一律保留（Rule 5）
+
+### 运营看板扩充（统计/销售/商务/美学）
+- 后端新增：`GET /api/ops/plan-sales`（套餐销售排行，JOIN subscription_plans）；
+  overview 增加 `subscription_revenue/subscription_orders/total_revenue/online_users`；
+  revenue-trend 并入订阅 → 平台收入趋势（topup+subscription 分项）
+  - model 新增 `GetSubscriptionOrdersInRange / GetSubscriptionPlanSales / CountActiveUsersSince`
+  - 「在线用户」无 socket/心跳层，用最近 15 分钟有消费日志的去重用户近似（已标注）
+- 前端运营看板（标题改「运营看板」，Operations 菜单第一个子项）：
+  6 张 KPI 卡（平台总收入/在线用户/订阅销售/充值订单/用户/消费）+ 平台收入趋势、
+  用户增长 VChart + 套餐销售排行（奖牌+条形）+ 支付网关 + 渠道健康
+- i18n 六语言补 44 key（zh 中文）
+- SQLite 实测：平台总收入 ¥1520.70（充值 277.70+订阅 1243）、套餐排行、在线 2、订阅单 6/7 全部正确

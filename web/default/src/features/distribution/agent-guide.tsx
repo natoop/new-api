@@ -56,7 +56,7 @@ export function AgentGuide() {
   const systemName =
     (status?.system_name as string | undefined) ||
     (status?.data?.system_name as string | undefined) ||
-    'GosWith'
+    'Goswich'
 
   const { data: progressRes, isLoading } = useQuery({
     queryKey: ['agent-promotion-progress'],

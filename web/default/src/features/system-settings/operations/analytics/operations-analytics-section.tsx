@@ -20,11 +20,13 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   Activity,
   CreditCard,
+  Package,
   RefreshCw,
   Server,
   ShoppingCart,
   TrendingUp,
   Users,
+  Wifi,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '@/features/dashboard/components/ui/stat-card'
@@ -33,17 +35,19 @@ import { formatNumber, formatPercent, formatQuota } from '@/lib/format'
 import {
   getOpsOverview,
   getOpsPaymentProviders,
+  getOpsPlanSales,
   getOpsRevenueTrend,
   getOpsUserGrowth,
   type OpsOverview,
   type PaymentProviderStat,
+  type PlanSales,
   type RevenueTrendPoint,
   type UserGrowthPoint,
 } from './api'
 import { OpsTimeSeriesChart } from './ops-charts'
 
-// Top-up `money` is settled in the deployment's payment-gateway currency
-// (CNY for the WeChat/Alipay/Xunhu rails this build ships with).
+// Top-up / subscription `money` is settled in the deployment's payment-gateway
+// currency (CNY for the WeChat/Alipay/Xunhu rails this build ships with).
 const MONEY_PREFIX = '¥'
 const RANGE_OPTIONS = [7, 30, 90] as const
 
@@ -63,6 +67,7 @@ interface OpsData {
   revenue: RevenueTrendPoint[]
   growth: UserGrowthPoint[]
   providers: PaymentProviderStat[]
+  plans: PlanSales[]
 }
 
 function useOpsAnalytics(days: number) {
@@ -71,6 +76,7 @@ function useOpsAnalytics(days: number) {
     revenue: [],
     growth: [],
     providers: [],
+    plans: [],
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -87,14 +93,16 @@ function useOpsAnalytics(days: number) {
       getOpsRevenueTrend(days),
       getOpsUserGrowth(days),
       getOpsPaymentProviders(days),
+      getOpsPlanSales(days),
     ])
-      .then(([overview, revenue, growth, providers]) => {
+      .then(([overview, revenue, growth, providers, plans]) => {
         if (cancelled) return
         setData({
           overview,
           revenue: revenue.series,
           growth: growth.series,
           providers: providers.providers,
+          plans: plans.plans,
         })
       })
       .catch(() => {
@@ -116,10 +124,11 @@ function Panel(props: {
   icon: typeof TrendingUp
   extra?: ReactNode
   children: ReactNode
+  className?: string
 }) {
   const Icon = props.icon
   return (
-    <div className='bg-card overflow-hidden rounded-xl border'>
+    <div className={cn('bg-card overflow-hidden rounded-xl border', props.className)}>
       <div className='flex items-center justify-between gap-2 border-b px-4 py-3'>
         <div className='flex items-center gap-2'>
           <Icon className='text-muted-foreground/70 size-4' />
@@ -157,6 +166,53 @@ function RangeSelector(props: {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+const RANK_BADGES = ['bg-accent-amber', 'bg-muted-foreground', 'bg-accent-coral']
+
+function PlanSalesPanel(props: { plans: PlanSales[] }) {
+  const { t } = useTranslation()
+  const max = Math.max(1, ...props.plans.map((p) => p.sales_count))
+  if (!props.plans.length) {
+    return (
+      <p className='text-muted-foreground py-6 text-center text-sm'>
+        {t('No plan sales in this period')}
+      </p>
+    )
+  }
+  return (
+    <div className='flex flex-col gap-3'>
+      {props.plans.map((p, i) => (
+        <div key={p.plan_id} className='flex flex-col gap-1.5'>
+          <div className='flex items-center justify-between gap-2 text-sm'>
+            <span className='flex min-w-0 items-center gap-2'>
+              <span
+                className={cn(
+                  'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
+                  i < 3 ? RANK_BADGES[i] : 'bg-muted-foreground/50'
+                )}
+              >
+                {i + 1}
+              </span>
+              <span className='truncate font-medium'>{p.title}</span>
+            </span>
+            <span className='shrink-0 tabular-nums'>
+              {formatNumber(p.sales_count)} {t('sold')}
+            </span>
+          </div>
+          <div className='bg-muted h-2 overflow-hidden rounded-full'>
+            <div
+              className='bg-accent-blue h-full rounded-full'
+              style={{ width: `${(p.sales_count / max) * 100}%` }}
+            />
+          </div>
+          <div className='text-muted-foreground text-right text-xs'>
+            {formatMoney(p.revenue)}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -255,26 +311,18 @@ export function OperationsAnalyticsSection() {
   const { t } = useTranslation()
   const [days, setDays] = useState(30)
   const { data, loading, error, refresh } = useOpsAnalytics(days)
-  const { overview, revenue, growth, providers } = data
+  const { overview, revenue, growth, providers, plans } = data
 
   const revenueSeries = useMemo(
     () => revenue.map((p) => ({ label: dayLabel(p.date), value: p.revenue })),
     [revenue]
   )
   const growthSeries = useMemo(
-    () =>
-      growth.map((p) => ({ label: dayLabel(p.date), value: p.cumulative })),
-    [growth]
-  )
-  const newUserSeries = useMemo(
-    () => growth.map((p) => ({ label: dayLabel(p.date), value: p.new_users })),
+    () => growth.map((p) => ({ label: dayLabel(p.date), value: p.cumulative })),
     [growth]
   )
   const revenueSpark = useMemo(() => revenue.map((p) => p.revenue), [revenue])
-  const newUsersSpark = useMemo(
-    () => growth.map((p) => p.new_users),
-    [growth]
-  )
+  const newUsersSpark = useMemo(() => growth.map((p) => p.new_users), [growth])
 
   return (
     <div className='flex flex-col gap-6'>
@@ -303,19 +351,66 @@ export function OperationsAnalyticsSection() {
       ) : null}
 
       {/* KPI cards */}
-      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
         <StatCard
-          title={t('Revenue')}
-          value={overview ? formatMoney(overview.revenue) : '-'}
-          description={t('Paid orders in period')}
+          title={t('Platform revenue')}
+          value={overview ? formatMoney(overview.total_revenue) : '-'}
+          description={t('Top-up + subscription, period')}
           icon={TrendingUp}
           tone='green'
           loading={loading}
           sparkline={revenueSpark}
           sparklineVariant='line'
+          details={[
+            {
+              label: t('Top-up'),
+              value: overview ? formatMoney(overview.revenue) : '-',
+            },
+            {
+              label: t('Subscription'),
+              value: overview ? formatMoney(overview.subscription_revenue) : '-',
+            },
+          ]}
         />
         <StatCard
-          title={t('Orders')}
+          title={t('Online users')}
+          value={overview ? formatNumber(overview.online_users) : '-'}
+          description={t('Active in last 15 min')}
+          icon={Wifi}
+          tone='coral'
+          loading={loading}
+          details={[
+            {
+              label: t('Active'),
+              value: overview ? formatNumber(overview.active_users) : '-',
+            },
+            {
+              label: t('Total'),
+              value: overview ? formatNumber(overview.total_users) : '-',
+            },
+          ]}
+        />
+        <StatCard
+          title={t('Subscription sales')}
+          value={overview ? formatNumber(overview.subscription_orders) : '-'}
+          description={t('Plan orders in period')}
+          icon={Package}
+          tone='amber'
+          loading={loading}
+          details={[
+            {
+              label: t('Success'),
+              value: overview ? String(overview.subscription_success) : '-',
+              tone: 'success',
+            },
+            {
+              label: t('Revenue'),
+              value: overview ? formatMoney(overview.subscription_revenue) : '-',
+            },
+          ]}
+        />
+        <StatCard
+          title={t('Top-up orders')}
           value={overview ? formatNumber(overview.order_total) : '-'}
           description={t('Total / success rate')}
           icon={ShoppingCart}
@@ -377,7 +472,7 @@ export function OperationsAnalyticsSection() {
 
       {/* Trend charts */}
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-        <Panel title={t('Revenue trend')} icon={TrendingUp}>
+        <Panel title={t('Platform revenue trend')} icon={TrendingUp}>
           <OpsTimeSeriesChart
             data={revenueSeries}
             kind='area'
@@ -397,16 +492,10 @@ export function OperationsAnalyticsSection() {
         </Panel>
       </div>
 
-      {/* New users + providers + channel health */}
+      {/* Plan ranking + providers + channel health */}
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
-        <Panel title={t('New users per day')} icon={Users}>
-          <OpsTimeSeriesChart
-            data={newUserSeries}
-            kind='bar'
-            tone='blue'
-            loading={loading}
-            valueFormatter={(v) => formatNumber(v)}
-          />
+        <Panel title={t('Plan sales ranking')} icon={Package}>
+          <PlanSalesPanel plans={plans} />
         </Panel>
         <Panel title={t('Payment providers')} icon={CreditCard}>
           <ProvidersPanel providers={providers} />

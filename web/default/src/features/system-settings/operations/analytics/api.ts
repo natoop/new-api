@@ -36,10 +36,15 @@ export interface OpsOverview {
   order_total: number
   order_success: number
   order_success_rate: number
+  subscription_revenue: number
+  subscription_orders: number
+  subscription_success: number
+  total_revenue: number
   new_users: number
   total_users: number
   enabled_users: number
   active_users: number
+  online_users: number
   consumption_quota: number
   consumption_usd: number
   request_count: number
@@ -50,8 +55,17 @@ export interface OpsOverview {
 export interface RevenueTrendPoint {
   date: number
   revenue: number
+  topup_revenue: number
+  subscription_revenue: number
   order_count: number
   success_count: number
+}
+
+export interface PlanSales {
+  plan_id: number
+  title: string
+  sales_count: number
+  revenue: number
 }
 
 export interface UserGrowthPoint {
@@ -94,4 +108,12 @@ export function getOpsUserGrowth(days: number) {
 
 export function getOpsPaymentProviders(days: number) {
   return getOps<{ providers: PaymentProviderStat[] }>('payment-providers', days)
+}
+
+export function getOpsPlanSales(days: number) {
+  return getOps<{
+    plans: PlanSales[]
+    total_sales: number
+    total_revenue: number
+  }>('plan-sales', days)
 }
