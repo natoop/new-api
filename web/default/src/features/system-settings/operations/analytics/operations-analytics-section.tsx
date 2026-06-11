@@ -29,6 +29,7 @@ import {
   Wifi,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/features/dashboard/components/ui/stat-card'
 import { cn } from '@/lib/utils'
 import { formatNumber, formatPercent, formatQuota } from '@/lib/format'
@@ -501,13 +502,25 @@ export function OperationsAnalyticsSection() {
       {/* Plan ranking + providers + channel health */}
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
         <Panel title={t('Plan sales ranking')} icon={Package}>
-          <PlanSalesPanel plans={plans} />
+          {loading ? (
+            <Skeleton className='h-40 w-full rounded-lg' />
+          ) : (
+            <PlanSalesPanel plans={plans} />
+          )}
         </Panel>
         <Panel title={t('Payment providers')} icon={CreditCard}>
-          <ProvidersPanel providers={providers} />
+          {loading ? (
+            <Skeleton className='h-40 w-full rounded-lg' />
+          ) : (
+            <ProvidersPanel providers={providers} />
+          )}
         </Panel>
         <Panel title={t('Channel health')} icon={Server}>
-          <ChannelHealthPanel overview={overview} />
+          {loading ? (
+            <Skeleton className='h-40 w-full rounded-lg' />
+          ) : (
+            <ChannelHealthPanel overview={overview} />
+          )}
         </Panel>
       </div>
     </div>

@@ -229,8 +229,15 @@ func SaveDistributionPromoCode(userID int, input DistributionPromoCodeSaveInput)
 				priceCap = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
 			}
 		}
-		if priceCap > 0 && input.DiscountValue > priceCap {
-			return fmt.Errorf("优惠码抵扣额不能超过套餐当前价格（%d 分）", priceCap)
+		if input.DiscountValue > 0 {
+			if priceCap <= 0 {
+				// 套餐当前价为 0（免费/未定价）时禁止创建抵扣码，堵死
+				// "价格为 0 → 上限校验被跳过 → 任意大额抵扣" 的口子。
+				return fmt.Errorf("该套餐当前价格为 0，不能创建抵扣优惠码")
+			}
+			if input.DiscountValue > priceCap {
+				return fmt.Errorf("优惠码抵扣额不能超过套餐当前价格（%d 分）", priceCap)
+			}
 		}
 		if input.Code == "" {
 			code, err := buildDistributionPromoCode(tx)

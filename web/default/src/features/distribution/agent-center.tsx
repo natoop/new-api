@@ -437,6 +437,15 @@ export function AgentCenter() {
       ? selectedPromoPackage.retail_price
       : FALLBACK_PROMO_AMOUNT_CENTS
 
+  // Re-clamp any already-typed amount when the package (and thus the cap)
+  // changes, instead of letting it fail only on submit.
+  useEffect(() => {
+    setPromoAmount((prev) =>
+      prev === '' ? prev : normalizePromoAmountInput(prev, promoAmountCap)
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promoAmountCap])
+
   async function handleCreatePromoCode() {
     if (!promoPackageId) {
       toast.error(t('Please select a package'))

@@ -131,10 +131,15 @@ export function loadPlaygroundToken(): string {
 
 /**
  * Persist the caller's playground API token to localStorage.
+ * Empty values remove the key entirely (no stale residue).
  */
 export function savePlaygroundToken(token: string): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.API_TOKEN, token)
+    if (token.trim() === '') {
+      localStorage.removeItem(STORAGE_KEYS.API_TOKEN)
+    } else {
+      localStorage.setItem(STORAGE_KEYS.API_TOKEN, token)
+    }
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save playground token:', error)
@@ -149,6 +154,7 @@ export function clearPlaygroundData(): void {
     localStorage.removeItem(STORAGE_KEYS.CONFIG)
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+    localStorage.removeItem(STORAGE_KEYS.API_TOKEN)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to clear playground data:', error)

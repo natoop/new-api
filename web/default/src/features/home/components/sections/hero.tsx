@@ -113,11 +113,11 @@ export function Hero(props: HeroProps) {
           </div>
 
           <h1
-            className='landing-animate-fade-up text-[clamp(2.75rem,5.5vw,4.25rem)] leading-[1.08] font-bold tracking-[-0.02em]'
+            className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.08] font-bold tracking-[-0.02em]'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Unified API Gateway for')}
-            <br />
+            {t('Unified API Gateway for')}{' '}
+            <br className='hidden sm:block' />
             <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
               {t('Vast Range of AI Models')}
             </span>

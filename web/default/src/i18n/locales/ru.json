@@ -4861,6 +4861,10 @@
     "Pay now": "Pay now",
     "7 days": "7 days",
     "30 days": "30 days",
-    "90 days": "90 days"
+    "90 days": "90 days",
+    "Coupon amount must be between 0 and {{max}} cents.": "Coupon amount must be between 0 and {{max}} cents.",
+    "Received amount": "Received amount",
+    "Failed to load playground groups": "Failed to load playground groups",
+    "Failed to load playground models": "Failed to load playground models"
   }
 }

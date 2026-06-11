@@ -25,6 +25,7 @@ import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
+import { loadPlaygroundToken } from './lib/storage'
 import type { Message as MessageType } from './types'
 
 export function Playground() {
@@ -131,7 +132,18 @@ export function Playground() {
     console.log('Message copied:', message.key)
   }
 
+  // Regenerate / edit-resend must respect the same own-token gate as the
+  // primary input (otherwise they'd fire requests with an empty token).
+  const ensurePlaygroundToken = () => {
+    if (loadPlaygroundToken().trim() === '') {
+      toast.warning(t('Enter your own API token to use the Playground'))
+      return false
+    }
+    return true
+  }
+
   const handleRegenerateMessage = (message: MessageType) => {
+    if (!ensurePlaygroundToken()) return
     // Find the message index and regenerate from there
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
@@ -173,6 +185,12 @@ export function Playground() {
         return
       }
 
+      if (loadPlaygroundToken().trim() === '') {
+        toast.warning(t('Enter your own API token to use the Playground'))
+        updateMessages(updated)
+        return
+      }
+
       const toSubmit = [
         ...updated.slice(0, index + 1),
         createLoadingAssistantMessage(),
@@ -180,7 +198,7 @@ export function Playground() {
       updateMessages(toSubmit)
       sendChat(toSubmit)
     },
-    [editingMessageKey, messages, updateMessages, sendChat]
+    [editingMessageKey, messages, updateMessages, sendChat, t]
   )
 
   const handleDeleteMessage = (message: MessageType) => {

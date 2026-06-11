@@ -41,6 +41,8 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('uid')
+        // API token must not survive the session on shared machines.
+        window.localStorage.removeItem('playground_api_token')
       }
     } catch {
       /* empty */

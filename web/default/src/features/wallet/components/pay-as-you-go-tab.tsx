@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -62,6 +62,9 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
 
   const [amount, setAmount] = useState<number>(min)
   const [method, setMethod] = useState<string>(getDefaultPaymentType(topupInfo))
+  // Until the user touches the amount, keep it pinned to the real minimum
+  // that arrives asynchronously with topupInfo.
+  const touchedRef = useRef(false)
   const {
     amount: payPrice,
     calculating,
@@ -72,13 +75,18 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
 
   useEffect(() => {
     setMethod(getDefaultPaymentType(topupInfo))
-    setAmount((prev) => (prev > 0 ? prev : getMinTopupAmount(topupInfo)))
+    if (!touchedRef.current) {
+      setAmount(getMinTopupAmount(topupInfo))
+    }
   }, [topupInfo])
 
+  // Debounced server-side quote — rapid typing must not spray requests.
   useEffect(() => {
-    if (amount >= min && method) {
+    if (!(amount > 0 && amount >= min && method)) return
+    const timer = setTimeout(() => {
       void calculatePaymentAmount(amount, method)
-    }
+    }, 300)
+    return () => clearTimeout(timer)
   }, [amount, method, min, calculatePaymentAmount])
 
   const hasChannel =
@@ -98,7 +106,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
     )
   }
 
-  const valid = amount >= min && Boolean(method)
+  const valid = amount > 0 && amount >= min && Boolean(method)
 
   const handlePay = async () => {
     if (!valid || processing) return
@@ -119,7 +127,10 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                 <button
                   key={p.value}
                   type='button'
-                  onClick={() => setAmount(p.value)}
+                  onClick={() => {
+                    touchedRef.current = true
+                    setAmount(p.value)
+                  }}
                   className={cn(
                     'flex h-16 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition-colors',
                     active
@@ -149,8 +160,14 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
             <Input
               type='number'
               min={min}
+              step={1}
               value={amount || ''}
-              onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
+              onChange={(e) => {
+                touchedRef.current = true
+                // Whole units only — the backend floors the order amount, so
+                // the quoted price must match what actually gets charged.
+                setAmount(Math.max(0, Math.floor(Number(e.target.value) || 0)))
+              }}
               className='h-10 pl-7'
               placeholder={String(min)}
             />
