@@ -210,7 +210,13 @@ function TablePager({
   )
 }
 
-function EmptyTableRow({ colSpan }: { colSpan: number }) {
+function EmptyTableRow({
+  colSpan,
+  loading,
+}: {
+  colSpan: number
+  loading?: boolean
+}) {
   const { t } = useTranslation()
   return (
     <tr>
@@ -218,7 +224,11 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
         colSpan={colSpan}
         className='text-muted-foreground py-8 text-center text-sm'
       >
-        {t('No data')}
+        {loading ? (
+          <span className='animate-pulse'>{t('Loading')}</span>
+        ) : (
+          t('No data')
+        )}
       </td>
     </tr>
   )
@@ -905,7 +915,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {agents.length === 0 && <EmptyTableRow colSpan={7} />}
+                  {agents.length === 0 && (
+                    <EmptyTableRow colSpan={7} loading={loading} />
+                  )}
                   {agents.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>{row.name}</td>
@@ -970,7 +982,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {packages.length === 0 && <EmptyTableRow colSpan={6} />}
+                  {packages.length === 0 && (
+                    <EmptyTableRow colSpan={6} loading={loading} />
+                  )}
                   {packages.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>
@@ -1143,7 +1157,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.length === 0 && <EmptyTableRow colSpan={7} />}
+                  {orders.length === 0 && (
+                    <EmptyTableRow colSpan={7} loading={loading} />
+                  )}
                   {orders.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2 font-mono text-xs'>{row.order_no}</td>
@@ -1201,7 +1217,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {giftRules.length === 0 && <EmptyTableRow colSpan={5} />}
+                  {giftRules.length === 0 && (
+                    <EmptyTableRow colSpan={5} loading={loading} />
+                  )}
                   {giftRules.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>{row.name}</td>
@@ -1259,7 +1277,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {opsAuth.length === 0 && <EmptyTableRow colSpan={4} />}
+                  {opsAuth.length === 0 && (
+                    <EmptyTableRow colSpan={4} loading={loading} />
+                  )}
                   {opsAuth.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>
@@ -1303,7 +1323,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {profit.length === 0 && <EmptyTableRow colSpan={3} />}
+                  {profit.length === 0 && (
+                    <EmptyTableRow colSpan={3} loading={loading} />
+                  )}
                   {profit.map((row) => (
                     <tr key={row.id} className='border-b'>
                       {/* <td className='py-2 font-mono text-xs'>{row.profit_no}</td> */}
@@ -1340,7 +1362,9 @@ export function AgentAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {attribution.length === 0 && <EmptyTableRow colSpan={4} />}
+                  {attribution.length === 0 && (
+                    <EmptyTableRow colSpan={4} loading={loading} />
+                  )}
                   {attribution.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2'>

@@ -61,9 +61,20 @@ func validateRedemptionTyped(redemption *model.Redemption) (bool, string) {
 	return true, ""
 }
 
+// redemptionTypeQuery 读取并校验 type 筛选参数（空 = 全部；非法值视同全部）。
+func redemptionTypeQuery(c *gin.Context) string {
+	typeFilter := strings.TrimSpace(c.Query("type"))
+	switch typeFilter {
+	case model.RedemptionTypeBalance, model.RedemptionTypePlan, model.RedemptionTypePromo:
+		return typeFilter
+	default:
+		return ""
+	}
+}
+
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), redemptionTypeQuery(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -77,7 +88,7 @@ func GetAllRedemptions(c *gin.Context) {
 func SearchRedemptions(c *gin.Context) {
 	keyword := c.Query("keyword")
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.SearchRedemptions(keyword, redemptionTypeQuery(c), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return

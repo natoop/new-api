@@ -73,6 +73,11 @@ interface XunhuOrder {
   payUrl?: string
   qrUrl?: string
   orderNo?: string
+  /**
+   * Subscription count snapshot taken BEFORE the order was created, used as
+   * the polling baseline. Undefined when no snapshot could be established.
+   */
+  baseline?: number
 }
 
 interface PlanPurchaseDialogProps {
@@ -83,6 +88,12 @@ interface PlanPurchaseDialogProps {
   userQuota?: number
   purchaseLimit?: number
   purchaseCount?: number
+  /**
+   * Count of the user's currently loaded subscriptions (all statuses).
+   * Used as the polling baseline when entering the Xunhu cashier view;
+   * leave undefined when the data has not been loaded yet.
+   */
+  subscriptionCount?: number
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
@@ -134,7 +145,10 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
     if (!xunhuOrder || !props.open) return
 
     let stopped = false
-    let baseline: number | null = null
+    // Baseline established at order-creation time (before the order existed),
+    // so a payment completing before the first poll tick is still detected.
+    // Falls back to the first tick only when no snapshot could be taken.
+    let baseline: number | null = xunhuOrder.baseline ?? null
 
     const tick = async () => {
       try {
@@ -169,12 +183,15 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
   if (!plan) return null
 
   const enableXunhu = !!props.topupInfo?.enable_xunhu_topup
-  const hasStripe = !!props.topupInfo?.enable_stripe_topup && !!plan.stripe_price_id
-  const hasCreem = !!props.topupInfo?.enable_creem_topup && !!plan.creem_product_id
+  const hasStripe =
+    !!props.topupInfo?.enable_stripe_topup && !!plan.stripe_price_id
+  const hasCreem =
+    !!props.topupInfo?.enable_creem_topup && !!plan.creem_product_id
   const hasWaffoPancake =
     !!props.topupInfo?.enable_waffo_pancake_topup &&
     !!plan.waffo_pancake_product_id
-  const hasEpay = !!props.topupInfo?.enable_online_topup && epayMethods.length > 0
+  const hasEpay =
+    !!props.topupInfo?.enable_online_topup && epayMethods.length > 0
 
   const originalAmount = Number(plan.price_amount || 0)
   const finalAmount = promo ? Number(promo.final_amount) : originalAmount
@@ -239,6 +256,20 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
   const handlePayXunhu = async (payType: 'wechat' | 'alipay') => {
     setPaying(payType)
     try {
+      // Establish the polling baseline from already-loaded subscription data
+      // BEFORE the order is created; when unavailable, fetch it once so the
+      // cashier view never has to wait for (or race with) the first tick.
+      let baseline = props.subscriptionCount
+      if (baseline === undefined) {
+        try {
+          const subRes = await getSelfSubscriptionFull()
+          if (subRes.success && subRes.data) {
+            baseline = (subRes.data.all_subscriptions || []).length
+          }
+        } catch {
+          // keep baseline undefined — polling will fall back to its first tick
+        }
+      }
       const res = await paySubscriptionXunhu({
         plan_id: plan.id,
         pay_type: payType,
@@ -250,6 +281,7 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
           payUrl: res.data.pay_url,
           qrUrl: res.data.qr_url,
           orderNo: res.data.order_no,
+          baseline,
         })
       } else {
         toast.error(

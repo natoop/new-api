@@ -126,18 +126,17 @@ export function useRedemptionsColumns(
                 {' · '}
                 {t('Used {{used}}/{{total}}', {
                   used: redemption.used_count ?? 0,
-                  total:
-                    redemption.max_uses > 0 ? redemption.max_uses : '∞',
+                  total: redemption.max_uses > 0 ? redemption.max_uses : '∞',
                 })}
               </span>
             )}
           </div>
         )
       },
-      filterFn: (row, id, value) => {
-        const type = (row.getValue(id) as string) || REDEMPTION_TYPE.BALANCE
-        return (value as string[]).includes(type)
-      },
+      // Type filtering is done server-side (via the `type` query parameter);
+      // the column filter state only drives the facet UI, so never filter rows
+      // on the client (legacy rows with empty type are normalized server-side).
+      filterFn: () => true,
     },
     {
       accessorKey: 'status',

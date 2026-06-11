@@ -36,8 +36,16 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { StatusBadge, dotColorMap, textColorMap } from '@/components/status-badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import {
   getPublicPlans,
   getSelfSubscriptionFull,
@@ -91,6 +99,10 @@ export function PurchasePlansTab({
   >([])
   const [billingPreference, setBillingPreference] =
     useState('subscription_first')
+  // True only after a successful subscription fetch — the purchase dialog
+  // needs to distinguish "no subscriptions" from "not loaded yet" when
+  // establishing the Xunhu polling baseline.
+  const [subscriptionsLoaded, setSubscriptionsLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -117,6 +129,7 @@ export function PurchasePlansTab({
         )
         setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
+        setSubscriptionsLoaded(true)
       }
     } catch {
       // ignore
@@ -559,6 +572,9 @@ export function PurchasePlansTab({
         planRecord={selectedPlan}
         topupInfo={topupInfo}
         userQuota={userQuota}
+        subscriptionCount={
+          subscriptionsLoaded ? allSubscriptions.length : undefined
+        }
         onPurchaseSuccess={handlePurchaseSuccess}
         purchaseLimit={
           selectedPlan?.plan?.max_purchase_per_user

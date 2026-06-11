@@ -103,8 +103,10 @@ export function RedemptionsTable() {
 
   // The 'type' facet filter is kept in local state (not URL state) because the
   // route search schema does not include a 'type' key. It is merged with the
-  // URL-backed column filters before being handed to the table.
+  // URL-backed column filters for facet UI state only — actual filtering is
+  // done server-side via the `type` query parameter.
   const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const selectedType = typeFilter[0] ?? ''
 
   const mergedColumnFilters = useMemo<ColumnFiltersState>(() => {
     const base = columnFilters.filter((f) => f.id !== 'type')
@@ -132,6 +134,7 @@ export function RedemptionsTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
+      selectedType,
       refreshTrigger,
     ],
     queryFn: async () => {
@@ -139,6 +142,7 @@ export function RedemptionsTable() {
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
+        ...(selectedType ? { type: selectedType } : {}),
       }
 
       const result = hasFilter

@@ -41,7 +41,20 @@ type Redemption struct {
 	UsedCount    int            `json:"used_count" gorm:"default:0"`                          // promo 码已用次数
 }
 
-func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+// applyRedemptionTypeFilter 按兑换码类型过滤（空 typeFilter = 全部）。
+// 历史数据可能存在空 type，视同 balance。
+func applyRedemptionTypeFilter(query *gorm.DB, typeFilter string) *gorm.DB {
+	switch typeFilter {
+	case "":
+		return query
+	case RedemptionTypeBalance:
+		return query.Where("(type = ? OR type = '' OR type IS NULL)", RedemptionTypeBalance)
+	default:
+		return query.Where("type = ?", typeFilter)
+	}
+}
+
+func GetAllRedemptions(startIdx int, num int, typeFilter string) (redemptions []*Redemption, total int64, err error) {
 	// 开始事务
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -53,15 +66,17 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 		}
 	}()
 
+	query := applyRedemptionTypeFilter(tx.Model(&Redemption{}), typeFilter)
+
 	// 获取总数
-	err = tx.Model(&Redemption{}).Count(&total).Error
+	err = query.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// 获取分页数据
-	err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
+	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -75,7 +90,7 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 	return redemptions, total, nil
 }
 
-func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func SearchRedemptions(keyword string, typeFilter string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -87,7 +102,7 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 	}()
 
 	// Build query based on keyword type
-	query := tx.Model(&Redemption{})
+	query := applyRedemptionTypeFilter(tx.Model(&Redemption{}), typeFilter)
 
 	// Only try to convert to ID if the string represents a valid integer
 	if id, err := strconv.Atoi(keyword); err == nil {

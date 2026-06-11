@@ -54,10 +54,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import {
-  getOptionValue,
-  useSystemOptions,
-} from '../hooks/use-system-options'
+import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
@@ -241,6 +238,14 @@ export function PaymentSettingsSection({
     () => getOptionValue(systemOptionsData?.data, XUNHU_OPTION_DEFAULTS),
     [systemOptionsData?.data]
   )
+  // Server address (system settings) used to preview the Xunhu callback URLs
+  // for ops self-checking; display-only.
+  const xunhuServerAddress = React.useMemo(() => {
+    const { ServerAddress } = getOptionValue(systemOptionsData?.data, {
+      ServerAddress: '',
+    })
+    return removeTrailingSlash(ServerAddress.trim())
+  }, [systemOptionsData?.data])
   const initialFormValues = React.useMemo<PaymentFormValues>(
     () => ({
       ...defaultValues,
@@ -1628,6 +1633,22 @@ export function PaymentSettingsSection({
                   'WeChat Pay and Alipay use two independent appid/appsecret pairs in the XunhuPay dashboard. If only one pair is configured, users will only see the corresponding payment method.'
                 )}
               </p>
+              <p className='mt-2'>
+                <span className='font-medium'>
+                  {t('Callback URL preview')}:{' '}
+                </span>
+                {xunhuServerAddress ? (
+                  <span className='break-all'>
+                    <code>{`${xunhuServerAddress}/api/subscription/xunhu/notify`}</code>
+                    {' · '}
+                    <code>{`${xunhuServerAddress}/api/user/xunhu/notify`}</code>
+                  </span>
+                ) : (
+                  t(
+                    'Server address is not configured. Set it in System Settings → General to derive the callback URLs.'
+                  )
+                )}
+              </p>
             </div>
 
             <FormField
@@ -1759,10 +1780,9 @@ export function PaymentSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Leave blank to use the default gateway {{url}}',
-                      { url: XUNHU_DEFAULT_GATEWAY_URL }
-                    )}
+                    {t('Leave blank to use the default gateway {{url}}', {
+                      url: XUNHU_DEFAULT_GATEWAY_URL,
+                    })}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -102,21 +102,28 @@ func DistributionPromotionThreshold() int {
 // CountInviterPromotionStats 统计某邀请人的邀请注册人数，以及其中实际付费
 //（subscription_orders ∪ top_ups，status=success）的去重人数。
 func CountInviterPromotionStats(inviterID int) (invitedCount int, paidCount int, err error) {
-	var inviteeIDs []int
+	var invitedTotal int64
 	if err = model.DB.Model(&model.User{}).
-		Where("inviter_id = ?", inviterID).Pluck("id", &inviteeIDs).Error; err != nil {
+		Where("inviter_id = ?", inviterID).Count(&invitedTotal).Error; err != nil {
 		return 0, 0, err
 	}
-	invitedCount = len(inviteeIDs)
+	invitedCount = int(invitedTotal)
 	if invitedCount == 0 {
 		return 0, 0, nil
+	}
+
+	// 用子查询代替大列表 IN，避免被邀请人很多时 SQL 参数爆炸：
+	// WHERE user_id IN (SELECT id FROM users WHERE inviter_id = ?)
+	// 纯 GORM 构造，MySQL/PostgreSQL/SQLite 三库兼容。
+	inviteeSubQuery := func() *gorm.DB {
+		return model.DB.Model(&model.User{}).Select("id").Where("inviter_id = ?", inviterID)
 	}
 
 	paidInvitees := make(map[int]struct{})
 	var paidIDs []int
 	if err = model.DB.Model(&model.SubscriptionOrder{}).
 		Distinct("user_id").
-		Where("user_id IN ? AND status = ?", inviteeIDs, common.TopUpStatusSuccess).
+		Where("user_id IN (?) AND status = ?", inviteeSubQuery(), common.TopUpStatusSuccess).
 		Pluck("user_id", &paidIDs).Error; err != nil {
 		return 0, 0, err
 	}
@@ -126,7 +133,7 @@ func CountInviterPromotionStats(inviterID int) (invitedCount int, paidCount int,
 	paidIDs = paidIDs[:0]
 	if err = model.DB.Model(&model.TopUp{}).
 		Distinct("user_id").
-		Where("user_id IN ? AND status = ?", inviteeIDs, common.TopUpStatusSuccess).
+		Where("user_id IN (?) AND status = ?", inviteeSubQuery(), common.TopUpStatusSuccess).
 		Pluck("user_id", &paidIDs).Error; err != nil {
 		return 0, 0, err
 	}

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -121,6 +122,38 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
+// getOrCreateStripePromoCoupon 按折扣万分比复用确定性 ID 的 Stripe Coupon（promo-bps-<bps>），
+// 避免每次折扣下单都动态创建一次性 Coupon 在 Stripe 后台堆积垃圾对象。
+// 流程：先按 ID Get；404（resource_missing）才 Create；并发 Create 冲突（resource_already_exists）回退 Get。
+func getOrCreateStripePromoCoupon(promoDiscountBps int) (*stripe.Coupon, error) {
+	couponID := fmt.Sprintf("promo-bps-%d", promoDiscountBps)
+	existing, err := coupon.Get(couponID, nil)
+	if err == nil {
+		return existing, nil
+	}
+	if !stripeErrorHasCode(err, stripe.ErrorCodeResourceMissing) {
+		return nil, err
+	}
+	created, err := coupon.New(&stripe.CouponParams{
+		ID:         stripe.String(couponID),
+		PercentOff: stripe.Float64(float64(promoDiscountBps) / 100.0),
+		Duration:   stripe.String(string(stripe.CouponDurationOnce)),
+		Name:       stripe.String(fmt.Sprintf("PROMO %g%% OFF", float64(promoDiscountBps)/100.0)),
+	})
+	if err == nil {
+		return created, nil
+	}
+	if stripeErrorHasCode(err, stripe.ErrorCodeResourceAlreadyExists) {
+		return coupon.Get(couponID, nil)
+	}
+	return nil, err
+}
+
+func stripeErrorHasCode(err error, code stripe.ErrorCode) bool {
+	var stripeErr *stripe.Error
+	return errors.As(err, &stripeErr) && stripeErr.Code == code
+}
+
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, promoCode string, promoDiscountBps int) (string, error) {
 	stripe.Key = setting.StripeApiSecret
 
@@ -137,13 +170,9 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 	}
 
-	// 促销码：Stripe 订阅按 PriceId 计价，折扣通过动态创建一次性 Coupon 实现（仅首期生效）
+	// 促销码：Stripe 订阅按 PriceId 计价，折扣通过确定性 Coupon（按折扣 bps 复用）实现，仅首期生效
 	if promoCode != "" && promoDiscountBps > 0 && promoDiscountBps < 10000 {
-		stripeCoupon, err := coupon.New(&stripe.CouponParams{
-			PercentOff: stripe.Float64(float64(promoDiscountBps) / 100.0),
-			Duration:   stripe.String(string(stripe.CouponDurationOnce)),
-			Name:       stripe.String("PROMO " + promoCode),
-		})
+		stripeCoupon, err := getOrCreateStripePromoCoupon(promoDiscountBps)
 		if err != nil {
 			return "", err
 		}
