@@ -82,7 +82,7 @@ export function WalletTabs({
       </TabsContent>
 
       <TabsContent value='redeem'>
-        <Card className='rounded-xl py-0'>
+        <Card className='glass-card rounded-xl py-0'>
           <CardContent className='space-y-3 p-4 sm:p-5'>
             <div className='max-w-xl space-y-3'>
               <RedemptionSection

@@ -31,7 +31,7 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='overflow-hidden rounded-lg border'>
+      <div className='glass-card overflow-hidden rounded-xl'>
         <div className='divide-border/60 grid grid-cols-3 divide-x'>
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
@@ -45,34 +45,45 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
     )
   }
 
+  // One Google-spirit accent per stat — decorative icon chips only.
   const stats = [
     {
       label: t('Current Balance'),
       value: formatQuota(props.user?.quota ?? 0),
       description: t('Remaining quota'),
       icon: WalletCards,
+      chipClass: 'bg-accent-blue/12 text-accent-blue dark:bg-accent-blue/20',
     },
     {
       label: t('Total Usage'),
       value: formatQuota(props.user?.used_quota ?? 0),
       description: t('Total consumed quota'),
       icon: BarChart3,
+      chipClass:
+        'bg-accent-amber/15 text-accent-amber dark:bg-accent-amber/20',
     },
     {
       label: t('API Requests'),
       value: (props.user?.request_count ?? 0).toLocaleString(),
       description: t('Total requests made'),
       icon: Activity,
+      chipClass:
+        'bg-accent-green/12 text-accent-green dark:bg-accent-green/20',
     },
   ]
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='glass-card overflow-hidden rounded-xl'>
       <div className='divide-border/60 grid grid-cols-3 divide-x'>
         {stats.map((item) => (
           <div key={item.label} className='px-3 py-3 sm:px-5 sm:py-4'>
             <div className='flex items-center gap-2'>
-              <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
+              <span
+                className={`flex size-6 shrink-0 items-center justify-center rounded-md ${item.chipClass}`}
+                aria-hidden='true'
+              >
+                <item.icon className='size-3.5' />
+              </span>
               <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
                 {item.label}
               </div>

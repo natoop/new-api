@@ -87,6 +87,14 @@ For commercial licensing, please contact support@quantumnous.com
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Google-four-color spirit accents (decorative palette). Exposed as
+   * Tailwind colors so utilities like `text-accent-blue` / `bg-accent-amber/12`
+   * work. Values live in :root/.dark below and are re-anchored per preset in
+   * theme-presets.css so every palette stays coherent. */
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-coral: var(--accent-coral);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -145,12 +153,33 @@ For commercial licensing, please contact support@quantumnous.com
   --border: oklch(0.922 0.004 270);
   --input: oklch(0.912 0.005 270);
   --ring: oklch(0.58 0.18 277);
-  /* Chart palette anchored on the indigo→violet brand axis. */
+  /* Google-spirit accent quartet — blue / green / amber / coral tuned in
+   * OKLCH to sit comfortably next to the indigo brand primary. Used for
+   * stat-card icon chips, benefit icons, status dots and the chart axis;
+   * the brand CTA itself stays on --primary / --brand-gradient. */
+  --accent-blue: oklch(0.58 0.17 255);
+  --accent-green: oklch(0.6 0.15 155);
+  --accent-amber: oklch(0.7 0.14 78);
+  --accent-coral: oklch(0.62 0.18 25);
+  /* Liquid-glass surface kit: translucent card surface + hairline border +
+   * top 1px inner highlight. Consumed by the unlayered `.glass-card` /
+   * `.glass-header` rules in index.css. Surface derives from --card so it
+   * follows every preset automatically. */
+  --glass-surface: color-mix(in srgb, var(--card) 72%, transparent);
+  --glass-border: color-mix(in srgb, var(--border) 90%, transparent);
+  --glass-highlight: oklch(1 0 0 / 0.7);
+  /* Ambient backdrop blobs (indigo / violet / cyan) painted by the
+   * `.ambient-glow` helper — low-alpha radial washes that give "air" to
+   * flat white canvases. Dark mode dials alpha further down. */
+  --ambient-1: color-mix(in oklch, var(--primary) 14%, transparent);
+  --ambient-2: oklch(0.6 0.19 303 / 0.1);
+  --ambient-3: oklch(0.72 0.12 200 / 0.1);
+  /* Chart palette: indigo brand anchor + the Google-spirit accents. */
   --chart-1: oklch(0.55 0.21 277);
-  --chart-2: oklch(0.6 0.19 303);
-  --chart-3: oklch(0.62 0.16 245);
-  --chart-4: oklch(0.7 0.12 195);
-  --chart-5: oklch(0.66 0.18 327);
+  --chart-2: var(--accent-blue);
+  --chart-3: var(--accent-green);
+  --chart-4: var(--accent-amber);
+  --chart-5: var(--accent-coral);
   --sidebar: oklch(0.974 0.003 272);
   --sidebar-foreground: oklch(0.27 0.01 270);
   --sidebar-primary: oklch(0.51 0.22 277);
@@ -200,11 +229,25 @@ For commercial licensing, please contact support@quantumnous.com
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.62 0.15 277);
+  /* Accent quartet lifted for dark-surface legibility. */
+  --accent-blue: oklch(0.68 0.15 255);
+  --accent-green: oklch(0.7 0.14 155);
+  --accent-amber: oklch(0.78 0.14 80);
+  --accent-coral: oklch(0.7 0.16 25);
+  /* Glass on charcoal: slightly more transparent surface, white-alpha
+   * hairline + dimmer top highlight so cards read as lit panes. */
+  --glass-surface: color-mix(in srgb, var(--card) 60%, transparent);
+  --glass-border: oklch(1 0 0 / 0.12);
+  --glass-highlight: oklch(1 0 0 / 0.09);
+  /* Ambient blobs sit much quieter on dark canvases. */
+  --ambient-1: color-mix(in oklch, var(--primary) 10%, transparent);
+  --ambient-2: oklch(0.63 0.2 303 / 0.07);
+  --ambient-3: oklch(0.75 0.11 200 / 0.06);
   --chart-1: oklch(0.65 0.18 277);
-  --chart-2: oklch(0.68 0.17 303);
-  --chart-3: oklch(0.68 0.14 245);
-  --chart-4: oklch(0.75 0.11 195);
-  --chart-5: oklch(0.71 0.15 327);
+  --chart-2: var(--accent-blue);
+  --chart-3: var(--accent-green);
+  --chart-4: var(--accent-amber);
+  --chart-5: var(--accent-coral);
   --sidebar: oklch(0.128 0.004 280);
   --sidebar-foreground: oklch(0.93 0.004 280);
   --sidebar-primary: oklch(0.65 0.18 277);

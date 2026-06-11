@@ -21,7 +21,14 @@ import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
-type StatCardTone = 'rose' | 'teal' | 'gray'
+type StatCardTone =
+  | 'rose'
+  | 'teal'
+  | 'gray'
+  | 'blue'
+  | 'green'
+  | 'amber'
+  | 'coral'
 type StatCardSparklineVariant = 'bars' | 'line'
 type StatCardDetailTone =
   | 'default'
@@ -54,12 +61,35 @@ const TONE_CLASSES: Record<StatCardTone, string> = {
   rose: 'from-chart-5/80 via-chart-5/40 to-chart-5/10 dark:from-chart-5/70 dark:via-chart-5/30 dark:to-chart-5/5',
   teal: 'from-primary/80 via-primary/40 to-primary/10 dark:from-primary/70 dark:via-primary/30 dark:to-primary/5',
   gray: 'from-muted-foreground/50 via-muted-foreground/20 to-transparent dark:from-muted-foreground/40 dark:via-muted-foreground/20',
+  blue: 'from-accent-blue/80 via-accent-blue/40 to-accent-blue/10 dark:from-accent-blue/70 dark:via-accent-blue/30 dark:to-accent-blue/5',
+  green:
+    'from-accent-green/80 via-accent-green/40 to-accent-green/10 dark:from-accent-green/70 dark:via-accent-green/30 dark:to-accent-green/5',
+  amber:
+    'from-accent-amber/80 via-accent-amber/40 to-accent-amber/10 dark:from-accent-amber/70 dark:via-accent-amber/30 dark:to-accent-amber/5',
+  coral:
+    'from-accent-coral/80 via-accent-coral/40 to-accent-coral/10 dark:from-accent-coral/70 dark:via-accent-coral/30 dark:to-accent-coral/5',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
   rose: 'text-chart-5',
   teal: 'text-primary',
   gray: 'text-muted-foreground',
+  blue: 'text-accent-blue',
+  green: 'text-accent-green',
+  amber: 'text-accent-amber',
+  coral: 'text-accent-coral',
+}
+
+/* Soft tinted icon chip per tone — the "Google colorful" touch on stat
+ * cards. Dark mode bumps the wash slightly for visibility on charcoal. */
+const ICON_TONE_CLASSES: Record<StatCardTone, string> = {
+  rose: 'bg-chart-5/12 text-chart-5 dark:bg-chart-5/20',
+  teal: 'bg-primary/12 text-primary dark:bg-primary/20',
+  gray: 'bg-muted text-muted-foreground',
+  blue: 'bg-accent-blue/12 text-accent-blue dark:bg-accent-blue/20',
+  green: 'bg-accent-green/12 text-accent-green dark:bg-accent-green/20',
+  amber: 'bg-accent-amber/15 text-accent-amber dark:bg-accent-amber/20',
+  coral: 'bg-accent-coral/12 text-accent-coral dark:bg-accent-coral/20',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -211,10 +241,15 @@ export function StatCard(props: StatCardProps) {
     <div className='group flex min-h-32 flex-col justify-between gap-3'>
       <div className='flex items-start justify-between gap-1'>
         <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium sm:gap-2'>
-          <Icon
-            className='text-muted-foreground/60 size-3.5 shrink-0'
+          <span
+            className={cn(
+              'flex size-6 shrink-0 items-center justify-center rounded-md',
+              ICON_TONE_CLASSES[tone]
+            )}
             aria-hidden='true'
-          />
+          >
+            <Icon className='size-3.5' />
+          </span>
           <span className='line-clamp-2 leading-snug'>{props.title}</span>
         </div>
         {props.action && <div className='shrink-0'>{props.action}</div>}

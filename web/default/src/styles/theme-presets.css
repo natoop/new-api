@@ -336,6 +336,16 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-4: oklch(0.72 0.14 75);
   --chart-5: oklch(0.55 0.2 28);
 
+  /* Deliberately colorless preset: accents collapse onto the semantic
+   * palette and the ambient glass blobs are switched off entirely. */
+  --accent-blue: var(--info);
+  --accent-green: var(--success);
+  --accent-amber: var(--warning);
+  --accent-coral: var(--destructive);
+  --ambient-1: transparent;
+  --ambient-2: transparent;
+  --ambient-3: transparent;
+
   --sidebar: oklch(0.96 0 0);
   --sidebar-foreground: oklch(0.15 0 0);
   --sidebar-primary: oklch(0.22 0 0);
@@ -455,6 +465,16 @@ For commercial licensing, please contact support@quantumnous.com
   --warning: var(--chart-4);
   --info: var(--chart-1);
   --neutral: var(--muted-foreground);
+  /* Decorative accent quartet re-anchored on the preset's own chart palette
+   * so icon chips / benefit icons never leak the default Google hues. */
+  --accent-blue: var(--chart-1);
+  --accent-green: var(--chart-2);
+  --accent-amber: var(--chart-4);
+  --accent-coral: var(--chart-5);
+  /* Ambient blobs follow the preset's primary/secondary axis. */
+  --ambient-1: color-mix(in oklch, var(--primary) 12%, transparent);
+  --ambient-2: color-mix(in oklch, var(--secondary) 10%, transparent);
+  --ambient-3: color-mix(in oklch, var(--chart-3) 8%, transparent);
 }
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
@@ -474,6 +494,10 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar: color-mix(in oklch, var(--primary) 5%, var(--background));
   --sidebar-accent: color-mix(in oklch, var(--primary) 18%, var(--background));
   --sidebar-border: color-mix(in oklch, var(--primary) 22%, var(--background));
+  /* Dark-mode ambient blobs stay quiet under tinted preset surfaces. */
+  --ambient-1: color-mix(in oklch, var(--primary) 8%, transparent);
+  --ambient-2: color-mix(in oklch, var(--secondary) 6%, transparent);
+  --ambient-3: color-mix(in oklch, var(--chart-3) 5%, transparent);
 }
 
 /* ── Anthropic ────────────────────────────────────────────────────────── */
@@ -551,6 +575,18 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-4: oklch(0.7 0.115 0); /* fig */
   --chart-5: oklch(0.83 0.027 175); /* cactus */
 
+  /* Decorative accents map onto the dormant brand swatches (sky / olive /
+   * kraft amber / clay) instead of the default Google quartet, and the
+   * ambient blobs go warm + very quiet to respect the cream canvas.
+   * var() refs resolve per-mode automatically via the dark block below. */
+  --accent-blue: var(--chart-3);
+  --accent-green: var(--chart-2);
+  --accent-amber: var(--warning);
+  --accent-coral: var(--chart-1);
+  --ambient-1: color-mix(in oklch, var(--primary) 9%, transparent);
+  --ambient-2: color-mix(in oklch, var(--chart-3) 7%, transparent);
+  --ambient-3: color-mix(in oklch, var(--chart-2) 6%, transparent);
+
   --sidebar: oklch(0.955 0.008 92);
   --sidebar-foreground: oklch(0.255 0.005 60);
   --sidebar-primary: oklch(0.685 0.142 38);
@@ -622,6 +658,11 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: oklch(0.295 0.004 60);
   --skeleton-highlight: oklch(0.4 0.004 60);
+
+  /* Warm near-black canvas: ambient washes barely-there. */
+  --ambient-1: color-mix(in oklch, var(--primary) 6%, transparent);
+  --ambient-2: color-mix(in oklch, var(--chart-3) 5%, transparent);
+  --ambient-3: color-mix(in oklch, var(--chart-2) 4%, transparent);
 }
 
 /* ── Font axis ────────────────────────────────────────────────────────────

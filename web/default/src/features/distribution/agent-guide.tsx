@@ -99,6 +99,7 @@ export function AgentGuide() {
     )
   }
 
+  // Each benefit card carries one Google-spirit accent on its icon chip.
   const benefits = [
     {
       icon: HandCoins,
@@ -106,6 +107,8 @@ export function AgentGuide() {
       description: t(
         'Earn a commission on every order from your customers, settled automatically.'
       ),
+      chipClass:
+        'bg-accent-amber/15 text-accent-amber dark:bg-accent-amber/20',
     },
     {
       icon: PackageOpen,
@@ -113,6 +116,7 @@ export function AgentGuide() {
       description: t(
         'Stock up on plans at exclusive wholesale prices below retail.'
       ),
+      chipClass: 'bg-accent-blue/12 text-accent-blue dark:bg-accent-blue/20',
     },
     {
       icon: ShieldCheck,
@@ -120,6 +124,8 @@ export function AgentGuide() {
       description: t(
         'Users you invite stay attributed to you for the long term.'
       ),
+      chipClass:
+        'bg-accent-green/12 text-accent-green dark:bg-accent-green/20',
     },
     {
       icon: Headset,
@@ -127,6 +133,8 @@ export function AgentGuide() {
       description: t(
         'Get priority assistance from our team whenever you need it.'
       ),
+      chipClass:
+        'bg-accent-coral/12 text-accent-coral dark:bg-accent-coral/20',
     },
   ]
 
@@ -183,7 +191,7 @@ export function AgentGuide() {
   ]
 
   return (
-    <Main>
+    <Main className='ambient-glow'>
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='mx-auto w-full max-w-5xl px-4 pt-16 pb-20 sm:px-6 sm:pt-24'>
           {/* Hero */}
@@ -231,8 +239,9 @@ export function AgentGuide() {
           {/* Promotion progress (non-agent only) */}
           {!isAgent && !isLoading && (
             <section className='mt-16'>
-              <Card className='overflow-hidden'>
-                <div className='from-primary/10 via-primary/5 h-1.5 bg-gradient-to-r to-transparent' />
+              <Card className='glass-card overflow-hidden'>
+                {/* Google-spirit tri-color accent strip. */}
+                <div className='from-accent-blue/60 via-primary/50 to-accent-coral/50 h-1.5 bg-gradient-to-r' />
                 <CardContent className='grid gap-8 p-6 sm:p-8 md:grid-cols-2'>
                   <div className='space-y-6'>
                     <div>
@@ -320,7 +329,9 @@ export function AgentGuide() {
                   className='border-border/60 transition-shadow hover:shadow-sm'
                 >
                   <CardContent className='p-6'>
-                    <div className='bg-primary/10 text-primary flex h-10 w-10 items-center justify-center rounded-lg'>
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${benefit.chipClass}`}
+                    >
                       <benefit.icon className='h-5 w-5' />
                     </div>
                     <h3 className='mt-4 font-semibold'>{benefit.title}</h3>
@@ -383,7 +394,7 @@ export function AgentGuide() {
 
           {/* Final CTA */}
           <section className='mt-24'>
-            <Card className='from-primary/10 via-background to-background border-primary/20 bg-gradient-to-br'>
+            <Card className='glass-card from-primary/10 bg-gradient-to-br via-transparent to-transparent'>
               <CardContent className='flex flex-col items-center gap-5 p-10 text-center'>
                 <BadgeCheck className='text-primary h-8 w-8' />
                 <h2 className='text-2xl font-bold tracking-tight'>

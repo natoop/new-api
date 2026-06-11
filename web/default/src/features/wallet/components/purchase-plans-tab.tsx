@@ -520,7 +520,7 @@ export function PurchasePlansTab({
                           key={label}
                           className='text-muted-foreground flex items-center gap-2 text-xs'
                         >
-                          <Check className='text-primary h-3.5 w-3.5 shrink-0' />
+                          <Check className='text-accent-green h-3.5 w-3.5 shrink-0' />
                           <span>{label}</span>
                         </div>
                       ))}

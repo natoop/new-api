@@ -580,7 +580,7 @@ export function SubscriptionPlansCard({
                           key={label}
                           className='text-muted-foreground flex items-center gap-2 text-xs'
                         >
-                          <Check className='text-primary h-3 w-3 shrink-0' />
+                          <Check className='text-accent-green h-3 w-3 shrink-0' />
                           <span>{label}</span>
                         </div>
                       ))}

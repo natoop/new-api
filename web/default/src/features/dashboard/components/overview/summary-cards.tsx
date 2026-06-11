@@ -216,7 +216,8 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['rose', 'teal', 'gray'] as const
+    // Google-spirit accent quartet: one hue per stat card icon chip.
+    const tones = ['blue', 'amber', 'green'] as const
 
     return {
       key: config.key,
@@ -234,7 +235,7 @@ export function SummaryCards() {
   })
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='glass-card overflow-hidden rounded-2xl'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
         <div className='flex flex-col gap-3 p-4 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>

@@ -50,6 +50,12 @@ SectionPageLayoutBreadcrumb.displayName = 'SectionPageLayout.Breadcrumb'
 
 export type SectionPageLayoutProps = {
   children: ReactNode
+  /**
+   * Paints the static ambient-light blob layer (`.ambient-glow`) behind the
+   * page content. Purely decorative — opt-in per page (dashboard, wallet)
+   * so admin table pages keep their flat canvas.
+   */
+  ambient?: boolean
 }
 
 export function SectionPageLayout(props: SectionPageLayoutProps) {
@@ -76,7 +82,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
   return (
     <PageFooterProvider container={footerContainer}>
-      <Main>
+      <Main className={props.ambient ? 'ambient-glow' : undefined}>
         <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
           {breadcrumb != null && (
             <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
