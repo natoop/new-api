@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -24,6 +24,7 @@ import {
   ScreenShareIcon,
   CameraIcon,
   GlobeIcon,
+  KeyRoundIcon,
   SendIcon,
   SquareIcon,
   BarChartIcon,
@@ -34,6 +35,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import { loadPlaygroundToken, savePlaygroundToken } from '../lib/storage'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,6 +93,18 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
+  const [apiToken, setApiToken] = useState('')
+
+  useEffect(() => {
+    setApiToken(loadPlaygroundToken())
+  }, [])
+
+  const hasToken = apiToken.trim().length > 0
+
+  const handleTokenChange = (value: string) => {
+    setApiToken(value)
+    savePlaygroundToken(value.trim())
+  }
 
   const isModelSelectDisabled =
     disabled || isModelLoading || models.length === 0
@@ -97,6 +112,10 @@ export function PlaygroundInput({
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled) return
+    if (!hasToken) {
+      toast.warning(t('Enter your own API token to use the Playground'))
+      return
+    }
     onSubmit(message.text)
     setText('')
   }
@@ -108,11 +127,39 @@ export function PlaygroundInput({
   }
 
   const handleSuggestionClick = (suggestion: string) => {
+    if (!hasToken) {
+      toast.warning(t('Enter your own API token to use the Playground'))
+      return
+    }
     onSubmit(suggestion)
   }
 
   return (
-    <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
+    <div className='grid shrink-0 gap-3 px-1 md:pb-4'>
+      {/* Playground requires the caller's OWN API token — no platform free use. */}
+      <div className='flex flex-col gap-1'>
+        <div className='relative'>
+          <KeyRoundIcon className='text-muted-foreground/70 pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
+          <Input
+            type='password'
+            autoComplete='off'
+            spellCheck={false}
+            value={apiToken}
+            onChange={(e) => handleTokenChange(e.target.value)}
+            placeholder={t('Paste your API token (sk-...) to use the Playground')}
+            className='h-9 pl-9 text-sm'
+            aria-invalid={!hasToken}
+          />
+        </div>
+        {!hasToken ? (
+          <p className='text-muted-foreground px-1 text-xs'>
+            {t(
+              'The Playground runs on your own token — create one on the Tokens page. Platform quota is never used directly.'
+            )}
+          </p>
+        ) : null}
+      </div>
+
       <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
         <PromptInputTextarea
           autoComplete='off'
@@ -206,7 +253,7 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground font-medium'
-                disabled={disabled || !text.trim()}
+                disabled={disabled || !text.trim() || !hasToken}
                 type='submit'
                 variant='secondary'
               >

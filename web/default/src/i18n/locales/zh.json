@@ -4859,5 +4859,16 @@
   "Platform revenue trend": "平台收入趋势",
   "Plan sales ranking": "套餐销售排行",
   "No plan sales in this period": "本周期暂无套餐销售",
-  "sold": "份"
+  "sold": "份",
+  "Enter your own API token to use the Playground": "请先填写你自己的 API 令牌再使用游乐场",
+  "Paste your API token (sk-...) to use the Playground": "粘贴你的 API 令牌（sk-...）以使用游乐场",
+  "The Playground runs on your own token — create one on the Tokens page. Platform quota is never used directly.": "游乐场使用你自己的令牌运行——可在「令牌」页创建。不会直接消耗平台额度。",
+  "Pay as you go": "按量充值",
+  "Pay-as-you-go top-up is not enabled yet.": "按量充值尚未开启。",
+  "Choose an amount": "选择充值金额",
+  "Or enter a custom amount": "或输入自定义金额",
+  "Minimum {{amount}}": "最低 {{amount}}",
+  "Payment method": "支付方式",
+  "Amount due": "应付金额",
+  "Pay now": "立即支付"
 }

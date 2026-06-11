@@ -2,7 +2,7 @@ package controller
 
 import (
 	"errors"
-	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -29,13 +29,38 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	_, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 
 	userId := c.GetInt("id")
+
+	// Playground must run against the caller's OWN API token (created on the
+	// Tokens page) — it must NOT silently consume quota through the session.
+	// The frontend supplies the key via the X-Playground-Token header.
+	key := c.Request.Header.Get("X-Playground-Token")
+	if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+		key = strings.TrimSpace(key[7:])
+	}
+	key = strings.TrimPrefix(key, "sk-")
+	if idx := strings.IndexByte(key, '-'); idx >= 0 {
+		key = key[:idx]
+	}
+	if key == "" {
+		newAPIError = types.NewError(errors.New("请在游乐场填写你自己的 API 令牌（在「令牌」页创建）/ Please enter your own API token (create one on the Tokens page)"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+		return
+	}
+	token, err := model.ValidateUserToken(key)
+	if err != nil || token == nil {
+		newAPIError = types.NewError(errors.New("API 令牌无效或已禁用 / API token is invalid or disabled"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+		return
+	}
+	if token.UserId != userId {
+		newAPIError = types.NewError(errors.New("只能使用你自己的 API 令牌 / You can only use your own API token"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+		return
+	}
 
 	// Write user context to ensure acceptUnsetRatio is available
 	userCache, err := model.GetUserCache(userId)
@@ -45,12 +70,8 @@ func Playground(c *gin.Context) {
 	}
 	userCache.WriteContext(c)
 
-	tempToken := &model.Token{
-		UserId: userId,
-		Name:   fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
-		Group:  relayInfo.UsingGroup,
-	}
-	_ = middleware.SetupContextForToken(c, tempToken)
+	// Use the caller's real token (its own quota / model / group limits apply).
+	_ = middleware.SetupContextForToken(c, token)
 
 	Relay(c, types.RelayFormatOpenAI)
 }

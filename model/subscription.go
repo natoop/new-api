@@ -879,7 +879,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) e
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
 	if promoCode != "" {
-		msg += fmt.Sprintf("，促销码: %s", promoCode)
+		msg += fmt.Sprintf("，优惠码: %s", promoCode)
 	}
 	RecordLog(userId, LogTypeTopup, msg)
 	fireSubscriptionPaidHook(userId)

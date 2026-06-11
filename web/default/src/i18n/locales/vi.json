@@ -4859,5 +4859,16 @@
   "Platform revenue trend": "Platform revenue trend",
   "Plan sales ranking": "Plan sales ranking",
   "No plan sales in this period": "No plan sales in this period",
-  "sold": "sold"
+  "sold": "sold",
+  "Enter your own API token to use the Playground": "Enter your own API token to use the Playground",
+  "Paste your API token (sk-...) to use the Playground": "Paste your API token (sk-...) to use the Playground",
+  "The Playground runs on your own token — create one on the Tokens page. Platform quota is never used directly.": "The Playground runs on your own token — create one on the Tokens page. Platform quota is never used directly.",
+  "Pay as you go": "Pay as you go",
+  "Pay-as-you-go top-up is not enabled yet.": "Pay-as-you-go top-up is not enabled yet.",
+  "Choose an amount": "Choose an amount",
+  "Or enter a custom amount": "Or enter a custom amount",
+  "Minimum {{amount}}": "Minimum {{amount}}",
+  "Payment method": "Payment method",
+  "Amount due": "Amount due",
+  "Pay now": "Pay now"
 }

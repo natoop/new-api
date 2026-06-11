@@ -70,7 +70,15 @@ export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  API_TOKEN: 'playground_api_token',
 } as const
+
+/**
+ * Header carrying the caller's own API token (sk-xxx). The playground only
+ * runs against the user's own token — it must not consume platform quota
+ * implicitly through the session.
+ */
+export const PLAYGROUND_TOKEN_HEADER = 'X-Playground-Token'
 
 // Error messages
 export const ERROR_MESSAGES = {

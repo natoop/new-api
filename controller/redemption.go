@@ -41,10 +41,10 @@ func validateRedemptionTyped(redemption *model.Redemption) (bool, string) {
 		redemption.MaxUses = 0
 	case model.RedemptionTypePromo:
 		if redemption.DiscountBps <= 0 || redemption.DiscountBps >= 10000 {
-			return false, "促销码折扣需为 1-9999 的万分比（如 2000=立减20%）"
+			return false, "优惠码折扣需为 1-9999 的万分比（如 2000=立减20%）"
 		}
 		if redemption.MaxUses < 0 {
-			return false, "促销码可用次数不能为负数"
+			return false, "优惠码可用次数不能为负数"
 		}
 		if redemption.PlanId > 0 {
 			plan, err := model.GetSubscriptionPlanById(redemption.PlanId)

@@ -119,6 +119,29 @@ export function saveMessages(messages: Message[]): void {
 }
 
 /**
+ * Load the caller's playground API token (sk-xxx) from localStorage.
+ */
+export function loadPlaygroundToken(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.API_TOKEN) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Persist the caller's playground API token to localStorage.
+ */
+export function savePlaygroundToken(token: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.API_TOKEN, token)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save playground token:', error)
+  }
+}
+
+/**
  * Clear all playground data
  */
 export function clearPlaygroundData(): void {

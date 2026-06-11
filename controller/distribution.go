@@ -221,7 +221,7 @@ func SaveDistributionPromoCode(c *gin.Context) {
 	if idParam := c.Param("id"); idParam != "" {
 		promoCodeID, err := strconv.Atoi(idParam)
 		if err != nil {
-			common.ApiErrorMsg(c, "无效的促销码 ID")
+			common.ApiErrorMsg(c, "无效的优惠码 ID")
 			return
 		}
 		req.Id = promoCodeID
@@ -237,7 +237,7 @@ func SaveDistributionPromoCode(c *gin.Context) {
 func UpdateDistributionPromoCodeStatus(c *gin.Context) {
 	promoCodeID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiErrorMsg(c, "无效的促销码 ID")
+		common.ApiErrorMsg(c, "无效的优惠码 ID")
 		return
 	}
 	var req distributionStatusRequest

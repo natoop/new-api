@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useRef } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
-import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
+import {
+  API_ENDPOINTS,
+  ERROR_MESSAGES,
+  PLAYGROUND_TOKEN_HEADER,
+} from '../constants'
+import { loadPlaygroundToken } from '../lib/storage'
 import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
 
 /**
@@ -37,7 +42,10 @@ export function useStreamRequest() {
       onError: (error: string, errorCode?: string) => void
     ) => {
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
-        headers: getCommonHeaders(),
+        headers: {
+          ...getCommonHeaders(),
+          [PLAYGROUND_TOKEN_HEADER]: loadPlaygroundToken(),
+        },
         method: 'POST',
         payload: JSON.stringify(payload),
       })

@@ -16,10 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Crown, Gift, Receipt } from 'lucide-react'
+import { Crown, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Tabs,
   TabsContent,
@@ -27,8 +26,8 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import type { TopupInfo } from '../types'
+import { PayAsYouGoTab } from './pay-as-you-go-tab'
 import { PurchasePlansTab } from './purchase-plans-tab'
-import { RedemptionSection } from './redemption-card'
 
 interface WalletTabsProps {
   topupInfo: TopupInfo | null
@@ -55,9 +54,9 @@ export function WalletTabs({
             <Crown className='h-3.5 w-3.5' />
             {t('Buy Plans')}
           </TabsTrigger>
-          <TabsTrigger value='redeem' className='gap-1.5 px-3'>
-            <Gift className='h-3.5 w-3.5' />
-            {t('Redemption Code')}
+          <TabsTrigger value='topup' className='gap-1.5 px-3'>
+            <WalletCards className='h-3.5 w-3.5' />
+            {t('Pay as you go')}
           </TabsTrigger>
         </TabsList>
         {onOpenBilling && (
@@ -81,23 +80,8 @@ export function WalletTabs({
         />
       </TabsContent>
 
-      <TabsContent value='redeem'>
-        <Card className='glass-card rounded-xl py-0'>
-          <CardContent className='space-y-3 p-4 sm:p-5'>
-            <div className='max-w-xl space-y-3'>
-              <RedemptionSection
-                enabled={topupInfo?.enable_redemption !== false}
-                topupLink={topupInfo?.topup_link}
-                onRedeemed={onRedeemed}
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'Balance codes credit your balance instantly; plan codes activate the plan right away.'
-                )}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <TabsContent value='topup'>
+        <PayAsYouGoTab topupInfo={topupInfo} onPaid={onRedeemed} />
       </TabsContent>
     </Tabs>
   )

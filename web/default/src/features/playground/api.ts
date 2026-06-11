@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import { API_ENDPOINTS } from './constants'
+import { API_ENDPOINTS, PLAYGROUND_TOKEN_HEADER } from './constants'
+import { loadPlaygroundToken } from './lib/storage'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -33,6 +34,7 @@ export async function sendChatCompletion(
 ): Promise<ChatCompletionResponse> {
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
     skipErrorHandler: true,
+    headers: { [PLAYGROUND_TOKEN_HEADER]: loadPlaygroundToken() },
   } as Record<string, unknown>)
   return res.data
 }

@@ -13,9 +13,10 @@ var PayAddress = ""
 var CustomCallbackAddress = ""
 var EpayId = ""
 var EpayKey = ""
-var Price = 7.3
+// 1:1 平价：1 元人民币 = 1 美元额度（管理员可在 Billing → Payment Gateway 修改）
+var Price = 1.0
 var MinTopUp = 1
-var USDExchangeRate = 7.3
+var USDExchangeRate = 1.0
 
 var PayMethods = []map[string]string{
 	{

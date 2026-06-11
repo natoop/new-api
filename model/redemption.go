@@ -18,7 +18,7 @@ import (
 const (
 	RedemptionTypeBalance = "balance" // 余额码：兑换后增加用户额度
 	RedemptionTypePlan    = "plan"    // 套餐码：兑换后直接开通订阅套餐
-	RedemptionTypePromo   = "promo"   // 促销码：购买套餐时抵扣折扣，不可直接兑换
+	RedemptionTypePromo   = "promo"   // 优惠码：购买套餐时抵扣折扣，不可直接兑换
 )
 
 type Redemption struct {
@@ -142,8 +142,8 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
-// ErrPromoCodeNotRedeemable 促销码不允许直接兑换，需在购买套餐时使用。
-var ErrPromoCodeNotRedeemable = errors.New("促销码请在购买套餐时使用")
+// ErrPromoCodeNotRedeemable 优惠码不允许直接兑换，需在购买套餐时使用。
+var ErrPromoCodeNotRedeemable = errors.New("优惠码请在购买套餐时使用")
 
 // RedeemResult 兑换结果，按兑换码类型区分。
 type RedeemResult struct {
@@ -260,25 +260,25 @@ func GetRedemptionByKey(key string) (*Redemption, error) {
 	return &redemption, nil
 }
 
-// ValidatePromoUsable 校验促销码当前是否可用于指定套餐（planId<=0 时跳过套餐绑定校验）。
+// ValidatePromoUsable 校验优惠码当前是否可用于指定套餐（planId<=0 时跳过套餐绑定校验）。
 func (redemption *Redemption) ValidatePromoUsable(planId int) error {
 	if redemption.Type != RedemptionTypePromo {
-		return errors.New("该兑换码不是促销码")
+		return errors.New("该兑换码不是优惠码")
 	}
 	if redemption.Status != common.RedemptionCodeStatusEnabled {
-		return errors.New("该促销码不可用")
+		return errors.New("该优惠码不可用")
 	}
 	if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-		return errors.New("该促销码已过期")
+		return errors.New("该优惠码已过期")
 	}
 	if redemption.DiscountBps <= 0 || redemption.DiscountBps >= 10000 {
-		return errors.New("促销码折扣配置无效")
+		return errors.New("优惠码折扣配置无效")
 	}
 	if redemption.PlanId != 0 && planId > 0 && redemption.PlanId != planId {
-		return errors.New("该促销码不适用于此套餐")
+		return errors.New("该优惠码不适用于此套餐")
 	}
 	if redemption.MaxUses > 0 && redemption.UsedCount >= redemption.MaxUses {
-		return errors.New("促销码已被用尽")
+		return errors.New("优惠码已被用尽")
 	}
 	return nil
 }
@@ -300,7 +300,7 @@ func ApplyPromoDiscount(amount float64, discountBps int) float64 {
 	return result
 }
 
-// consumePromoUseRowsTx 原子地为促销码 +1 次使用（带 max_uses 上限保护），返回受影响行数。
+// consumePromoUseRowsTx 原子地为优惠码 +1 次使用（带 max_uses 上限保护），返回受影响行数。
 func consumePromoUseRowsTx(tx *gorm.DB, code string) (int64, error) {
 	if tx == nil {
 		tx = DB
@@ -311,7 +311,7 @@ func consumePromoUseRowsTx(tx *gorm.DB, code string) (int64, error) {
 	return res.RowsAffected, res.Error
 }
 
-// refundPromoUseRowsTx 原子回补一次促销码使用次数（订单过期/取消时回滚预占），
+// refundPromoUseRowsTx 原子回补一次优惠码使用次数（订单过期/取消时回滚预占），
 // WHERE used_count > 0 防止回补成负数；返回受影响行数。
 func refundPromoUseRowsTx(tx *gorm.DB, code string) (int64, error) {
 	if tx == nil {
@@ -323,10 +323,10 @@ func refundPromoUseRowsTx(tx *gorm.DB, code string) (int64, error) {
 	return res.RowsAffected, res.Error
 }
 
-// ConsumePromoCodeById 原子消耗一次促销码（WHERE used_count < max_uses OR max_uses = 0）。
+// ConsumePromoCodeById 原子消耗一次优惠码（WHERE used_count < max_uses OR max_uses = 0）。
 func ConsumePromoCodeById(tx *gorm.DB, redemptionId int) error {
 	if redemptionId <= 0 {
-		return errors.New("无效的促销码 id")
+		return errors.New("无效的优惠码 id")
 	}
 	if tx == nil {
 		tx = DB
@@ -338,12 +338,12 @@ func ConsumePromoCodeById(tx *gorm.DB, redemptionId int) error {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return errors.New("促销码已被用尽")
+		return errors.New("优惠码已被用尽")
 	}
 	return nil
 }
 
-// ConsumePromoRedemptionTx 在事务内严格校验并消耗一次促销码，返回该促销码（用于读取折扣）。
+// ConsumePromoRedemptionTx 在事务内严格校验并消耗一次优惠码，返回该优惠码（用于读取折扣）。
 // 余额购买套餐路径使用：校验失败/用尽时返回错误使整笔交易回滚。
 func ConsumePromoRedemptionTx(tx *gorm.DB, code string, planId int) (*Redemption, error) {
 	if tx == nil {
@@ -351,7 +351,7 @@ func ConsumePromoRedemptionTx(tx *gorm.DB, code string, planId int) (*Redemption
 	}
 	var redemption Redemption
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(redemptionKeyCol()+" = ?", code).First(&redemption).Error; err != nil {
-		return nil, errors.New("促销码不存在")
+		return nil, errors.New("优惠码不存在")
 	}
 	if err := redemption.ValidatePromoUsable(planId); err != nil {
 		return nil, err
@@ -361,7 +361,7 @@ func ConsumePromoRedemptionTx(tx *gorm.DB, code string, planId int) (*Redemption
 		return nil, err
 	}
 	if rows == 0 {
-		return nil, errors.New("促销码已被用尽")
+		return nil, errors.New("优惠码已被用尽")
 	}
 	redemption.UsedCount++
 	return &redemption, nil
