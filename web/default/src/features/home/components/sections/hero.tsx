@@ -55,7 +55,7 @@ export function Hero(props: HeroProps) {
       return (
         <Button
           variant='outline'
-          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
+          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-12 items-center gap-1.5 rounded-xl px-6 text-base font-medium'
           render={
             <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
           }
@@ -68,7 +68,7 @@ export function Hero(props: HeroProps) {
     return (
       <Button
         variant='outline'
-        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
+        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-12 items-center gap-1.5 rounded-xl px-6 text-base font-medium'
         render={<Link to={docsUrl} />}
       >
         <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
@@ -102,7 +102,7 @@ export function Hero(props: HeroProps) {
         <div className='flex flex-col items-start text-left lg:col-span-6'>
           {/* Top Pill Badge */}
           <div
-            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
+            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3.5 py-1.5 text-xs font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
             style={{ animationDelay: '0ms' }}
           >
             <span className='relative flex size-1.5'>
@@ -113,7 +113,7 @@ export function Hero(props: HeroProps) {
           </div>
 
           <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
+            className='landing-animate-fade-up text-[clamp(2.75rem,5.5vw,4.25rem)] leading-[1.08] font-bold tracking-[-0.02em]'
             style={{ animationDelay: '60ms' }}
           >
             {t('Unified API Gateway for')}
@@ -123,7 +123,7 @@ export function Hero(props: HeroProps) {
             </span>
           </h1>
           <p
-            className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
+            className='landing-animate-fade-up text-muted-foreground/85 mt-6 max-w-2xl text-lg leading-relaxed opacity-0 md:text-xl'
             style={{ animationDelay: '120ms' }}
           >
             {t(
@@ -138,7 +138,7 @@ export function Hero(props: HeroProps) {
             {props.isAuthenticated ? (
               <>
                 <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
+                  className='group h-12 rounded-xl px-6 text-base font-medium shadow-md transition-shadow hover:shadow-lg'
                   render={<Link to='/dashboard' />}
                 >
                   {t('Go to Dashboard')}
@@ -149,7 +149,7 @@ export function Hero(props: HeroProps) {
             ) : (
               <>
                 <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
+                  className='group h-12 rounded-xl px-6 text-base font-medium shadow-md transition-shadow hover:shadow-lg'
                   render={<Link to='/sign-up' />}
                 >
                   {t('Get Started')}
@@ -157,7 +157,7 @@ export function Hero(props: HeroProps) {
                 </Button>
                 <Button
                   variant='outline'
-                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
+                  className='border-border/50 hover:border-border hover:bg-muted/50 h-12 rounded-xl px-6 text-base font-medium'
                   render={<Link to='/pricing' />}
                 >
                   {t('View Pricing')}

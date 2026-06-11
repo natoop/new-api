@@ -82,7 +82,9 @@ import type {
 } from './types'
 
 const PAGE_SIZE = 10
-const MAX_PROMO_AMOUNT_CENTS = 2000
+// Fallback ceiling only — the real cap is the selected package's CURRENT
+// retail price (kept in sync with subscription-plan pricing by the backend).
+const FALLBACK_PROMO_AMOUNT_CENTS = 2000
 
 type AgentTab =
   | 'packages'
@@ -137,11 +139,11 @@ function apiActionError(message?: string) {
   return message?.trim() || 'Action failed'
 }
 
-function normalizePromoAmountInput(value: string) {
+function normalizePromoAmountInput(value: string, cap: number) {
   if (value.trim() === '') return ''
   const amount = Math.floor(Number(value))
   if (Number.isNaN(amount)) return ''
-  return String(Math.min(MAX_PROMO_AMOUNT_CENTS, Math.max(0, amount)))
+  return String(Math.min(cap, Math.max(0, amount)))
 }
 
 function canRefundInventory(row: DistributionInventory) {
@@ -428,6 +430,12 @@ export function AgentCenter() {
   const selectedPromoPackage = inventoryPackageOptions.find(
     (option) => String(option.package_id) === promoPackageId
   )
+  // Cap follows the selected package's CURRENT retail price so the coupon
+  // ceiling stays in sync with subscription-plan pricing.
+  const promoAmountCap =
+    selectedPromoPackage?.retail_price && selectedPromoPackage.retail_price > 0
+      ? selectedPromoPackage.retail_price
+      : FALLBACK_PROMO_AMOUNT_CENTS
 
   async function handleCreatePromoCode() {
     if (!promoPackageId) {
@@ -435,8 +443,12 @@ export function AgentCenter() {
       return
     }
     const amount = Number(promoAmount)
-    if (Number.isNaN(amount) || amount < 0 || amount > MAX_PROMO_AMOUNT_CENTS) {
-      toast.error(t('Promo code amount must be between 0 and 2000 cents.'))
+    if (Number.isNaN(amount) || amount < 0 || amount > promoAmountCap) {
+      toast.error(
+        t('Coupon amount must be between 0 and {{max}} cents.', {
+          max: promoAmountCap,
+        })
+      )
       return
     }
     const maxRedemptions = Number(promoMaxRedemptions || 0)
@@ -1038,13 +1050,16 @@ export function AgentCenter() {
                 <Input
                   type='number'
                   min={0}
-                  max={MAX_PROMO_AMOUNT_CENTS}
+                  max={promoAmountCap}
                   step={1}
-                  placeholder='0-2000'
+                  placeholder={`0-${promoAmountCap}`}
                   value={promoAmount}
                   onChange={(event) =>
                     setPromoAmount(
-                      normalizePromoAmountInput(event.target.value)
+                      normalizePromoAmountInput(
+                        event.target.value,
+                        promoAmountCap
+                      )
                     )
                   }
                 />

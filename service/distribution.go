@@ -243,6 +243,16 @@ func hydrateDistributionPackagesFromSubscriptionPlans(packages []model.Distribut
 		packages[i].Description = strings.TrimSpace(plan.Subtitle)
 		packages[i].RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
 		packages[i].CreditAmount = int(plan.TotalAmount)
+		// 展示层同步：套餐改价后，一/二级代理价若高于当前零售价则钳到零售
+		// 价，与下单时的口径一致，避免代理中心看到倒挂的旧价。
+		if packages[i].RetailPrice > 0 {
+			if packages[i].AgentPrice > packages[i].RetailPrice {
+				packages[i].AgentPrice = packages[i].RetailPrice
+			}
+			if packages[i].SecondaryAgentPrice > packages[i].RetailPrice {
+				packages[i].SecondaryAgentPrice = packages[i].RetailPrice
+			}
+		}
 	}
 	return nil
 }

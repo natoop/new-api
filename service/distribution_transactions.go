@@ -43,6 +43,9 @@ type DistributionInventoryListInput struct {
 type DistributionInventoryPackageOption struct {
 	PackageId   int    `json:"package_id"`
 	PackageName string `json:"package_name"`
+	// RetailPrice 为套餐"当前"零售价（分），随订阅套餐改价实时刷新；
+	// 前端用它作为优惠码抵扣额上限，保持与套餐定价同步。
+	RetailPrice int `json:"retail_price"`
 }
 
 func distributionLock(tx *gorm.DB) *gorm.DB {
@@ -264,6 +267,12 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 		unitPrice, err := resolveDistributionAgentPrice(tx, distributionPackage.AgentPrice, distributionPackage.SecondaryAgentPrice, agent.Id)
 		if err != nil {
 			return err
+		}
+		// 与套餐定价同步：零售价已在本事务内按订阅套餐实时刷新；若套餐降价
+		// 导致存量代理价(一/二级)高于当前零售价，代理拿货价自动钳到零售价，
+		// 避免"套餐改价后代理价不同步"的倒挂。
+		if distributionPackage.RetailPrice > 0 && unitPrice > distributionPackage.RetailPrice {
+			unitPrice = distributionPackage.RetailPrice
 		}
 		quantity := 1
 		totalPriceUSDCents := unitPrice * quantity
@@ -855,15 +864,22 @@ func ListDistributionAgentInventoryPackageOptions(userID int) ([]DistributionInv
 		packageIDs = append(packageIDs, option.PackageId)
 	}
 	var packages []model.DistributionPackage
-	if err := model.DB.Select("id, name").Where("id IN ?", packageIDs).Find(&packages).Error; err != nil {
+	if err := model.DB.Select("id, name, subscription_plan_id, retail_price, agent_price, secondary_agent_price").Where("id IN ?", packageIDs).Find(&packages).Error; err != nil {
 		return nil, err
 	}
-	packageMap := make(map[int]string, len(packages))
+	// 实时刷新零售价（套餐改价后立即生效），供前端做优惠码额度上限。
+	if err := hydrateDistributionPackagesFromSubscriptionPlans(packages); err != nil {
+		return nil, err
+	}
+	packageMap := make(map[int]model.DistributionPackage, len(packages))
 	for _, distributionPackage := range packages {
-		packageMap[distributionPackage.Id] = distributionPackage.Name
+		packageMap[distributionPackage.Id] = distributionPackage
 	}
 	for i := range options {
-		options[i].PackageName = packageMap[options[i].PackageId]
+		if pkg, ok := packageMap[options[i].PackageId]; ok {
+			options[i].PackageName = pkg.Name
+			options[i].RetailPrice = pkg.RetailPrice
+		}
 	}
 	return options, nil
 }

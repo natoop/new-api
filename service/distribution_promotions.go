@@ -54,9 +54,11 @@ func validateDistributionPromoCodeInput(input DistributionPromoCodeSaveInput) (D
 	if err := ValidateDistributionStatus(input.Status); err != nil {
 		return input, err
 	}
-	if input.DiscountValue < 0 || input.DiscountValue > 2000 {
-		return input, fmt.Errorf("discount_value must be between 0 and 2000")
+	if input.DiscountValue < 0 {
+		return input, fmt.Errorf("discount_value cannot be negative")
 	}
+	// 上限不再硬编码 2000：在 SaveDistributionPromoCode 事务内按套餐"当前价"
+	// 校验，保证优惠码额度始终与套餐定价同步。
 	if input.MaxRedemptions < 0 {
 		return input, fmt.Errorf("max_redemptions cannot be negative")
 	}
@@ -213,6 +215,22 @@ func SaveDistributionPromoCode(userID int, input DistributionPromoCodeSaveInput)
 		}
 		if packageCount == 0 {
 			return fmt.Errorf("package is not in agent inventory")
+		}
+		// 与套餐定价同步：优惠码抵扣额不得超过套餐"当前"价格（优先取关联
+		// 订阅套餐的实时价，套餐改价后上限自动跟随）。
+		var pkg model.DistributionPackage
+		if err := tx.Where("id = ?", input.PackageId).First(&pkg).Error; err != nil {
+			return fmt.Errorf("package not found")
+		}
+		priceCap := pkg.RetailPrice
+		if pkg.SubscriptionPlanId > 0 {
+			var plan model.SubscriptionPlan
+			if err := tx.Where("id = ?", pkg.SubscriptionPlanId).First(&plan).Error; err == nil {
+				priceCap = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+			}
+		}
+		if priceCap > 0 && input.DiscountValue > priceCap {
+			return fmt.Errorf("优惠码抵扣额不能超过套餐当前价格（%d 分）", priceCap)
 		}
 		if input.Code == "" {
 			code, err := buildDistributionPromoCode(tx)

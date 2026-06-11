@@ -1905,7 +1905,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4861,6 +4861,7 @@
     "Pay now": "立即支付",
     "7 days": "7 天",
     "30 days": "30 天",
-    "90 days": "90 天"
+    "90 days": "90 天",
+    "Coupon amount must be between 0 and {{max}} cents.": "优惠码抵扣额需在 0 到 {{max}} 分之间（与套餐当前价同步）"
   }
 }

@@ -229,6 +229,8 @@ export interface DistributionUserOption {
 export interface DistributionInventoryPackageOption {
   package_id: number
   package_name: string
+  /** Package's CURRENT retail price in cents (synced with plan pricing). */
+  retail_price?: number
 }
 
 export interface DistributionSubscriptionPlan {
