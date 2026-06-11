@@ -73,7 +73,7 @@ type DistributionPriceConfigRule struct {
 	CustomerUserId int
 	AgentLevel     int
 	PriceType      string
-	PriceValue     int
+	PriceValue     float64
 	Status         string
 }
 
@@ -93,14 +93,14 @@ func NormalizeIdempotencyKey(raw string) (string, error) {
 	return key, nil
 }
 
-func CalcCommission(amountCent int, bps int) (int, error) {
-	if amountCent < 0 {
+func CalcCommission(amount float64, bps int) (float64, error) {
+	if amount < 0 {
 		return 0, ErrDistributionInvalidAmount
 	}
 	if bps < 0 || bps > DistributionMaxBPS {
 		return 0, ErrDistributionInvalidBPS
 	}
-	return int(int64(amountCent) * int64(bps) / int64(DistributionMaxBPS)), nil
+	return normalizeDistributionMoneyAmount(amount * float64(bps) / float64(DistributionMaxBPS)), nil
 }
 
 func ValidateDistributionStatus(status string) error {
@@ -159,7 +159,7 @@ func BuildInvitationNo(parentAgentID int, inviteeEmail string, key string) strin
 	return "distribution_invitation_" + distributionStableHex(fmt.Sprintf("invite:%d:%s:%s", parentAgentID, strings.TrimSpace(strings.ToLower(inviteeEmail)), key))
 }
 
-func CanApplyDelta(balance int, delta int) bool {
+func CanApplyDelta(balance float64, delta float64) bool {
 	return balance+delta >= 0
 }
 
@@ -184,21 +184,21 @@ func CanAssignInventory(status string, assignedTo int) bool {
 	return assignedTo == 0 && (status == DistributionInventoryStatusAvailable || status == DistributionInventoryStatusReserved)
 }
 
-func applyDistributionPriceConfig(basePrice int, priceType string, priceValue int) int {
+func applyDistributionPriceConfig(basePrice float64, priceType string, priceValue float64) float64 {
 	switch priceType {
 	case DistributionPriceTypeFixed:
 		if priceValue >= 0 {
-			return priceValue
+			return normalizeDistributionMoneyAmount(priceValue)
 		}
 	case DistributionPriceTypeDiscount:
 		if priceValue >= 1 && priceValue <= 10 {
-			return int(int64(basePrice) * int64(priceValue) / 10)
+			return normalizeDistributionMoneyAmount(basePrice * priceValue / 10)
 		}
 	}
 	return basePrice
 }
 
-func ResolveDistributionAgentPrice(packageDefaultPrice int, agentLevel int, configs []DistributionPriceConfigRule) int {
+func ResolveDistributionAgentPrice(packageDefaultPrice float64, agentLevel int, configs []DistributionPriceConfigRule) float64 {
 	for _, cfg := range configs {
 		if cfg.TargetType == DistributionPriceTargetLevel && cfg.AgentLevel == agentLevel && cfg.Status == DistributionStatusEnabled {
 			return applyDistributionPriceConfig(packageDefaultPrice, cfg.PriceType, cfg.PriceValue)
@@ -207,7 +207,7 @@ func ResolveDistributionAgentPrice(packageDefaultPrice int, agentLevel int, conf
 	return packageDefaultPrice
 }
 
-func ResolveDistributionCustomerPrice(packageDefaultPrice int, customerUserID int, configs []DistributionPriceConfigRule) int {
+func ResolveDistributionCustomerPrice(packageDefaultPrice float64, customerUserID int, configs []DistributionPriceConfigRule) float64 {
 	for _, cfg := range configs {
 		if cfg.TargetType == DistributionPriceTargetCustomer && cfg.CustomerUserId == customerUserID && cfg.Status == DistributionStatusEnabled {
 			return applyDistributionPriceConfig(packageDefaultPrice, cfg.PriceType, cfg.PriceValue)
@@ -216,7 +216,7 @@ func ResolveDistributionCustomerPrice(packageDefaultPrice int, customerUserID in
 	return packageDefaultPrice
 }
 
-func ValidateDistributionPromoDiscount(discountType string, value int) error {
+func ValidateDistributionPromoDiscount(discountType string, value float64) error {
 	switch strings.TrimSpace(discountType) {
 	case DistributionDiscountTypePercent:
 		if value < 0 || value > DistributionMaxBPS {

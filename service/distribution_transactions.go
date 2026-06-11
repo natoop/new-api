@@ -14,9 +14,9 @@ import (
 )
 
 type DistributionBalanceAdjustmentInput struct {
-	Delta          int    `json:"delta"`
-	Description    string `json:"description"`
-	IdempotencyKey string `json:"idempotency_key"`
+	Delta          float64 `json:"delta"`
+	Description    string  `json:"description"`
+	IdempotencyKey string  `json:"idempotency_key"`
 }
 
 type DistributionPurchaseResult struct {
@@ -43,9 +43,9 @@ type DistributionInventoryListInput struct {
 type DistributionInventoryPackageOption struct {
 	PackageId   int    `json:"package_id"`
 	PackageName string `json:"package_name"`
-	// RetailPrice 为套餐"当前"零售价（分），随订阅套餐改价实时刷新；
+	// RetailPrice 为套餐"当前"零售价（USD），随订阅套餐改价实时刷新；
 	// 前端用它作为优惠码抵扣额上限，保持与套餐定价同步。
-	RetailPrice int `json:"retail_price"`
+	RetailPrice float64 `json:"retail_price"`
 }
 
 func distributionLock(tx *gorm.DB) *gorm.DB {
@@ -115,7 +115,7 @@ func verifyDistributionPurchaseIdempotency(order model.DistributionOrder, agentI
 	return nil
 }
 
-func resolveDistributionAgentPrice(tx *gorm.DB, primaryAgentPrice int, secondaryAgentPrice int, agentID int) (int, error) {
+func resolveDistributionAgentPrice(tx *gorm.DB, primaryAgentPrice float64, secondaryAgentPrice float64, agentID int) (float64, error) {
 	var agent model.DistributionAgent
 	if err := distributionLock(tx).Select("id, level").Where("id = ?", agentID).First(&agent).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -133,6 +133,7 @@ func AdminAdjustDistributionAgentBalance(agentID int, operatorUserID int, input 
 	if agentID <= 0 {
 		return nil, fmt.Errorf("invalid agent id")
 	}
+	input.Delta = normalizeDistributionMoneyAmount(input.Delta)
 	key, err := NormalizeIdempotencyKey(input.IdempotencyKey)
 	if err != nil {
 		return nil, err
@@ -249,7 +250,7 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 			distributionPackage.SubscriptionSubtitle = plan.Subtitle
 			distributionPackage.Name = strings.TrimSpace(plan.Title)
 			distributionPackage.Description = strings.TrimSpace(plan.Subtitle)
-			distributionPackage.RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+			distributionPackage.RetailPrice = distributionSubscriptionPlanPriceAmount(plan.PriceAmount)
 			distributionPackage.CreditAmount = int(plan.TotalAmount)
 		}
 		existingOrder, existingInventory, err := getDistributionOrderWithInventoryByIdempotency(tx, agent.Id, userID, packageID, key)
@@ -275,13 +276,10 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 			unitPrice = distributionPackage.RetailPrice
 		}
 		quantity := 1
-		totalPriceUSDCents := unitPrice * quantity
-		paidAmount, err := calcDistributionPaymentAmountFromUSDCents(totalPriceUSDCents)
-		if err != nil {
-			return err
-		}
-		originalAmount := distributionPackage.RetailPrice * quantity
-		discountAmount := originalAmount - totalPriceUSDCents
+		totalPriceUSD := normalizeDistributionMoneyAmount(unitPrice * float64(quantity))
+		paidAmount := totalPriceUSD
+		originalAmount := normalizeDistributionMoneyAmount(distributionPackage.RetailPrice * float64(quantity))
+		discountAmount := normalizeDistributionMoneyAmount(originalAmount - totalPriceUSD)
 		if discountAmount < 0 {
 			discountAmount = 0
 		}
@@ -313,7 +311,7 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 			PaidAmount:            paidAmount,
 			Quantity:              quantity,
 			UnitAgentPrice:        unitPrice,
-			TotalAgentPrice:       totalPriceUSDCents,
+			TotalAgentPrice:       totalPriceUSD,
 			RetailPrice:           distributionPackage.RetailPrice,
 			CommissionBps:         agent.CommissionBps,
 			CommissionAmount:      commissionAmount,
@@ -437,7 +435,7 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 	return &result, nil
 }
 
-func postDistributionProfit(tx *gorm.DB, childAgent model.DistributionAgent, order model.DistributionOrder, primaryAgentPrice int, secondaryAgentPrice int, childPrice int, quantity int, now int64) error {
+func postDistributionProfit(tx *gorm.DB, childAgent model.DistributionAgent, order model.DistributionOrder, primaryAgentPrice float64, secondaryAgentPrice float64, childPrice float64, quantity int, now int64) error {
 	parentID := childAgent.ParentAgentId
 	visited := map[int]struct{}{childAgent.Id: {}}
 	for parentID > 0 {
@@ -456,9 +454,9 @@ func postDistributionProfit(tx *gorm.DB, childAgent model.DistributionAgent, ord
 		if err != nil {
 			return err
 		}
-		unitProfit := childPrice - parentCost
+		unitProfit := normalizeDistributionMoneyAmount(childPrice - parentCost)
 		if unitProfit > 0 {
-			amount := unitProfit * quantity
+			amount := normalizeDistributionMoneyAmount(unitProfit * float64(quantity))
 			profitNo := BuildProfitNo(order.Id, parent.Id)
 			var existing model.DistributionProfitLog
 			err := tx.Where("profit_no = ?", profitNo).First(&existing).Error
@@ -894,3 +892,35 @@ func AdminListDistributionAttributionLogs(startIdx int, pageSize int) ([]model.D
 	err := query.Order("id desc").Limit(pageSize).Offset(startIdx).Find(&logs).Error
 	return logs, total, err
 }
+
+// SyncDistributionCustomerOnRegister 用户注册完成之后，若邀请人是已启用的代理，
+// 则为新用户建立客户归属（p3_customer_ownerships）和归因日志。
+// 该函数为轻量钩子，内部吞错，不向调用方传播。
+func SyncDistributionCustomerOnRegister(newUserID int, inviterID int) {
+	if newUserID <= 0 || inviterID <= 0 {
+		return
+	}
+	now := time.Now().Unix()
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var agent model.DistributionAgent
+		if err := tx.Where("user_id = ? AND status = ?", inviterID, DistributionStatusEnabled).First(&agent).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		var inviter model.User
+		if err := tx.Select("id, aff_code").Where("id = ?", inviterID).First(&inviter).Error; err != nil {
+			return err
+		}
+		sourceNo := strings.TrimSpace(inviter.AffCode)
+		if sourceNo == "" {
+			sourceNo = fmt.Sprintf("aff_user_%d", inviterID)
+		}
+		return bindDistributionCustomer(tx, newUserID, agent.Id, DistributionCustomerEventBind, DistributionSourceInvitation, inviterID, sourceNo, 0, "user registration invited by agent", now)
+	})
+	if err != nil {
+		common.SysError("distribution: failed to sync customer on register: " + err.Error())
+	}
+}
+

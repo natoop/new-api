@@ -242,6 +242,10 @@ func SetApiRouter(router *gin.Engine) {
 			agentAdminRoute.GET("/ops-auth", controller.AdminListDistributionOpsAuthorizations)
 			agentAdminRoute.POST("/ops-auth", controller.AdminGrantDistributionOpsAuthorization)
 			agentAdminRoute.DELETE("/ops-auth/:user_id", controller.AdminRevokeDistributionOpsAuthorization)
+			agentAdminRoute.GET("/price-configs", controller.AdminListDistributionPriceConfigs)
+			agentAdminRoute.POST("/price-configs", middleware.CriticalRateLimit(), controller.AdminSaveDistributionPriceConfig)
+			agentAdminRoute.PUT("/price-configs/:id", middleware.CriticalRateLimit(), controller.AdminSaveDistributionPriceConfig)
+			agentAdminRoute.PATCH("/price-configs/:id/status", controller.AdminUpdateDistributionPriceConfigStatus)
 		}
 
 		// Subscription payment callbacks (no auth)

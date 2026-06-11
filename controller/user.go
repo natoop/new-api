@@ -197,6 +197,8 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
+	// 若邀请人是代理，则建立客户归属
+	service.SyncDistributionCustomerOnRegister(insertedUser.Id, inviterId)
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()

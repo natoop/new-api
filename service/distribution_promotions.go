@@ -11,15 +11,15 @@ import (
 )
 
 type DistributionPromoCodeSaveInput struct {
-	Id             int    `json:"id"`
-	PackageId      int    `json:"package_id"`
-	Code           string `json:"code"`
-	Status         string `json:"status"`
-	DiscountType   string `json:"discount_type"`
-	DiscountValue  int    `json:"discount_value"`
-	MaxRedemptions int    `json:"max_redemptions"`
-	StartsAt       int64  `json:"starts_at"`
-	ExpiresAt      int64  `json:"expires_at"`
+	Id             int     `json:"id"`
+	PackageId      int     `json:"package_id"`
+	Code           string  `json:"code"`
+	Status         string  `json:"status"`
+	DiscountType   string  `json:"discount_type"`
+	DiscountValue  float64 `json:"discount_value"`
+	MaxRedemptions int     `json:"max_redemptions"`
+	StartsAt       int64   `json:"starts_at"`
+	ExpiresAt      int64   `json:"expires_at"`
 }
 
 type DistributionPromoCodeListInput struct {
@@ -57,8 +57,7 @@ func validateDistributionPromoCodeInput(input DistributionPromoCodeSaveInput) (D
 	if input.DiscountValue < 0 {
 		return input, fmt.Errorf("discount_value cannot be negative")
 	}
-	// 上限不再硬编码 2000：在 SaveDistributionPromoCode 事务内按套餐"当前价"
-	// 校验，保证优惠码额度始终与套餐定价同步。
+	input.DiscountValue = normalizeDistributionMoneyAmount(input.DiscountValue)
 	if input.MaxRedemptions < 0 {
 		return input, fmt.Errorf("max_redemptions cannot be negative")
 	}
@@ -216,28 +215,8 @@ func SaveDistributionPromoCode(userID int, input DistributionPromoCodeSaveInput)
 		if packageCount == 0 {
 			return fmt.Errorf("package is not in agent inventory")
 		}
-		// 与套餐定价同步：优惠码抵扣额不得超过套餐"当前"价格（优先取关联
-		// 订阅套餐的实时价，套餐改价后上限自动跟随）。
-		var pkg model.DistributionPackage
-		if err := tx.Where("id = ?", input.PackageId).First(&pkg).Error; err != nil {
+		if err := tx.Where("id = ?", input.PackageId).First(&model.DistributionPackage{}).Error; err != nil {
 			return fmt.Errorf("package not found")
-		}
-		priceCap := pkg.RetailPrice
-		if pkg.SubscriptionPlanId > 0 {
-			var plan model.SubscriptionPlan
-			if err := tx.Where("id = ?", pkg.SubscriptionPlanId).First(&plan).Error; err == nil {
-				priceCap = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
-			}
-		}
-		if input.DiscountValue > 0 {
-			if priceCap <= 0 {
-				// 套餐当前价为 0（免费/未定价）时禁止创建抵扣码，堵死
-				// "价格为 0 → 上限校验被跳过 → 任意大额抵扣" 的口子。
-				return fmt.Errorf("该套餐当前价格为 0，不能创建抵扣优惠码")
-			}
-			if input.DiscountValue > priceCap {
-				return fmt.Errorf("优惠码抵扣额不能超过套餐当前价格（%d 分）", priceCap)
-			}
 		}
 		if input.Code == "" {
 			code, err := buildDistributionPromoCode(tx)

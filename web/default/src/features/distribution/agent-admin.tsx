@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   GitFork,
+  Pencil,
   Plus,
   RefreshCcw,
   Search,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { formatCurrencyUSD } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -123,7 +125,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 function formatMoney(value?: number) {
-  return ((value ?? 0) / 100).toFixed(2)
+  return formatCurrencyUSD(value)
 }
 
 function packageTitle(pkg: DistributionPackage) {
@@ -256,11 +258,11 @@ function packageActionError(message?: string) {
   return fallback
 }
 
-function subscriptionPlanPriceCents(
+function subscriptionPlanPriceAmount(
   record?: DistributionSubscriptionPlanRecord
 ) {
   if (!record) return 0
-  return Math.round(Number(record.plan.price_amount || 0) * 100)
+  return Number(Number(record.plan.price_amount || 0).toFixed(2))
 }
 
 function nextDistributionStatus(status?: string) {
@@ -302,6 +304,7 @@ const emptyAgentForm = {
 }
 
 const emptyPackageForm = {
+  id: '',
   subscription_plan_id: '',
   status: 'enabled',
   agent_price: '',
@@ -388,6 +391,9 @@ export function AgentAdmin() {
   const [agentDialogMode, setAgentDialogMode] = useState<'create' | 'edit'>(
     'create'
   )
+  const [packageDialogMode, setPackageDialogMode] = useState<'create' | 'edit'>(
+    'create'
+  )
   const [agentForm, setAgentForm] = useState(emptyAgentForm)
   const [packageForm, setPackageForm] = useState(emptyPackageForm)
   const [priceForm, setPriceForm] = useState(emptyPriceForm)
@@ -422,7 +428,7 @@ export function AgentAdmin() {
       ),
     [packageForm.subscription_plan_id, subscriptionPlans]
   )
-  const selectedPackageSubscriptionPriceCents = subscriptionPlanPriceCents(
+  const selectedPackageSubscriptionPriceAmount = subscriptionPlanPriceAmount(
     selectedPackageSubscriptionPlan
   )
 
@@ -434,6 +440,7 @@ export function AgentAdmin() {
 
   const resetPackageForm = useCallback(() => {
     setPackageForm(emptyPackageForm)
+    setPackageDialogMode('create')
   }, [])
 
   const resetGiftForm = useCallback(() => {
@@ -655,6 +662,23 @@ export function AgentAdmin() {
     [agentOptions, loadUsers]
   )
 
+  const openEditPackageDialog = useCallback(
+    async (row: DistributionPackage) => {
+      setPackageDialogMode('edit')
+      setPackageForm({
+        id: String(row.id),
+        subscription_plan_id: String(row.subscription_plan_id || ''),
+        status: row.status,
+        agent_price: String(row.agent_price),
+        secondary_agent_price: String(row.secondary_agent_price),
+        sort_order: String(row.sort_order),
+      })
+      setDialogKind('package')
+      await loadSubscriptionPlans()
+    },
+    [loadSubscriptionPlans]
+  )
+
   async function handleSaveAgent() {
     const payload =
       agentDialogMode === 'edit'
@@ -718,8 +742,8 @@ export function AgentAdmin() {
       return
     }
     if (
-      agentPrice > selectedPackageSubscriptionPriceCents ||
-      secondaryAgentPrice > selectedPackageSubscriptionPriceCents
+      agentPrice > selectedPackageSubscriptionPriceAmount ||
+      secondaryAgentPrice > selectedPackageSubscriptionPriceAmount
     ) {
       toast.error(
         t(
@@ -729,6 +753,7 @@ export function AgentAdmin() {
       return
     }
     const res = await adminSavePackage({
+      id: packageDialogMode === 'edit' ? Number(packageForm.id) : undefined,
       subscription_plan_id: subscriptionPlanId,
       status: packageForm.status,
       agent_price: agentPrice,
@@ -837,9 +862,20 @@ export function AgentAdmin() {
       toast.error(apiActionError(res.message))
       return
     }
-    toast.success(t('Saved'))
+    toast.success(t("Saved"))
+    await refreshTab("ops")
+  }
+
+  async function handleReGrantOps(row: DistributionOpsAuthorization) {
+    const res = await adminGrantOpsAuthorization(row.user_id, '')
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Granted'))
     await refreshTab('ops')
   }
+
 
   const dialogTitle =
     dialogKind === 'agent'
@@ -849,7 +885,9 @@ export function AgentAdmin() {
       : dialogKind === 'balance'
         ? t('Adjust Balance')
         : dialogKind === 'package'
-          ? t('Add Package')
+          ? packageDialogMode === 'edit'
+            ? t('Edit Prices')
+            : t('Add Package')
           : dialogKind === 'gift'
             ? t('Add Gift Rule')
             : dialogKind === 'ops'
@@ -974,8 +1012,8 @@ export function AgentAdmin() {
                 <thead>
                   <tr className='border-b text-left'>
                     <th className='py-2'>{t('Subscription Plan')}</th>
-                    <th>{t('Tier 1 Agent Price (USD)')}</th>
-                    <th>{t('Tier 2 Agent Price (USD)')}</th>
+                    <th>{t('Tier 1 Agent Price')}</th>
+                    <th>{t('Tier 2 Agent Price')}</th>
                     <th>{t('Sort Order')}</th>
                     <th>{t('Status')}</th>
                     <th>{t('Actions')}</th>
@@ -1001,7 +1039,15 @@ export function AgentAdmin() {
                       <td>
                         <StatusBadge status={row.status} />
                       </td>
-                      <td className='py-2'>
+                      <td className='space-x-2 py-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => void openEditPackageDialog(row)}
+                        >
+                          <Pencil className='mr-2 h-4 w-4' />
+                          {t('Edit Prices')}
+                        </Button>
                         <Button
                           variant='outline'
                           size='sm'
@@ -1291,13 +1337,23 @@ export function AgentAdmin() {
                       </td>
                       <td>{formatTime(row.granted_at)}</td>
                       <td className='py-2'>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => void handleRevokeOps(row)}
-                        >
-                          {t('Revoke')}
-                        </Button>
+                        {row.status === "granted" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleRevokeOps(row)}
+                          >
+                            {t("Revoke")}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleReGrantOps(row)}
+                          >
+                            {t("Grant")}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1594,6 +1650,7 @@ export function AgentAdmin() {
                 <div className='space-y-2 md:col-span-2'>
                   <Label>{t('Subscription Plan')}</Label>
                   <Select
+                    disabled={packageDialogMode === 'edit'}
                     value={packageForm.subscription_plan_id}
                     onValueChange={(value) =>
                       setPackageForm((state) => ({
@@ -1623,7 +1680,18 @@ export function AgentAdmin() {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <p className='text-muted-foreground text-xs'>
+                  {packageDialogMode === 'edit' && (
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Package cannot be changed when editing.')}
+                    </p>
+                  )}
+                  {selectedPackageSubscriptionPlan && (
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Package guide price')}:{' '}
+                      {formatMoney(selectedPackageSubscriptionPriceAmount)}
+                    </p>
+                  )}
+                  <p className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'>
                     {t(
                       'Tier 1 price must be less than or equal to tier 2 price and both must not exceed the subscription plan price.'
                     )}
@@ -1631,8 +1699,8 @@ export function AgentAdmin() {
                 </div>
                 {(
                   [
-                    ['agent_price', 'Tier 1 Agent Price (USD)'],
-                    ['secondary_agent_price', 'Tier 2 Agent Price (USD)'],
+                    ['agent_price', 'Tier 1 Agent Price'],
+                    ['secondary_agent_price', 'Tier 2 Agent Price'],
                     ['sort_order', 'Sort Order'],
                   ] as const
                 ).map(([key, label]) => (
@@ -1643,10 +1711,14 @@ export function AgentAdmin() {
                       min={0}
                       max={
                         ['agent_price', 'secondary_agent_price'].includes(key)
-                          ? selectedPackageSubscriptionPriceCents
+                          ? selectedPackageSubscriptionPriceAmount
                           : undefined
                       }
-                      step='1'
+                      step={
+                        ['agent_price', 'secondary_agent_price'].includes(key)
+                          ? '0.01'
+                          : '1'
+                      }
                       value={packageForm[key]}
                       onChange={(e) =>
                         setPackageForm((state) => ({
@@ -1657,9 +1729,7 @@ export function AgentAdmin() {
                     />
                     {['agent_price', 'secondary_agent_price'].includes(key) && (
                       <p className='text-muted-foreground text-xs'>
-                        {t(
-                          'Enter a USD amount in cents, for example 1000 means 10.00 USD.'
-                        )}
+                        {t('Enter an amount with up to 2 decimal places.')}
                       </p>
                     )}
                   </div>
@@ -1887,7 +1957,7 @@ export function AgentAdmin() {
                       placeholder={
                         priceForm.price_type === 'discount'
                           ? t('Enter a discount from 1 to 10')
-                          : t('Enter the price in cents')
+                          : t('Enter an amount')
                       }
                       onChange={(e) =>
                         setPriceForm((state) => ({
@@ -1901,9 +1971,7 @@ export function AgentAdmin() {
                         ? t(
                             'Enter 1-10: 1 means 10% of the original price, 2 means 20%, and 10 means the original price.'
                           )
-                        : t(
-                            'The price is stored in cents; for example, enter 1000 for 10.00.'
-                          )}
+                        : t('Enter an amount with up to 2 decimal places.')}
                     </p>
                   </div>
                 </div>

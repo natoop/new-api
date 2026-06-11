@@ -13,15 +13,15 @@ import (
 )
 
 type DistributionAgentSaveInput struct {
-	Id            int    `json:"id"`
-	UserId        int    `json:"user_id"`
-	Name          string `json:"name"`
-	Balance       int    `json:"balance"`
-	CommissionBps int    `json:"commission_bps"`
-	ParentAgentId int    `json:"parent_agent_id"`
-	Level         int    `json:"level"`
-	Contact       string `json:"contact"`
-	Remark        string `json:"remark"`
+	Id            int     `json:"id"`
+	UserId        int     `json:"user_id"`
+	Name          string  `json:"name"`
+	Balance       float64 `json:"balance"`
+	CommissionBps int     `json:"commission_bps"`
+	ParentAgentId int     `json:"parent_agent_id"`
+	Level         int     `json:"level"`
+	Contact       string  `json:"contact"`
+	Remark        string  `json:"remark"`
 }
 
 type DistributionAgentProfile struct {
@@ -31,28 +31,28 @@ type DistributionAgentProfile struct {
 }
 
 type DistributionPackageSaveInput struct {
-	SubscriptionPlanId  int    `json:"subscription_plan_id"`
-	Name                string `json:"name"`
-	Sku                 string `json:"sku"`
-	Description         string `json:"description"`
-	Status              string `json:"status"`
-	AgentPrice          int    `json:"agent_price"`
-	RetailPrice         int    `json:"retail_price"`
-	SecondaryAgentPrice int    `json:"secondary_agent_price"`
-	CreditAmount        int    `json:"credit_amount"`
-	SortOrder           int    `json:"sort_order"`
+	SubscriptionPlanId  int     `json:"subscription_plan_id"`
+	Name                string  `json:"name"`
+	Sku                 string  `json:"sku"`
+	Description         string  `json:"description"`
+	Status              string  `json:"status"`
+	AgentPrice          float64 `json:"agent_price"`
+	RetailPrice         float64 `json:"retail_price"`
+	SecondaryAgentPrice float64 `json:"secondary_agent_price"`
+	CreditAmount        int     `json:"credit_amount"`
+	SortOrder           int     `json:"sort_order"`
 }
 
 type DistributionPriceConfigSaveInput struct {
-	Id             int    `json:"id"`
-	PackageId      int    `json:"package_id"`
-	TargetType     string `json:"target_type"`
-	CustomerUserId int    `json:"customer_user_id"`
-	AgentLevel     int    `json:"agent_level"`
-	PriceType      string `json:"price_type"`
-	PriceValue     int    `json:"price_value"`
-	Status         string `json:"status"`
-	Remark         string `json:"remark"`
+	Id             int     `json:"id"`
+	PackageId      int     `json:"package_id"`
+	TargetType     string  `json:"target_type"`
+	CustomerUserId int     `json:"customer_user_id"`
+	AgentLevel     int     `json:"agent_level"`
+	PriceType      string  `json:"price_type"`
+	PriceValue     float64 `json:"price_value"`
+	Status         string  `json:"status"`
+	Remark         string  `json:"remark"`
 }
 
 const (
@@ -74,6 +74,7 @@ func validateDistributionAgentInput(input DistributionAgentSaveInput) (Distribut
 	if input.Balance < 0 {
 		return input, fmt.Errorf("balance cannot be negative")
 	}
+	input.Balance = normalizeDistributionMoneyAmount(input.Balance)
 	if input.CommissionBps < 0 || input.CommissionBps > DistributionMaxBPS {
 		return input, ErrDistributionInvalidBPS
 	}
@@ -143,12 +144,16 @@ func validateDistributionPackageInput(input DistributionPackageSaveInput) (Distr
 	input.Name = strings.TrimSpace(input.Name)
 	input.Sku = strings.TrimSpace(input.Sku)
 	input.Description = strings.TrimSpace(input.Description)
+	if input.SubscriptionPlanId <= 0 {
+		return input, fmt.Errorf("subscription_plan_id must be greater than 0")
+	}
+	return validateDistributionPackagePriceInput(input)
+}
+
+func validateDistributionPackagePriceInput(input DistributionPackageSaveInput) (DistributionPackageSaveInput, error) {
 	input.Status = strings.TrimSpace(input.Status)
 	if input.Status == "" {
 		input.Status = DistributionStatusEnabled
-	}
-	if input.SubscriptionPlanId <= 0 {
-		return input, fmt.Errorf("subscription_plan_id must be greater than 0")
 	}
 	if err := ValidateDistributionStatus(input.Status); err != nil {
 		return input, err
@@ -156,28 +161,52 @@ func validateDistributionPackageInput(input DistributionPackageSaveInput) (Distr
 	if input.AgentPrice < 0 || input.SecondaryAgentPrice < 0 {
 		return input, fmt.Errorf("agent prices cannot be negative")
 	}
+	input.AgentPrice = normalizeDistributionMoneyAmount(input.AgentPrice)
+	input.SecondaryAgentPrice = normalizeDistributionMoneyAmount(input.SecondaryAgentPrice)
 	return input, nil
 }
 
-func distributionSubscriptionPlanPriceCents(priceAmount float64) int {
+func SyncDistributionPackagesForSubscriptionPlanTx(tx *gorm.DB, plan *model.SubscriptionPlan) error {
+	if plan == nil || plan.Id <= 0 {
+		return nil
+	}
+	if tx == nil {
+		tx = model.DB
+	}
+	plan.NormalizeDefaults()
+	price := distributionSubscriptionPlanPriceAmount(plan.PriceAmount)
+	now := time.Now().Unix()
+	return tx.Model(&model.DistributionPackage{}).
+		Where("subscription_plan_id = ?", plan.Id).
+		Updates(map[string]any{
+			"subscription_title":    plan.Title,
+			"subscription_subtitle": plan.Subtitle,
+			"name":                  strings.TrimSpace(plan.Title),
+			"description":           strings.TrimSpace(plan.Subtitle),
+			"retail_price":          price,
+			"agent_price":           price,
+			"secondary_agent_price": price,
+			"credit_amount":         int(plan.TotalAmount),
+			"updated_at":            now,
+		}).Error
+}
+
+func normalizeDistributionMoneyAmount(amount float64) float64 {
+	if amount == 0 {
+		return 0
+	}
+	value, _ := decimal.NewFromFloat(amount).Round(2).Float64()
+	if value == 0 {
+		return 0
+	}
+	return value
+}
+
+func distributionSubscriptionPlanPriceAmount(priceAmount float64) float64 {
 	if priceAmount <= 0 {
 		return 0
 	}
-	return int(decimal.NewFromFloat(priceAmount).Mul(decimal.NewFromInt(100)).Round(0).IntPart())
-}
-
-func calcDistributionPaymentAmountFromUSDCents(amountCents int) (int, error) {
-	if amountCents <= 0 {
-		return 0, nil
-	}
-	if common.QuotaPerUnit <= 0 {
-		return 0, fmt.Errorf("quota unit config is invalid")
-	}
-	return int(decimal.NewFromInt(int64(amountCents)).
-		Div(decimal.NewFromInt(100)).
-		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Ceil().
-		IntPart()), nil
+	return normalizeDistributionMoneyAmount(priceAmount)
 }
 
 func hydrateDistributionPackageFromSubscriptionPlan(tx *gorm.DB, input *DistributionPackageSaveInput) (*model.SubscriptionPlan, error) {
@@ -192,7 +221,7 @@ func hydrateDistributionPackageFromSubscriptionPlan(tx *gorm.DB, input *Distribu
 	input.Name = strings.TrimSpace(plan.Title)
 	input.Description = strings.TrimSpace(plan.Subtitle)
 	input.Sku = fmt.Sprintf("subscription_plan_%d", plan.Id)
-	input.RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+	input.RetailPrice = distributionSubscriptionPlanPriceAmount(plan.PriceAmount)
 	input.CreditAmount = int(plan.TotalAmount)
 	return &plan, nil
 }
@@ -241,7 +270,7 @@ func hydrateDistributionPackagesFromSubscriptionPlans(packages []model.Distribut
 		packages[i].SubscriptionSubtitle = plan.Subtitle
 		packages[i].Name = strings.TrimSpace(plan.Title)
 		packages[i].Description = strings.TrimSpace(plan.Subtitle)
-		packages[i].RetailPrice = distributionSubscriptionPlanPriceCents(plan.PriceAmount)
+		packages[i].RetailPrice = distributionSubscriptionPlanPriceAmount(plan.PriceAmount)
 		packages[i].CreditAmount = int(plan.TotalAmount)
 		// 展示层同步：套餐改价后，一/二级代理价若高于当前零售价则钳到零售
 		// 价，与下单时的口径一致，避免代理中心看到倒挂的旧价。
@@ -650,36 +679,28 @@ func AdminUpdateDistributionPackage(packageID int, input DistributionPackageSave
 	if packageID <= 0 {
 		return nil, fmt.Errorf("invalid package id")
 	}
-	input, err := validateDistributionPackageInput(input)
+	input, err := validateDistributionPackagePriceInput(input)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().Unix()
 	var saved model.DistributionPackage
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
-		plan, err := hydrateDistributionPackageFromSubscriptionPlan(tx, &input)
-		if err != nil {
-			return err
-		}
-		if err := validateDistributionPackagePrices(input); err != nil {
-			return err
-		}
-		var duplicate model.DistributionPackage
-		err = tx.Where("subscription_plan_id = ? AND id <> ?", input.SubscriptionPlanId, packageID).First(&duplicate).Error
-		if err == nil {
-			return errors.New(errDistributionPackageSubscriptionExists)
-		}
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		err = tx.Where("sku = ? AND id <> ?", input.Sku, packageID).First(&duplicate).Error
-		if err == nil {
-			return fmt.Errorf("sku already exists")
-		}
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
 		if err := tx.Where("id = ?", packageID).First(&saved).Error; err != nil {
+			return err
+		}
+		var plan model.SubscriptionPlan
+		if err := tx.Where("id = ?", saved.SubscriptionPlanId).First(&plan).Error; err != nil {
+			return fmt.Errorf("subscription plan not found")
+		}
+		plan.NormalizeDefaults()
+		input.SubscriptionPlanId = plan.Id
+		input.Name = strings.TrimSpace(plan.Title)
+		input.Description = strings.TrimSpace(plan.Subtitle)
+		input.Sku = fmt.Sprintf("subscription_plan_%d", plan.Id)
+		input.RetailPrice = distributionSubscriptionPlanPriceAmount(plan.PriceAmount)
+		input.CreditAmount = int(plan.TotalAmount)
+		if err := validateDistributionPackagePrices(input); err != nil {
 			return err
 		}
 		saved.SubscriptionPlanId = plan.Id

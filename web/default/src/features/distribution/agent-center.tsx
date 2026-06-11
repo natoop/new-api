@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   ChevronLeft,
   ChevronRight,
@@ -24,9 +25,9 @@ import {
   RefreshCcw,
   Search,
 } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { formatCurrencyUSD } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -82,10 +83,6 @@ import type {
 } from './types'
 
 const PAGE_SIZE = 10
-// Fallback ceiling only — the real cap is the selected package's CURRENT
-// retail price (kept in sync with subscription-plan pricing by the backend).
-const FALLBACK_PROMO_AMOUNT_CENTS = 2000
-
 type AgentTab =
   | 'packages'
   | 'inventory'
@@ -100,7 +97,7 @@ function formatTime(value?: number) {
 }
 
 function formatMoney(value?: number) {
-  return ((value ?? 0) / 100).toFixed(2)
+  return formatCurrencyUSD(value)
 }
 
 function packageTitle(pkg: DistributionPackage) {
@@ -139,11 +136,11 @@ function apiActionError(message?: string) {
   return message?.trim() || 'Action failed'
 }
 
-function normalizePromoAmountInput(value: string, cap: number) {
+function normalizePromoAmountInput(value: string) {
   if (value.trim() === '') return ''
-  const amount = Math.floor(Number(value))
+  const amount = Number(value)
   if (Number.isNaN(amount)) return ''
-  return String(Math.min(cap, Math.max(0, amount)))
+  return String(Number(Math.max(0, amount).toFixed(2)))
 }
 
 function canRefundInventory(row: DistributionInventory) {
@@ -406,7 +403,7 @@ export function AgentCenter() {
         value: String(customerTotal),
       },
       {
-        title: t('Promo Code Count'),
+        title: t('Coupon Count'),
         value: String(promoTotal),
       },
     ],
@@ -430,34 +427,14 @@ export function AgentCenter() {
   const selectedPromoPackage = inventoryPackageOptions.find(
     (option) => String(option.package_id) === promoPackageId
   )
-  // Cap follows the selected package's CURRENT retail price so the coupon
-  // ceiling stays in sync with subscription-plan pricing.
-  const promoAmountCap =
-    selectedPromoPackage?.retail_price && selectedPromoPackage.retail_price > 0
-      ? selectedPromoPackage.retail_price
-      : FALLBACK_PROMO_AMOUNT_CENTS
-
-  // Re-clamp any already-typed amount when the package (and thus the cap)
-  // changes, instead of letting it fail only on submit.
-  useEffect(() => {
-    setPromoAmount((prev) =>
-      prev === '' ? prev : normalizePromoAmountInput(prev, promoAmountCap)
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promoAmountCap])
-
   async function handleCreatePromoCode() {
     if (!promoPackageId) {
       toast.error(t('Please select a package'))
       return
     }
     const amount = Number(promoAmount)
-    if (Number.isNaN(amount) || amount < 0 || amount > promoAmountCap) {
-      toast.error(
-        t('Coupon amount must be between 0 and {{max}} cents.', {
-          max: promoAmountCap,
-        })
-      )
+    if (Number.isNaN(amount) || amount < 0) {
+      toast.error(t('Coupon amount cannot be negative.'))
       return
     }
     const maxRedemptions = Number(promoMaxRedemptions || 0)
@@ -541,7 +518,7 @@ export function AgentCenter() {
             <TabsTrigger value='ledger'>{t('Ledger')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
             <TabsTrigger value='customers'>{t('Customers')}</TabsTrigger>
-            <TabsTrigger value='promo'>{t('Promo Codes')}</TabsTrigger>
+            <TabsTrigger value='promo'>{t('Coupons')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value='packages'>
@@ -568,9 +545,9 @@ export function AgentCenter() {
                         </div>
                       )}
                       <div className='text-muted-foreground text-xs'>
-                        {t('Tier 1 Agent Price (USD)')}:{' '}
+                        {t('Tier 1 Agent Price')}:{' '}
                         {formatMoney(pkg.agent_price)} ·{' '}
-                        {t('Tier 2 Agent Price (USD)')}:{' '}
+                        {t('Tier 2 Agent Price')}:{' '}
                         {formatMoney(pkg.secondary_agent_price)}
                       </div>
                     </div>
@@ -873,10 +850,10 @@ export function AgentCenter() {
           <TabsContent value='promo' className='space-y-4'>
             <Card>
               <CardHeader className='flex flex-row items-center justify-between gap-3'>
-                <CardTitle>{t('Promo Codes')}</CardTitle>
+                <CardTitle>{t('Coupons')}</CardTitle>
                 <Button onClick={() => setPromoDialogOpen(true)}>
                   <Plus className='mr-2 h-4 w-4' />
-                  {t('Add Promo Code')}
+                  {t('Add Coupon')}
                 </Button>
               </CardHeader>
               <CardContent className='space-y-4'>
@@ -965,7 +942,7 @@ export function AgentCenter() {
                         <th className='py-2'>{t('Code')}</th>
                         <th>{t('Package')}</th>
                         <th>{t('Status')}</th>
-                        <th>{t('Amount Off (cents)')}</th>
+                        <th>{t('Amount Off')}</th>
                         <th>{t('Used')}</th>
                         <th>{t('Expire')}</th>
                       </tr>
@@ -983,7 +960,7 @@ export function AgentCenter() {
                           <td>
                             <StatusBadge status={row.status} />
                           </td>
-                          <td>{row.discount_value}</td>
+                          <td>{formatMoney(row.discount_value)}</td>
                           <td>
                             {row.used_count}/
                             {row.max_redemptions > 0
@@ -1014,7 +991,7 @@ export function AgentCenter() {
         <Dialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen}>
           <DialogContent className='max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-lg'>
             <DialogHeader>
-              <DialogTitle>{t('Add Promo Code')}</DialogTitle>
+              <DialogTitle>{t('Add Coupon')}</DialogTitle>
             </DialogHeader>
             <div className='flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto'>
               <div className='space-y-2'>
@@ -1055,20 +1032,16 @@ export function AgentCenter() {
                 />
               </div>
               <div className='space-y-2'>
-                <Label>{t('Amount Off (cents)')}</Label>
+                <Label>{t('Amount Off')}</Label>
                 <Input
                   type='number'
                   min={0}
-                  max={promoAmountCap}
-                  step={1}
-                  placeholder={`0-${promoAmountCap}`}
+                  step='0.01'
+                  placeholder='0.00'
                   value={promoAmount}
                   onChange={(event) =>
                     setPromoAmount(
-                      normalizePromoAmountInput(
-                        event.target.value,
-                        promoAmountCap
-                      )
+                      normalizePromoAmountInput(event.target.value)
                     )
                   }
                 />
