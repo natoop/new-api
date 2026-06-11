@@ -52,7 +52,11 @@ const MONEY_PREFIX = '¥'
 const RANGE_OPTIONS = [7, 30, 90] as const
 
 function formatMoney(n: number): string {
-  return `${MONEY_PREFIX}${formatNumber(n)}`
+  // Proper retail-style RMB: thousands grouping + always two decimals.
+  return `${MONEY_PREFIX}${Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)}`
 }
 
 function dayLabel(unixSeconds: number): string {
@@ -164,7 +168,7 @@ function RangeSelector(props: {
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {t('{{count}}d', { count: opt })}
+            {t(`${opt} days`)}
           </button>
         )
       })}
