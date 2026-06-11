@@ -262,10 +262,10 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
                         part.placeholder || part.text || inputPlaceholder
                       }
                       autoFocus={visible && part.inputIndex === 0}
-                      onCopy={(event) => event.preventDefault()}
-                      onCut={(event) => event.preventDefault()}
-                      onPaste={(event) => event.preventDefault()}
-                      onDrop={(event) => event.preventDefault()}
+                      // onCopy={(event) => event.preventDefault()}
+                      // onCut={(event) => event.preventDefault()}
+                      // onPaste={(event) => event.preventDefault()}
+                      // onDrop={(event) => event.preventDefault()}
                       style={{ width: isMobile ? '100%' : 260 }}
                     />
                   ),
@@ -277,10 +277,10 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
                 onChange={setTypedText}
                 placeholder={inputPlaceholder}
                 autoFocus={visible}
-                onCopy={(event) => event.preventDefault()}
-                onCut={(event) => event.preventDefault()}
-                onPaste={(event) => event.preventDefault()}
-                onDrop={(event) => event.preventDefault()}
+                // onCopy={(event) => event.preventDefault()}
+                // onCut={(event) => event.preventDefault()}
+                // onPaste={(event) => event.preventDefault()}
+                // onDrop={(event) => event.preventDefault()}
               />
             )}
             {!typedMatched && hasTypedRequiredText ? (

@@ -11,17 +11,22 @@
 #   4. Uncomment mysql_data in volumes section (line 64)
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
+# Rebuild backend after Go code changes:
+#   docker compose -f docker-compose.yml up -d --build new-api
 
 version: '3.4' # For compatibility with older Docker versions
 
 services:
   new-api:
-    image: calciumion/new-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile  
+    image: new-api-dev:latest
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
     ports:
-      - "3000:3000"
+      - "80:3000"
     volumes:
       - ./data:/data
       - ./logs:/app/logs
