@@ -16,98 +16,119 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
-import type {
-  Redemption,
-  ApiResponse,
-  GetRedemptionsParams,
-  GetRedemptionsResponse,
-  SearchRedemptionsParams,
-  RedemptionFormData,
-  SubscriptionPlanOption,
-} from './types'
+import { type TFunction } from 'i18next'
+import { type StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
-// Redemption Code Management
+// Redemption Status Configuration
 // ============================================================================
 
-// Get paginated redemption codes list
-export async function getRedemptions(
-  params: GetRedemptionsParams = {}
-): Promise<GetRedemptionsResponse> {
-  const { p = 1, page_size = 10, type = '' } = params
-  const typeParam = type ? `&type=${encodeURIComponent(type)}` : ''
-  const res = await api.get(
-    `/api/redemption/?p=${p}&page_size=${page_size}${typeParam}`
-  )
-  return res.data
-}
+export const REDEMPTION_STATUS = {
+  ENABLED: 1,
+  DISABLED: 2,
+  USED: 3,
+} as const
 
-// Search redemption codes by keyword
-export async function searchRedemptions(
-  params: SearchRedemptionsParams
-): Promise<GetRedemptionsResponse> {
-  const { keyword = '', p = 1, page_size = 10, type = '' } = params
-  const typeParam = type ? `&type=${encodeURIComponent(type)}` : ''
-  const res = await api.get(
-    `/api/redemption/search?keyword=${keyword}&p=${p}&page_size=${page_size}${typeParam}`
-  )
-  return res.data
-}
+export const REDEMPTION_STATUS_VALUES = Object.values(REDEMPTION_STATUS).map(
+  (value) => String(value)
+) as `${number}`[]
 
-// Get single redemption code by ID
-export async function getRedemption(
-  id: number
-): Promise<ApiResponse<Redemption>> {
-  const res = await api.get(`/api/redemption/${id}`)
-  return res.data
-}
+// labelKey values are i18n keys; use t(config.labelKey) in components
+export const REDEMPTION_STATUSES: Record<
+  number,
+  Pick<StatusBadgeProps, 'variant'> & {
+    labelKey: string
+    value: number
+  }
+> = {
+  [REDEMPTION_STATUS.ENABLED]: {
+    labelKey: 'Unused',
+    variant: 'success',
+    value: REDEMPTION_STATUS.ENABLED,
+  },
+  [REDEMPTION_STATUS.DISABLED]: {
+    labelKey: 'Disabled',
+    variant: 'neutral',
+    value: REDEMPTION_STATUS.DISABLED,
+  },
+  [REDEMPTION_STATUS.USED]: {
+    labelKey: 'Used',
+    variant: 'neutral',
+    value: REDEMPTION_STATUS.USED,
+  },
+} as const
 
-// Create redemption code(s)
-export async function createRedemption(
-  data: RedemptionFormData
-): Promise<ApiResponse<string[]>> {
-  const res = await api.post('/api/redemption/', data)
-  return res.data
-}
+// Virtual status filter value for expired redemption codes
+// Note: "Expired" is not a real DB status, it's computed from expired_time
+export const REDEMPTION_FILTER_EXPIRED = 'expired'
 
-// Update redemption code
-export async function updateRedemption(
-  data: RedemptionFormData & { id: number }
-): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/', data)
-  return res.data
-}
-
-// Update redemption code status (enable/disable)
-export async function updateRedemptionStatus(
-  id: number,
-  status: number
-): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/?status_only=true', { id, status })
-  return res.data
-}
-
-// Delete a single redemption code
-export async function deleteRedemption(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/redemption/${id}/`)
-  return res.data
-}
-
-// Delete invalid redemption codes (used, disabled, expired)
-export async function deleteInvalidRedemptions(): Promise<ApiResponse<number>> {
-  const res = await api.delete('/api/redemption/invalid')
-  return res.data
+export function getRedemptionStatusOptions(t: TFunction) {
+  return [
+    ...Object.values(REDEMPTION_STATUSES).map((config) => ({
+      label: t(config.labelKey),
+      value: String(config.value),
+    })),
+    {
+      label: t('Expired'),
+      value: REDEMPTION_FILTER_EXPIRED,
+    },
+  ]
 }
 
 // ============================================================================
-// Subscription Plans (data source for plan/promo typed redemption codes)
+// Validation Constants
 // ============================================================================
 
-// Get subscription plans for the plan dropdown and plan_id -> title mapping
-export async function getRedemptionPlans(): Promise<
-  ApiResponse<SubscriptionPlanOption[]>
-> {
-  const res = await api.get('/api/subscription/admin/plans')
-  return res.data
+export const REDEMPTION_VALIDATION = {
+  NAME_MIN_LENGTH: 1,
+  NAME_MAX_LENGTH: 20,
+  COUNT_MIN: 1,
+  COUNT_MAX: 100,
+} as const
+
+// ============================================================================
+// Error Messages
+// ============================================================================
+
+// i18n keys; use t(ERROR_MESSAGES.xxx) when displaying. For form schema with interpolation use getRedemptionFormErrorMessages(t).
+export const ERROR_MESSAGES = {
+  UNEXPECTED: 'An unexpected error occurred',
+  LOAD_FAILED: 'Failed to load redemption codes',
+  SEARCH_FAILED: 'Failed to search redemption codes',
+  CREATE_FAILED: 'Failed to create redemption code',
+  UPDATE_FAILED: 'Failed to update redemption code',
+  DELETE_FAILED: 'Failed to delete redemption code',
+  DELETE_INVALID_FAILED: 'Failed to delete invalid redemption codes',
+  STATUS_UPDATE_FAILED: 'Failed to update redemption code status',
+  NAME_LENGTH_INVALID: 'Name must be between {{min}} and {{max}} characters',
+  COUNT_INVALID: 'Count must be between {{min}} and {{max}}',
+  EXPIRED_TIME_INVALID: 'Expired time cannot be earlier than current time',
+} as const
+
+/** For form schema only: returns translated messages with interpolation. */
+export function getRedemptionFormErrorMessages(t: TFunction) {
+  return {
+    NAME_LENGTH_INVALID: t(ERROR_MESSAGES.NAME_LENGTH_INVALID, {
+      min: REDEMPTION_VALIDATION.NAME_MIN_LENGTH,
+      max: REDEMPTION_VALIDATION.NAME_MAX_LENGTH,
+    }),
+    COUNT_INVALID: t(ERROR_MESSAGES.COUNT_INVALID, {
+      min: REDEMPTION_VALIDATION.COUNT_MIN,
+      max: REDEMPTION_VALIDATION.COUNT_MAX,
+    }),
+    EXPIRED_TIME_INVALID: t(ERROR_MESSAGES.EXPIRED_TIME_INVALID),
+  } as const
 }
+
+// ============================================================================
+// Success Messages (i18n keys; use t(SUCCESS_MESSAGES.xxx) when displaying)
+// ============================================================================
+
+export const SUCCESS_MESSAGES = {
+  REDEMPTION_CREATED: 'Redemption code(s) created successfully',
+  REDEMPTION_UPDATED: 'Redemption code updated successfully',
+  REDEMPTION_DELETED: 'Redemption code deleted successfully',
+  REDEMPTION_ENABLED: 'Redemption code enabled successfully',
+  REDEMPTION_DISABLED: 'Redemption code disabled successfully',
+  COPY_SUCCESS: 'Copied to clipboard',
+} as const
