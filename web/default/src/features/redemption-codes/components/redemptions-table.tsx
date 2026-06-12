@@ -20,8 +20,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
-  type ColumnFiltersState,
-  type OnChangeFn,
   type SortingState,
   type VisibilityState,
   getCoreRowModel,
@@ -40,12 +38,8 @@ import {
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
-import { getRedemptionPlans, getRedemptions, searchRedemptions } from '../api'
-import {
-  REDEMPTION_STATUS,
-  getRedemptionStatusOptions,
-  getRedemptionTypeOptions,
-} from '../constants'
+import { getRedemptions, searchRedemptions } from '../api'
+import { REDEMPTION_STATUS, getRedemptionStatusOptions } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import type { Redemption } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -63,27 +57,12 @@ function isDisabledRedemptionRow(redemption: Redemption) {
 
 export function RedemptionsTable() {
   const { t } = useTranslation()
+  const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-
-  // Subscription plans for plan_id -> title mapping in the type column
-  const { data: plansData } = useQuery({
-    queryKey: ['redemption-plans'],
-    queryFn: getRedemptionPlans,
-    staleTime: 60_000,
-  })
-  const planTitles = useMemo(() => {
-    const titles: Record<number, string> = {}
-    for (const plan of plansData?.data ?? []) {
-      titles[plan.id] = plan.title
-    }
-    return titles
-  }, [plansData])
-
-  const columns = useRedemptionsColumns(planTitles)
 
   const {
     globalFilter,
@@ -101,32 +80,6 @@ export function RedemptionsTable() {
     columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
   })
 
-  // The 'type' facet filter is kept in local state (not URL state) because the
-  // route search schema does not include a 'type' key. It is merged with the
-  // URL-backed column filters for facet UI state only — actual filtering is
-  // done server-side via the `type` query parameter.
-  const [typeFilter, setTypeFilter] = useState<string[]>([])
-  const selectedType = typeFilter[0] ?? ''
-
-  const mergedColumnFilters = useMemo<ColumnFiltersState>(() => {
-    const base = columnFilters.filter((f) => f.id !== 'type')
-    return typeFilter.length > 0
-      ? [...base, { id: 'type', value: typeFilter }]
-      : base
-  }, [columnFilters, typeFilter])
-
-  const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (
-    updater
-  ) => {
-    const next =
-      typeof updater === 'function' ? updater(mergedColumnFilters) : updater
-    const typeEntry = next.find((f) => f.id === 'type')
-    setTypeFilter(
-      Array.isArray(typeEntry?.value) ? (typeEntry.value as string[]) : []
-    )
-    onColumnFiltersChange(next.filter((f) => f.id !== 'type'))
-  }
-
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
@@ -134,7 +87,6 @@ export function RedemptionsTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
-      selectedType,
       refreshTrigger,
     ],
     queryFn: async () => {
@@ -142,7 +94,6 @@ export function RedemptionsTable() {
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
-        ...(selectedType ? { type: selectedType } : {}),
       }
 
       const result = hasFilter
@@ -166,7 +117,7 @@ export function RedemptionsTable() {
       sorting,
       columnVisibility,
       rowSelection,
-      columnFilters: mergedColumnFilters,
+      columnFilters,
       globalFilter,
       pagination,
     },
@@ -189,7 +140,7 @@ export function RedemptionsTable() {
     getFacetedUniqueValues: getFacetedUniqueValues(),
     onPaginationChange,
     onGlobalFilterChange,
-    onColumnFiltersChange: handleColumnFiltersChange,
+    onColumnFiltersChange,
     manualPagination: !globalFilter,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
@@ -203,8 +154,6 @@ export function RedemptionsTable() {
     () => getRedemptionStatusOptions(t),
     [t]
   )
-
-  const redemptionTypeOptions = useMemo(() => getRedemptionTypeOptions(t), [t])
 
   return (
     <DataTablePage
@@ -221,16 +170,9 @@ export function RedemptionsTable() {
         searchPlaceholder: t('Filter by name or ID...'),
         filters: [
           {
-            columnId: 'type',
-            title: t('Type'),
-            options: redemptionTypeOptions,
-            singleSelect: true,
-          },
-          {
             columnId: 'status',
             title: t('Status'),
             options: redemptionStatusOptions,
-            singleSelect: true,
           },
         ],
       }}
