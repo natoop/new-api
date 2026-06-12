@@ -119,6 +119,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// 分销优惠券到期清扫（self 来源退回代理余额，admin 来源仅销毁）
+	service.StartCouponExpiryTask()
+
 	// 订阅/余额付费成功后，检查邀请人是否满足自然晋升代理条件（model 钩子解耦，避免 model -> service 依赖）
 	model.RegisterSubscriptionPaidHook(service.MaybePromoteInviterToAgent)
 

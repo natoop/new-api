@@ -26,6 +26,16 @@ type distributionRefundInventoryRequest struct {
 	InventoryId int `json:"inventory_id"`
 }
 
+type distributionCouponApplyRequest struct {
+	Amount float64 `json:"amount"`
+}
+
+type distributionCouponIssueRequest struct {
+	AgentId int                                   `json:"agent_id"`
+	Items   []service.DistributionCouponIssueItem `json:"items"`
+	Remark  string                                `json:"remark"`
+}
+
 func GetDistributionAgentProfile(c *gin.Context) {
 	userID := c.GetInt("id")
 	profile, err := service.GetDistributionAgentProfile(userID)
@@ -195,62 +205,57 @@ func AcceptDistributionInvitation(c *gin.Context) {
 	common.ApiSuccess(c, invitation)
 }
 
-func ListDistributionPromoCodes(c *gin.Context) {
+func ListDistributionAgentCoupons(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	codes, total, err := service.ListDistributionPromoCodes(c.GetInt("id"), service.DistributionPromoCodeListInput{
-		TimeFilter:  c.Query("time_filter"),
-		UsageFilter: c.Query("usage_filter"),
-		StartIdx:    pageInfo.GetStartIdx(),
-		PageSize:    pageInfo.GetPageSize(),
-	})
+	coupons, total, err := service.ListAgentCoupons(c.GetInt("id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(codes)
+	pageInfo.SetItems(coupons)
 	common.ApiSuccess(c, pageInfo)
 }
 
-func SaveDistributionPromoCode(c *gin.Context) {
-	var req service.DistributionPromoCodeSaveInput
+func ApplyDistributionAgentCoupon(c *gin.Context) {
+	var req distributionCouponApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	if idParam := c.Param("id"); idParam != "" {
-		promoCodeID, err := strconv.Atoi(idParam)
-		if err != nil {
-			common.ApiErrorMsg(c, "无效的优惠码 ID")
-			return
-		}
-		req.Id = promoCodeID
-	}
-	code, err := service.SaveDistributionPromoCode(c.GetInt("id"), req)
+	coupon, err := service.ApplyAgentCoupon(c.GetInt("id"), req.Amount)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, code)
+	common.ApiSuccess(c, coupon)
 }
 
-func UpdateDistributionPromoCodeStatus(c *gin.Context) {
-	promoCodeID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiErrorMsg(c, "无效的优惠码 ID")
-		return
-	}
-	var req distributionStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
-	}
-	code, err := service.UpdateDistributionPromoCodeStatus(c.GetInt("id"), promoCodeID, req.Status)
+func AdminListDistributionCoupons(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	agentID, _ := strconv.Atoi(c.Query("agent_id"))
+	coupons, total, err := service.AdminListCoupons(agentID, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, code)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(coupons)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminIssueDistributionCoupons(c *gin.Context) {
+	var req distributionCouponIssueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	issued, err := service.AdminIssueCoupons(req.AgentId, c.GetInt("id"), req.Items, req.Remark)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"issued_count": issued})
 }
 
 func AdminListDistributionAgents(c *gin.Context) {

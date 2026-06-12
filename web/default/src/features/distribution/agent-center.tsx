@@ -40,19 +40,14 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CopyButton } from '@/components/copy-button'
 import { SectionPageLayout } from '@/components/layout'
 import { generateAffiliateLink } from '@/features/wallet/lib'
 import {
+  applyAgentCoupon,
+  getAgentCoupons,
   getAgentCustomers,
   getAgentInventory,
   getAgentInventoryPackageOptions,
@@ -60,18 +55,17 @@ import {
   getAgentPackages,
   getAgentProfile,
   getAgentProfit,
-  getAgentPromoCodes,
   purchaseAgentPackage,
   refundAgentInventory,
-  saveAgentPromoCode,
 } from './api'
-import { DateOnlyField } from './date-fields'
 import {
+  distributionCouponSourceLabel,
   distributionLedgerEntryLabel,
   distributionSourceTypeLabel,
   distributionStatusLabel,
 } from './labels'
 import type {
+  DistributionCoupon,
   DistributionCustomerOwnership,
   DistributionInventory,
   DistributionInventoryPackageOption,
@@ -79,7 +73,6 @@ import type {
   DistributionPackage,
   DistributionProfile,
   DistributionProfit,
-  DistributionPromoCode,
 } from './types'
 
 const PAGE_SIZE = 10
@@ -89,7 +82,7 @@ type AgentTab =
   | 'ledger'
   | 'profit'
   | 'customers'
-  | 'promo'
+  | 'coupons'
 
 function formatTime(value?: number) {
   if (!value) return '-'
@@ -136,7 +129,7 @@ function apiActionError(message?: string) {
   return message?.trim() || 'Action failed'
 }
 
-function normalizePromoAmountInput(value: string) {
+function normalizeCouponAmountInput(value: string) {
   if (value.trim() === '') return ''
   const amount = Number(value)
   if (Number.isNaN(amount)) return ''
@@ -150,23 +143,6 @@ function canRefundInventory(row: DistributionInventory) {
 function StatusBadge({ status }: { status?: string }) {
   const { t } = useTranslation()
   return <Badge variant='secondary'>{distributionStatusLabel(status, t)}</Badge>
-}
-
-function SelectDisplay({
-  label,
-  placeholder,
-}: {
-  label?: string
-  placeholder: string
-}) {
-  return (
-    <span
-      data-slot='select-value'
-      className='flex min-w-0 flex-1 items-center truncate text-left'
-    >
-      {label || placeholder}
-    </span>
-  )
 }
 
 function ClipboardButton({ text }: { text: string }) {
@@ -250,7 +226,7 @@ export function AgentCenter() {
   const [customers, setCustomers] = useState<DistributionCustomerOwnership[]>(
     []
   )
-  const [promoCodes, setPromoCodes] = useState<DistributionPromoCode[]>([])
+  const [coupons, setCoupons] = useState<DistributionCoupon[]>([])
   const [inventoryPackageOptions, setInventoryPackageOptions] = useState<
     DistributionInventoryPackageOption[]
   >([])
@@ -260,27 +236,23 @@ export function AgentCenter() {
   const [ledgerPage, setLedgerPage] = useState(1)
   const [profitPage, setProfitPage] = useState(1)
   const [customerPage, setCustomerPage] = useState(1)
-  const [promoPage, setPromoPage] = useState(1)
+  const [couponPage, setCouponPage] = useState(1)
 
   const [packageTotal, setPackageTotal] = useState(0)
   const [inventoryTotal, setInventoryTotal] = useState(0)
   const [ledgerTotal, setLedgerTotal] = useState(0)
   const [profitTotal, setProfitTotal] = useState(0)
   const [customerTotal, setCustomerTotal] = useState(0)
-  const [promoTotal, setPromoTotal] = useState(0)
+  const [couponTotal, setCouponTotal] = useState(0)
 
   const [inventoryKeyword, setInventoryKeyword] = useState('')
   const [inventoryKeywordInput, setInventoryKeywordInput] = useState('')
   const [customerKeyword, setCustomerKeyword] = useState('')
   const [customerKeywordInput, setCustomerKeywordInput] = useState('')
-  const [promoTimeFilter, setPromoTimeFilter] = useState('all')
-  const [promoUsageFilter, setPromoUsageFilter] = useState('all')
 
-  const [promoDialogOpen, setPromoDialogOpen] = useState(false)
-  const [promoPackageId, setPromoPackageId] = useState('')
-  const [promoAmount, setPromoAmount] = useState('')
-  const [promoMaxRedemptions, setPromoMaxRedemptions] = useState('0')
-  const [promoExpiresAt, setPromoExpiresAt] = useState('')
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false)
+  const [couponAmount, setCouponAmount] = useState('')
+  const [couponSubmitting, setCouponSubmitting] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(
@@ -302,14 +274,20 @@ export function AgentCenter() {
         }
 
         if (tab === 'inventory') {
-          const res = await getAgentInventory({
-            p: inventoryPage,
-            page_size: PAGE_SIZE,
-            keyword: inventoryKeyword,
-          }).catch(() => null)
+          const [res, packageOptionsRes] = await Promise.all([
+            getAgentInventory({
+              p: inventoryPage,
+              page_size: PAGE_SIZE,
+              keyword: inventoryKeyword,
+            }).catch(() => null),
+            getAgentInventoryPackageOptions().catch(() => null),
+          ])
           if (res?.success) {
             setInventory(res.data.items || [])
             setInventoryTotal(res.data.total || 0)
+          }
+          if (packageOptionsRes?.success) {
+            setInventoryPackageOptions(packageOptionsRes.data || [])
           }
         }
 
@@ -347,22 +325,14 @@ export function AgentCenter() {
           }
         }
 
-        if (tab === 'promo') {
-          const [promoRes, packageOptionsRes] = await Promise.all([
-            getAgentPromoCodes({
-              p: promoPage,
-              page_size: PAGE_SIZE,
-              time_filter: promoTimeFilter,
-              usage_filter: promoUsageFilter,
-            }).catch(() => null),
-            getAgentInventoryPackageOptions().catch(() => null),
-          ])
-          if (promoRes?.success) {
-            setPromoCodes(promoRes.data.items || [])
-            setPromoTotal(promoRes.data.total || 0)
-          }
-          if (packageOptionsRes?.success) {
-            setInventoryPackageOptions(packageOptionsRes.data || [])
+        if (tab === 'coupons') {
+          const res = await getAgentCoupons({
+            p: couponPage,
+            page_size: PAGE_SIZE,
+          }).catch(() => null)
+          if (res?.success) {
+            setCoupons(res.data.items || [])
+            setCouponTotal(res.data.total || 0)
           }
         }
       } finally {
@@ -370,6 +340,7 @@ export function AgentCenter() {
       }
     },
     [
+      couponPage,
       customerKeyword,
       customerPage,
       inventoryKeyword,
@@ -377,9 +348,6 @@ export function AgentCenter() {
       ledgerPage,
       packagePage,
       profitPage,
-      promoPage,
-      promoTimeFilter,
-      promoUsageFilter,
     ]
   )
 
@@ -404,10 +372,10 @@ export function AgentCenter() {
       },
       {
         title: t('Coupon Count'),
-        value: String(promoTotal),
+        value: String(couponTotal),
       },
     ],
-    [customerTotal, profile, promoTotal, t]
+    [couponTotal, customerTotal, profile, t]
   )
   const referralLink = profile?.aff_code
     ? generateAffiliateLink(profile.aff_code)
@@ -418,51 +386,30 @@ export function AgentCenter() {
     inventoryPackageOptions.forEach((option) =>
       next.set(option.package_id, option.package_name)
     )
-    promoCodes.forEach((code) => {
-      if (code.package_name) next.set(code.package_id, code.package_name)
-    })
     return next
-  }, [inventoryPackageOptions, packages, promoCodes])
+  }, [inventoryPackageOptions, packages])
 
-  const selectedPromoPackage = inventoryPackageOptions.find(
-    (option) => String(option.package_id) === promoPackageId
-  )
-  async function handleCreatePromoCode() {
-    if (!promoPackageId) {
-      toast.error(t('Please select a package'))
+  async function handleApplyCoupon() {
+    const amount = Number(couponAmount)
+    if (!couponAmount || Number.isNaN(amount) || amount <= 0) {
+      toast.error(t('Coupon amount must be greater than 0.'))
       return
     }
-    const amount = Number(promoAmount)
-    if (Number.isNaN(amount) || amount < 0) {
-      toast.error(t('Coupon amount cannot be negative.'))
-      return
+    setCouponSubmitting(true)
+    try {
+      const result = await applyAgentCoupon(amount)
+      if (!result.success) {
+        toast.error(apiActionError(result.message))
+        return
+      }
+      toast.success(t('Coupon applied'))
+      setCouponDialogOpen(false)
+      setCouponAmount('')
+      setCouponPage(1)
+      await refresh('coupons')
+    } finally {
+      setCouponSubmitting(false)
     }
-    const maxRedemptions = Number(promoMaxRedemptions || 0)
-    if (Number.isNaN(maxRedemptions) || maxRedemptions < 0) {
-      toast.error(t('Max redemptions cannot be negative'))
-      return
-    }
-    const result = await saveAgentPromoCode({
-      package_id: Number(promoPackageId),
-      discount_type: 'amount',
-      discount_value: amount,
-      max_redemptions: maxRedemptions,
-      starts_at: 0,
-      expires_at: Number(promoExpiresAt || 0),
-      status: 'enabled',
-    })
-    if (!result.success) {
-      toast.error(apiActionError(result.message))
-      return
-    }
-    toast.success(t('Saved'))
-    setPromoDialogOpen(false)
-    setPromoPackageId('')
-    setPromoAmount('')
-    setPromoMaxRedemptions('0')
-    setPromoExpiresAt('')
-    setPromoPage(1)
-    await refresh('promo')
   }
 
   async function handleRefundInventory(row: DistributionInventory) {
@@ -518,7 +465,7 @@ export function AgentCenter() {
             <TabsTrigger value='ledger'>{t('Ledger')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
             <TabsTrigger value='customers'>{t('Customers')}</TabsTrigger>
-            <TabsTrigger value='promo'>{t('Coupons')}</TabsTrigger>
+            <TabsTrigger value='coupons'>{t('Coupons')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value='packages'>
@@ -847,140 +794,58 @@ export function AgentCenter() {
             </Card>
           </TabsContent>
 
-          <TabsContent value='promo' className='space-y-4'>
+          <TabsContent value='coupons' className='space-y-4'>
             <Card>
               <CardHeader className='flex flex-row items-center justify-between gap-3'>
                 <CardTitle>{t('Coupons')}</CardTitle>
-                <Button onClick={() => setPromoDialogOpen(true)}>
+                <Button onClick={() => setCouponDialogOpen(true)}>
                   <Plus className='mr-2 h-4 w-4' />
-                  {t('Add Coupon')}
+                  {t('Apply Coupon')}
                 </Button>
               </CardHeader>
               <CardContent className='space-y-4'>
-                <div className='flex flex-col gap-2 md:flex-row'>
-                  <div className='space-y-2 md:w-56'>
-                    <Label>{t('Expiration')}</Label>
-                    <Select
-                      value={promoTimeFilter}
-                      onValueChange={(value) => {
-                        setPromoPage(1)
-                        setPromoTimeFilter(value ?? 'all')
-                      }}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectDisplay
-                          label={t(
-                            promoTimeFilter === 'active'
-                              ? 'Active'
-                              : promoTimeFilter === 'expired'
-                                ? 'Expired'
-                                : 'All'
-                          )}
-                          placeholder={t('Expiration')}
-                        />
-                      </SelectTrigger>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {['all', 'active', 'expired'].map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {t(
-                                value === 'active'
-                                  ? 'Active'
-                                  : value === 'expired'
-                                    ? 'Expired'
-                                    : 'All'
-                              )}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className='space-y-2 md:w-56'>
-                    <Label>{t('Usage Status')}</Label>
-                    <Select
-                      value={promoUsageFilter}
-                      onValueChange={(value) => {
-                        setPromoPage(1)
-                        setPromoUsageFilter(value ?? 'all')
-                      }}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectDisplay
-                          label={t(
-                            promoUsageFilter === 'used'
-                              ? 'Used'
-                              : promoUsageFilter === 'unused'
-                                ? 'Unused'
-                                : 'All'
-                          )}
-                          placeholder={t('Usage Status')}
-                        />
-                      </SelectTrigger>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {['all', 'used', 'unused'].map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {t(
-                                value === 'used'
-                                  ? 'Used'
-                                  : value === 'unused'
-                                    ? 'Unused'
-                                    : 'All'
-                              )}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
                 <div className='overflow-x-auto'>
                   <table className='w-full text-sm'>
                     <thead>
                       <tr className='border-b text-left'>
                         <th className='py-2'>{t('Code')}</th>
-                        <th>{t('Package')}</th>
+                        <th>{t('Amount')}</th>
+                        <th>{t('Source')}</th>
                         <th>{t('Status')}</th>
-                        <th>{t('Amount Off')}</th>
-                        <th>{t('Used')}</th>
-                        <th>{t('Expire')}</th>
+                        <th>{t('Expires At')}</th>
+                        <th>{t('Used At')}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {promoCodes.length === 0 && <EmptyTableRow colSpan={6} />}
-                      {promoCodes.map((row) => (
+                      {coupons.length === 0 && <EmptyTableRow colSpan={6} />}
+                      {coupons.map((row) => (
                         <tr key={row.id} className='border-b'>
-                          <td className='py-2 font-mono text-xs'>{row.code}</td>
+                          <td className='py-2'>
+                            <div className='flex items-center gap-2'>
+                              <span className='font-mono text-xs'>
+                                {row.code}
+                              </span>
+                              <ClipboardButton text={row.code} />
+                            </div>
+                          </td>
+                          <td>{formatMoney(row.amount)}</td>
                           <td>
-                            {row.package_name ||
-                              packageLabelMap.get(row.package_id) ||
-                              '-'}
+                            {distributionCouponSourceLabel(row.source, t)}
                           </td>
                           <td>
                             <StatusBadge status={row.status} />
                           </td>
-                          <td>{formatMoney(row.discount_value)}</td>
-                          <td>
-                            {row.used_count}/
-                            {row.max_redemptions > 0
-                              ? row.max_redemptions
-                              : t('Unlimited')}
-                          </td>
-                          <td>
-                            {row.expires_at > 0
-                              ? formatTime(row.expires_at)
-                              : t('No expiration')}
-                          </td>
+                          <td>{formatTime(row.expires_at)}</td>
+                          <td>{formatTime(row.used_at)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 <TablePager
-                  page={promoPage}
-                  total={promoTotal}
-                  onPageChange={setPromoPage}
+                  page={couponPage}
+                  total={couponTotal}
+                  onPageChange={setCouponPage}
                 />
               </CardContent>
             </Card>
@@ -988,97 +853,49 @@ export function AgentCenter() {
         </Tabs>
         <Separator className='my-6' />
 
-        <Dialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen}>
+        <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
           <DialogContent className='max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-lg'>
             <DialogHeader>
-              <DialogTitle>{t('Add Coupon')}</DialogTitle>
+              <DialogTitle>{t('Apply Coupon')}</DialogTitle>
             </DialogHeader>
             <div className='flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto'>
               <div className='space-y-2'>
-                <Label>{t('Package')}</Label>
-                <Select
-                  value={promoPackageId}
-                  onValueChange={(value) => setPromoPackageId(value ?? '')}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectDisplay
-                      label={
-                        selectedPromoPackage
-                          ? selectedPromoPackage.package_name
-                          : ''
-                      }
-                      placeholder={t('Select package')}
-                    />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {inventoryPackageOptions.map((option) => (
-                        <SelectItem
-                          key={option.package_id}
-                          value={String(option.package_id)}
-                        >
-                          {option.package_name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <Label>{t('Current Balance')}</Label>
+                <Input value={formatMoney(profile?.agent?.balance)} readOnly />
               </div>
               <div className='space-y-2'>
-                <Label>{t('Code')}</Label>
-                <Input
-                  value={t('The code is generated automatically.')}
-                  readOnly
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>{t('Amount Off')}</Label>
+                <Label>{t('Amount')}</Label>
                 <Input
                   type='number'
                   min={0}
                   step='0.01'
                   placeholder='0.00'
-                  value={promoAmount}
+                  value={couponAmount}
                   onChange={(event) =>
-                    setPromoAmount(
-                      normalizePromoAmountInput(event.target.value)
+                    setCouponAmount(
+                      normalizeCouponAmountInput(event.target.value)
                     )
                   }
                 />
               </div>
-              <div className='space-y-2'>
-                <Label>{t('Max Redemptions')}</Label>
-                <Input
-                  type='number'
-                  min={0}
-                  value={promoMaxRedemptions}
-                  onChange={(event) =>
-                    setPromoMaxRedemptions(event.target.value)
-                  }
-                />
-                <p className='text-muted-foreground text-xs'>
-                  {t('Set to 0 for unlimited redemptions.')}
-                </p>
-              </div>
-              <DateOnlyField
-                label='Expires At'
-                value={promoExpiresAt}
-                onChange={setPromoExpiresAt}
-                endOfDay
-              />
               <p className='text-muted-foreground text-xs'>
-                {t('Leave empty for no expiration.')}
+                {t(
+                  'The amount will be deducted from your agent balance. The coupon is valid for 3 days; if unused, it will be refunded to your balance automatically when it expires.'
+                )}
               </p>
             </div>
             <DialogFooter>
               <Button
                 variant='outline'
-                onClick={() => setPromoDialogOpen(false)}
+                onClick={() => setCouponDialogOpen(false)}
               >
                 {t('Cancel')}
               </Button>
-              <Button onClick={() => void handleCreatePromoCode()}>
-                {t('Save')}
+              <Button
+                disabled={couponSubmitting}
+                onClick={() => void handleApplyCoupon()}
+              >
+                {couponSubmitting ? t('Loading') : t('Apply')}
               </Button>
             </DialogFooter>
           </DialogContent>

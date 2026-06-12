@@ -21,6 +21,7 @@ type Translate = (key: string) => string
 
 const statusLabels: Record<string, string> = {
   accepted: 'Accepted',
+  active: 'Active',
   assigned: 'Assigned',
   available: 'Available',
   cancelled: 'Cancelled',
@@ -36,6 +37,7 @@ const statusLabels: Record<string, string> = {
   refunded: 'Refunded',
   reserved: 'Reserved',
   revoked: 'Revoked',
+  used: 'Used',
   voided: 'Voided',
 }
 
@@ -103,9 +105,9 @@ const sourceTypeLabels: Record<string, string> = {
   sale: 'Sale',
 }
 
-const discountTypeLabels: Record<string, string> = {
-  amount: 'Fixed Amount',
-  percent: 'Percent',
+const couponSourceLabels: Record<string, string> = {
+  admin: 'Platform Issued',
+  self: 'Agent Applied',
 }
 
 export function distributionStatusLabel(
@@ -172,10 +174,10 @@ export function distributionSourceTypeLabel(
   return t(sourceTypeLabels[type] || type)
 }
 
-export function distributionDiscountTypeLabel(
-  type: string | undefined,
+export function distributionCouponSourceLabel(
+  source: string | undefined,
   t: Translate
 ) {
-  if (!type) return '-'
-  return t(discountTypeLabels[type] || type)
+  if (!source) return '-'
+  return t(couponSourceLabels[source] || source)
 }

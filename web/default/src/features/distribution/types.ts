@@ -112,19 +112,23 @@ export interface DistributionInvitation {
   accepted_at: number
 }
 
-export interface DistributionPromoCode {
+export interface DistributionCoupon {
   id: number
   agent_id: number
-  package_id: number
-  package_name?: string
+  redemption_id: number
   code: string
-  status: string
-  discount_type: string
-  discount_value: number
-  max_redemptions: number
-  used_count: number
-  starts_at: number
+  amount: number
+  quota: number
+  source: 'self' | 'admin'
+  status: 'active' | 'used'
+  issued_by: number
+  used_user_id: number
+  used_at: number
   expires_at: number
+  created_at: number
+  updated_at: number
+  remark: string
+  agent_name?: string
 }
 
 export interface DistributionCustomerOwnership {

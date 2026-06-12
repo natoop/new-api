@@ -90,7 +90,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Status:          common.TopUpStatusPending,
 	}
 	// 兼容历史方法名：普通兑换码不再作为促销码折扣使用。
-	_, err := model.CreateSubscriptionOrderWithPromoReserve(order, plan.PriceAmount, 0)
+	_, err = model.CreateSubscriptionOrderWithPromoReserve(order, plan.PriceAmount, 0)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
 		return

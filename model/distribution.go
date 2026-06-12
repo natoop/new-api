@@ -276,25 +276,29 @@ func (DistributionCustomerAttributionLog) TableName() string {
 	return "p3_customer_attribution_logs"
 }
 
-type DistributionPromoCode struct {
-	Id             int     `json:"id"`
-	AgentId        int     `json:"agent_id" gorm:"index;not null"`
-	PackageId      int     `json:"package_id" gorm:"index;not null;default:0"`
-	Code           string  `json:"code" gorm:"type:varchar(64);uniqueIndex;not null"`
-	Status         string  `json:"status" gorm:"type:varchar(32);index;not null;default:'enabled'"`
-	DiscountType   string  `json:"discount_type" gorm:"type:varchar(32);not null"`
-	DiscountValue  float64 `json:"discount_value" gorm:"type:decimal(10,6);not null;default:0"`
-	MaxRedemptions int     `json:"max_redemptions" gorm:"not null;default:0"`
-	UsedCount      int     `json:"used_count" gorm:"not null;default:0"`
-	StartsAt       int64   `json:"starts_at" gorm:"bigint;index;not null;default:0"`
-	ExpiresAt      int64   `json:"expires_at" gorm:"bigint;index;not null;default:0"`
-	CreatedAt      int64   `json:"created_at" gorm:"bigint"`
-	UpdatedAt      int64   `json:"updated_at" gorm:"bigint"`
-	PackageName    string  `json:"package_name,omitempty" gorm:"-"`
+// DistributionCoupon 优惠券：包装一张上游原生余额兑换码（redemptions 表），
+// 兑换成功直接到用户余额；到期未用的券由清扫任务物理销毁（self 来源先退回代理余额）。
+type DistributionCoupon struct {
+	Id           int     `json:"id"`
+	AgentId      int     `json:"agent_id" gorm:"index;not null"`
+	RedemptionId int     `json:"redemption_id" gorm:"index;not null;default:0"`
+	Code         string  `json:"code" gorm:"type:varchar(32);uniqueIndex;not null"`
+	Amount       float64 `json:"amount" gorm:"type:decimal(10,6);not null;default:0"`
+	Quota        int     `json:"quota" gorm:"not null;default:0"`
+	Source       string  `json:"source" gorm:"type:varchar(16);index;not null;default:'self'"`
+	Status       string  `json:"status" gorm:"type:varchar(16);index;not null;default:'active'"`
+	IssuedBy     int     `json:"issued_by" gorm:"index;not null;default:0"`
+	UsedUserId   int     `json:"used_user_id" gorm:"index;not null;default:0"`
+	UsedAt       int64   `json:"used_at" gorm:"bigint;not null;default:0"`
+	ExpiresAt    int64   `json:"expires_at" gorm:"bigint;index;not null;default:0"`
+	CreatedAt    int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt    int64   `json:"updated_at" gorm:"bigint"`
+	Remark       string  `json:"remark" gorm:"type:text"`
+	AgentName    string  `json:"agent_name,omitempty" gorm:"-"`
 }
 
-func (DistributionPromoCode) TableName() string {
-	return "p3_promo_codes"
+func (DistributionCoupon) TableName() string {
+	return "p3_coupons"
 }
 
 type DistributionGiftRule struct {
@@ -346,7 +350,7 @@ func distributionMigrationModels() []interface{} {
 		&DistributionInvitation{},
 		&DistributionCustomerOwnership{},
 		&DistributionCustomerAttributionLog{},
-		&DistributionPromoCode{},
+		&DistributionCoupon{},
 		&DistributionGiftRule{},
 		&DistributionOpsDashboardAuthorization{},
 	}

@@ -1160,6 +1160,43 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 优惠券前置验券：命中则走独立分支，完全不经过库存码/普通兑换逻辑
+	coupon, err := service.GetCouponByCode(req.Key)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if coupon != nil {
+		if coupon.Status != service.DistributionCouponStatusActive || (coupon.ExpiresAt > 0 && coupon.ExpiresAt < common.GetTimestamp()) {
+			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+			return
+		}
+		quota, err := model.Redeem(req.Key, id)
+		if err != nil {
+			if errors.Is(err, model.ErrRedeemFailed) {
+				common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+				return
+			}
+			common.ApiError(c, err)
+			return
+		}
+		// 标记失败仅记日志，不影响用户到账
+		if err := service.MarkCouponUsed(coupon.Id, id); err != nil {
+			common.SysLog(fmt.Sprintf("failed to mark distribution coupon %d used: %s", coupon.Id, err.Error()))
+		}
+		model.RecordLog(id, model.LogTypeTopup, fmt.Sprintf("通过代理优惠券充值 %s，优惠券 %s", logger.LogQuota(quota), coupon.Code))
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "兑换成功，余额已到账",
+			"data": gin.H{
+				"quota":      quota,
+				"type":       "balance",
+				"plan_id":    0,
+				"plan_title": "",
+			},
+		})
+		return
+	}
 	inventoryResult, err := service.RedeemDistributionInventoryCode(id, req.Key)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)

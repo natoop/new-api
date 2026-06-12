@@ -21,6 +21,7 @@ import type {
   ApiResponse,
   DistributionAgent,
   DistributionAttributionLog,
+  DistributionCoupon,
   DistributionCustomerOwnership,
   DistributionGiftRule,
   DistributionInventory,
@@ -32,7 +33,6 @@ import type {
   DistributionInventoryPackageOption,
   DistributionProfile,
   DistributionProfit,
-  DistributionPromoCode,
   DistributionSubscriptionPlanRecord,
   DistributionUserOption,
   PaginatedData,
@@ -270,21 +270,14 @@ export async function acceptAgentInvitation(invitationNo: string) {
   return res.data as ApiResponse
 }
 
-export async function getAgentPromoCodes(
-  params: {
-    p?: number
-    page_size?: number
-    time_filter?: string
-    usage_filter?: string
-  } = {}
+export async function getAgentCoupons(
+  params: { p?: number; page_size?: number } = {}
 ) {
   const query = new URLSearchParams()
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
-  if (params.time_filter) query.set('time_filter', params.time_filter)
-  if (params.usage_filter) query.set('usage_filter', params.usage_filter)
-  return getSilent<PaginatedData<DistributionPromoCode>>(
-    `/api/agent/promo-codes?${query.toString()}`,
+  return getSilent<PaginatedData<DistributionCoupon>>(
+    `/api/agent/coupons?${query.toString()}`,
     {
       items: [],
       total: 0,
@@ -294,16 +287,51 @@ export async function getAgentPromoCodes(
   )
 }
 
-export async function saveAgentPromoCode(
-  payload: Partial<DistributionPromoCode>
+export async function applyAgentCoupon(amount: number) {
+  try {
+    const res = await api.post(
+      '/api/agent/coupons/apply',
+      { amount },
+      {
+        skipBusinessError: true,
+        skipErrorHandler: true,
+      }
+    )
+    return res.data as ApiResponse<DistributionCoupon>
+  } catch (error) {
+    const message =
+      (error as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message || ''
+    return { success: false, message } as ApiResponse<DistributionCoupon>
+  }
+}
+
+export interface AdminCouponIssueItem {
+  count: number
+  amount: number
+  validity_days: number
+}
+
+export async function adminGetCoupons(
+  params: { agent_id?: number; p?: number; page_size?: number } = {}
 ) {
-  const path = payload.id
-    ? `/api/agent/promo-codes/${payload.id}`
-    : '/api/agent/promo-codes'
-  const res = payload.id
-    ? await api.put(path, payload)
-    : await api.post(path, payload)
-  return res.data as ApiResponse
+  const query = new URLSearchParams()
+  query.set('agent_id', String(params.agent_id || 0))
+  query.set('p', String(params.p || 1))
+  query.set('page_size', String(params.page_size || 10))
+  const res = await api.get<ApiResponse<PaginatedData<DistributionCoupon>>>(
+    `/api/agent-admin/coupons?${query.toString()}`
+  )
+  return res.data
+}
+
+export async function adminIssueCoupons(payload: {
+  agent_id: number
+  items: AdminCouponIssueItem[]
+  remark?: string
+}) {
+  const res = await api.post('/api/agent-admin/coupons/issue', payload)
+  return res.data as ApiResponse<{ issued_count: number }>
 }
 
 export async function adminGetAgents() {

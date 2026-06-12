@@ -25,6 +25,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  Trash2,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -56,6 +57,7 @@ import { AgentCombobox, formatAgentLabel } from './agent-combobox'
 import {
   adminAdjustAgentBalance,
   adminGetAttribution,
+  adminGetCoupons,
   adminGetGiftRules,
   adminGetOpsAuthorizations,
   adminGetPackages,
@@ -63,6 +65,7 @@ import {
   adminGetSubscriptionPlans,
   adminGetUserOptions,
   adminGrantOpsAuthorization,
+  adminIssueCoupons,
   adminSaveAgent,
   adminSaveGiftRule,
   adminSavePackage,
@@ -75,6 +78,7 @@ import {
 } from './api'
 import { DateRangeField } from './date-fields'
 import {
+  distributionCouponSourceLabel,
   distributionOrderStatusLabel,
   distributionOrderStatuses,
   distributionOrderTypeLabel,
@@ -87,6 +91,7 @@ import {
 import type {
   DistributionAgent,
   DistributionAttributionLog,
+  DistributionCoupon,
   DistributionGiftRule,
   DistributionOpsAuthorization,
   DistributionOrderRecord,
@@ -100,6 +105,7 @@ type AdminTab =
   | 'agents'
   | 'packages'
   | 'orders'
+  | 'coupons'
   | 'gift'
   | 'ops'
   | 'profit'
@@ -110,6 +116,7 @@ type DialogKind =
   | 'balance'
   | 'package'
   | 'price'
+  | 'coupon'
   | 'gift'
   | 'ops'
   | null
@@ -345,6 +352,24 @@ const emptyGiftForm = {
   status: 'enabled',
 }
 
+type CouponItemDraft = {
+  count: string
+  amount: string
+  validity_days: string
+}
+
+const emptyCouponItem: CouponItemDraft = {
+  count: '1',
+  amount: '',
+  validity_days: '7',
+}
+
+const MAX_COUPONS_PER_ISSUE = 100
+
+function couponItemsTotalCount(items: CouponItemDraft[]) {
+  return items.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
+}
+
 export function AgentAdmin() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<AdminTab>('agents')
@@ -383,6 +408,19 @@ export function AgentAdmin() {
   const [orderFilters, setOrderFilters] = useState(emptyOrderFilters)
   const [opsPage, setOpsPage] = useState(1)
   const [opsTotal, setOpsTotal] = useState(0)
+  const [coupons, setCoupons] = useState<DistributionCoupon[]>([])
+  const [couponPage, setCouponPage] = useState(1)
+  const [couponTotal, setCouponTotal] = useState(0)
+  const [couponFilterAgentId, setCouponFilterAgentId] = useState('0')
+  const [couponFilterAgent, setCouponFilterAgent] =
+    useState<DistributionAgent | null>(null)
+  const [couponIssueAgentId, setCouponIssueAgentId] = useState('')
+  const [couponIssueAgent, setCouponIssueAgent] =
+    useState<DistributionAgent | null>(null)
+  const [couponItems, setCouponItems] = useState<CouponItemDraft[]>([
+    { ...emptyCouponItem },
+  ])
+  const [couponRemark, setCouponRemark] = useState('')
   const [balanceAgentId, setBalanceAgentId] = useState('')
   const [balanceAgent, setBalanceAgent] = useState<DistributionAgent | null>(
     null
@@ -460,6 +498,13 @@ export function AgentAdmin() {
   const resetOpsForm = useCallback(() => {
     setOpsUserId('')
     setOpsRemark('')
+  }, [])
+
+  const resetCouponForm = useCallback(() => {
+    setCouponIssueAgentId('')
+    setCouponIssueAgent(null)
+    setCouponItems([{ ...emptyCouponItem }])
+    setCouponRemark('')
   }, [])
 
   const closeDialog = useCallback(() => {
@@ -553,6 +598,18 @@ export function AgentAdmin() {
             setOrderTotal(res.data?.total || 0)
           }
         }
+        if (tab === 'coupons') {
+          await loadAgentOptions()
+          const res = await adminGetCoupons({
+            agent_id: Number(couponFilterAgentId) || 0,
+            p: couponPage,
+            page_size: pageSize,
+          }).catch(() => null)
+          if (res?.success) {
+            setCoupons(res.data?.items || [])
+            setCouponTotal(res.data?.total || 0)
+          }
+        }
         if (tab === 'gift') {
           await loadPackageOptions()
           const res = await adminGetGiftRules({
@@ -604,6 +661,8 @@ export function AgentAdmin() {
     [
       agentPage,
       attributionPage,
+      couponFilterAgentId,
+      couponPage,
       giftRulePage,
       loadAgentOptions,
       loadPackageOptions,
@@ -629,6 +688,7 @@ export function AgentAdmin() {
         resetAgentForm()
         setAgentDialogMode('create')
       }
+      if (kind === 'coupon') resetCouponForm()
       if (kind === 'agent' || kind === 'ops') await loadUsers()
       if (kind === 'balance') await loadAgentOptions()
       if (kind === 'gift') await loadPackageOptions()
@@ -640,6 +700,7 @@ export function AgentAdmin() {
       loadSubscriptionPlans,
       loadUsers,
       resetAgentForm,
+      resetCouponForm,
     ]
   )
 
@@ -797,6 +858,53 @@ export function AgentAdmin() {
     await refreshTab('gift')
   }
 
+  async function handleIssueCoupons() {
+    if (!couponIssueAgentId || !Number(couponIssueAgentId)) {
+      toast.error(t('Select agent'))
+      return
+    }
+    const items = couponItems.map((item) => ({
+      count: Number(item.count),
+      amount: Number(item.amount),
+      validity_days: Number(item.validity_days),
+    }))
+    if (
+      items.some(
+        (item) =>
+          !Number.isInteger(item.count) ||
+          item.count <= 0 ||
+          Number.isNaN(item.amount) ||
+          item.amount <= 0 ||
+          !Number.isInteger(item.validity_days) ||
+          item.validity_days <= 0
+      )
+    ) {
+      toast.error(
+        t('Each item requires count, amount and validity days greater than 0.')
+      )
+      return
+    }
+    const totalCount = items.reduce((sum, item) => sum + item.count, 0)
+    if (totalCount > MAX_COUPONS_PER_ISSUE) {
+      toast.error(t('A maximum of 100 coupons can be issued at once.'))
+      return
+    }
+    const res = await adminIssueCoupons({
+      agent_id: Number(couponIssueAgentId),
+      items,
+      remark: couponRemark.trim() || undefined,
+    })
+    if (!res.success) {
+      toast.error(apiActionError(res.message))
+      return
+    }
+    toast.success(t('Coupons issued'))
+    resetCouponForm()
+    closeDialog()
+    setCouponPage(1)
+    await refreshTab('coupons')
+  }
+
   async function handleGrantOps() {
     const res = await adminGrantOpsAuthorization(Number(opsUserId), opsRemark)
     if (!res.success) {
@@ -891,11 +999,13 @@ export function AgentAdmin() {
           ? packageDialogMode === 'edit'
             ? t('Edit Prices')
             : t('Add Package')
-          : dialogKind === 'gift'
-            ? t('Add Gift Rule')
-            : dialogKind === 'ops'
-              ? t('Grant Access')
-              : ''
+          : dialogKind === 'coupon'
+            ? t('Issue Coupons')
+            : dialogKind === 'gift'
+              ? t('Add Gift Rule')
+              : dialogKind === 'ops'
+                ? t('Grant Access')
+                : ''
 
   return (
     <SectionPageLayout>
@@ -916,6 +1026,7 @@ export function AgentAdmin() {
             <TabsTrigger value='agents'>{t('Agents')}</TabsTrigger>
             <TabsTrigger value='packages'>{t('Packages')}</TabsTrigger>
             <TabsTrigger value='orders'>{t('Order Lookup')}</TabsTrigger>
+            <TabsTrigger value='coupons'>{t('Coupons')}</TabsTrigger>
             <TabsTrigger value='gift'>{t('Gift Rules')}</TabsTrigger>
             <TabsTrigger value='ops'>{t('Operations Access')}</TabsTrigger>
             <TabsTrigger value='profit'>{t('Profit')}</TabsTrigger>
@@ -1287,6 +1398,78 @@ export function AgentAdmin() {
                 page={orderPage}
                 total={orderTotal}
                 onPageChange={setOrderPage}
+              />
+            </TabCard>
+          </TabsContent>
+
+          <TabsContent value='coupons' className='space-y-4'>
+            <TabCard
+              title={t('Coupons')}
+              action={
+                <Button onClick={() => void openDialog('coupon')}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  {t('Issue Coupons')}
+                </Button>
+              }
+            >
+              <div className='flex flex-col gap-2 md:flex-row md:items-end'>
+                <div className='space-y-2 md:w-80'>
+                  <Label>{t('Agent')}</Label>
+                  <AgentCombobox
+                    value={couponFilterAgentId}
+                    selectedAgent={couponFilterAgent || undefined}
+                    onValueChange={(value) => {
+                      setCouponPage(1)
+                      setCouponFilterAgentId(value || '0')
+                    }}
+                    onAgentSelected={setCouponFilterAgent}
+                    placeholder={t('All Agents')}
+                    includeEmpty
+                    emptyLabel={t('All Agents')}
+                  />
+                </div>
+              </div>
+              <table className='w-full text-sm'>
+                <thead>
+                  <tr className='border-b text-left'>
+                    <th className='py-2'>{t('Code')}</th>
+                    <th>{t('Agent')}</th>
+                    <th>{t('Amount')}</th>
+                    <th>{t('Source')}</th>
+                    <th>{t('Status')}</th>
+                    <th>{t('Expires At')}</th>
+                    <th>{t('Used At')}</th>
+                    <th>{t('Remark')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coupons.length === 0 && (
+                    <EmptyTableRow colSpan={8} loading={loading} />
+                  )}
+                  {coupons.map((row) => (
+                    <tr key={row.id} className='border-b'>
+                      <td className='py-2 font-mono text-xs'>{row.code}</td>
+                      <td>
+                        {row.agent_name ||
+                          agentLabelMap.get(row.agent_id) ||
+                          formatFallbackId(row.agent_id)}
+                      </td>
+                      <td>{formatMoney(row.amount)}</td>
+                      <td>{distributionCouponSourceLabel(row.source, t)}</td>
+                      <td>
+                        <StatusBadge status={row.status} />
+                      </td>
+                      <td>{formatTime(row.expires_at)}</td>
+                      <td>{formatTime(row.used_at)}</td>
+                      <td>{row.remark || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePager
+                page={couponPage}
+                total={couponTotal}
+                onPageChange={setCouponPage}
               />
             </TabCard>
           </TabsContent>
@@ -2070,6 +2253,135 @@ export function AgentAdmin() {
               </div>
             )}
 
+            {dialogKind === 'coupon' && (
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label>{t('Agent')}</Label>
+                  <AgentCombobox
+                    value={couponIssueAgentId}
+                    selectedAgent={couponIssueAgent || undefined}
+                    onValueChange={setCouponIssueAgentId}
+                    onAgentSelected={setCouponIssueAgent}
+                    placeholder={t('Select agent')}
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Coupon Items')}</Label>
+                  {couponItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className='grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2'
+                    >
+                      <div className='space-y-1'>
+                        <Label className='text-muted-foreground text-xs'>
+                          {t('Quantity')}
+                        </Label>
+                        <Input
+                          type='number'
+                          min={1}
+                          step='1'
+                          value={item.count}
+                          onChange={(e) =>
+                            setCouponItems((state) =>
+                              state.map((row, i) =>
+                                i === index
+                                  ? { ...row, count: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1'>
+                        <Label className='text-muted-foreground text-xs'>
+                          {t('Amount')}
+                        </Label>
+                        <Input
+                          type='number'
+                          min={0}
+                          step='0.01'
+                          placeholder='0.00'
+                          value={item.amount}
+                          onChange={(e) =>
+                            setCouponItems((state) =>
+                              state.map((row, i) =>
+                                i === index
+                                  ? { ...row, amount: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1'>
+                        <Label className='text-muted-foreground text-xs'>
+                          {t('Validity (Days)')}
+                        </Label>
+                        <Input
+                          type='number'
+                          min={1}
+                          step='1'
+                          value={item.validity_days}
+                          onChange={(e) =>
+                            setCouponItems((state) =>
+                              state.map((row, i) =>
+                                i === index
+                                  ? { ...row, validity_days: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                        />
+                      </div>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={couponItems.length <= 1}
+                        onClick={() =>
+                          setCouponItems((state) =>
+                            state.filter((_, i) => i !== index)
+                          )
+                        }
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className='flex items-center justify-between'>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        setCouponItems((state) => [
+                          ...state,
+                          { ...emptyCouponItem },
+                        ])
+                      }
+                    >
+                      <Plus className='mr-2 h-4 w-4' />
+                      {t('Add Item')}
+                    </Button>
+                    <span className='text-muted-foreground text-sm'>
+                      {t('Total coupons')}: {couponItemsTotalCount(couponItems)}
+                      /{MAX_COUPONS_PER_ISSUE}
+                    </span>
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Issued coupons are not refundable and will be destroyed when they expire.'
+                    )}
+                  </p>
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Remark')}</Label>
+                  <Textarea
+                    value={couponRemark}
+                    onChange={(e) => setCouponRemark(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
             {dialogKind === 'gift' && (
               <div className='grid gap-4 md:grid-cols-2'>
                 <div className='space-y-2'>
@@ -2245,6 +2557,11 @@ export function AgentAdmin() {
               {dialogKind === 'package' && (
                 <Button onClick={() => void handleSavePackage()}>
                   {t('Save')}
+                </Button>
+              )}
+              {dialogKind === 'coupon' && (
+                <Button onClick={() => void handleIssueCoupons()}>
+                  {t('Issue')}
                 </Button>
               )}
               {dialogKind === 'gift' && (

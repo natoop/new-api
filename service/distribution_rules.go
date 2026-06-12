@@ -41,6 +41,8 @@ const (
 	DistributionSourceInvitation         = "invitation"
 	DistributionSourceProfit             = "profit"
 	DistributionSourceRefund             = "refund"
+	DistributionSourceCouponApply        = "coupon_apply"
+	DistributionSourceCouponRefund       = "coupon_refund"
 	DistributionLogStatusPosted          = "posted"
 	DistributionLogStatusRefunded        = "refunded"
 	DistributionCustomerEventBind        = "bind"

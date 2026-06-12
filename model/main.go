@@ -289,6 +289,7 @@ func migrateDB() error {
 	if err := DB.AutoMigrate(distributionMigrationModels()...); err != nil {
 		return err
 	}
+	dropLegacyDistributionPromoCodeTable()
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -302,6 +303,17 @@ func migrateDB() error {
 		return err
 	}
 	return nil
+}
+
+// dropLegacyDistributionPromoCodeTable 旧套餐折扣码（p3_promo_codes）已重做为优惠券（p3_coupons），
+// 启动迁移时清理遗留表；失败仅记录日志，不阻塞启动。
+func dropLegacyDistributionPromoCodeTable() {
+	if !DB.Migrator().HasTable("p3_promo_codes") {
+		return
+	}
+	if err := DB.Migrator().DropTable("p3_promo_codes"); err != nil {
+		common.SysLog("failed to drop legacy table p3_promo_codes: " + err.Error())
+	}
 }
 
 func migrateDBFast() error {
@@ -370,6 +382,7 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	dropLegacyDistributionPromoCodeTable()
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err

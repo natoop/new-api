@@ -215,10 +215,8 @@ func SetApiRouter(router *gin.Engine) {
 			agentRoute.GET("/invitations", controller.ListDistributionInvitations)
 			agentRoute.POST("/invitations", middleware.CriticalRateLimit(), controller.CreateDistributionInvitation)
 			agentRoute.POST("/invitations/accept", middleware.CriticalRateLimit(), controller.AcceptDistributionInvitation)
-			agentRoute.GET("/promo-codes", controller.ListDistributionPromoCodes)
-			agentRoute.POST("/promo-codes", middleware.CriticalRateLimit(), controller.SaveDistributionPromoCode)
-			agentRoute.PUT("/promo-codes/:id", middleware.CriticalRateLimit(), controller.SaveDistributionPromoCode)
-			agentRoute.PATCH("/promo-codes/:id/status", middleware.CriticalRateLimit(), controller.UpdateDistributionPromoCodeStatus)
+			agentRoute.GET("/coupons", controller.ListDistributionAgentCoupons)
+			agentRoute.POST("/coupons/apply", middleware.CriticalRateLimit(), controller.ApplyDistributionAgentCoupon)
 		}
 
 		agentAdminRoute := apiRouter.Group("/agent-admin")
@@ -235,6 +233,8 @@ func SetApiRouter(router *gin.Engine) {
 			agentAdminRoute.GET("/orders", controller.AdminListDistributionOrders)
 			agentAdminRoute.GET("/profit", controller.AdminListDistributionProfit)
 			agentAdminRoute.GET("/attribution", controller.AdminListDistributionAttributionLogs)
+			agentAdminRoute.GET("/coupons", controller.AdminListDistributionCoupons)
+			agentAdminRoute.POST("/coupons/issue", middleware.CriticalRateLimit(), controller.AdminIssueDistributionCoupons)
 			agentAdminRoute.GET("/gift-rules", controller.AdminListDistributionGiftRules)
 			agentAdminRoute.POST("/gift-rules", controller.AdminSaveDistributionGiftRule)
 			agentAdminRoute.PUT("/gift-rules/:id", controller.AdminSaveDistributionGiftRule)

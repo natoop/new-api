@@ -47,13 +47,13 @@ func TestCalcCommission(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		amount  int
+		amount  float64
 		bps     int
-		want    int
+		want    float64
 		wantErr bool
 	}{
 		{name: "simple", amount: 10000, bps: 2500, want: 2500},
-		{name: "round down", amount: 999, bps: 333, want: 33},
+		{name: "round to cents", amount: 999, bps: 333, want: 33.27},
 		{name: "zero rate", amount: 10000, bps: 0, want: 0},
 		{name: "max rate", amount: 10000, bps: 10000, want: 10000},
 		{name: "negative amount", amount: -1, bps: 100, wantErr: true},
@@ -68,7 +68,7 @@ func TestCalcCommission(t *testing.T) {
 			got, err := CalcCommission(tt.amount, tt.bps)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("expected error, got nil with value %d", got)
+					t.Fatalf("expected error, got nil with value %v", got)
 				}
 				return
 			}
@@ -76,7 +76,7 @@ func TestCalcCommission(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tt.want {
-				t.Fatalf("got %d, want %d", got, tt.want)
+				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -152,8 +152,8 @@ func TestCanApplyDelta(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		balance int
-		delta   int
+		balance float64
+		delta   float64
 		want    bool
 	}{
 		{balance: 100, delta: -100, want: true},
@@ -164,7 +164,7 @@ func TestCanApplyDelta(t *testing.T) {
 
 	for _, tt := range tests {
 		if got := CanApplyDelta(tt.balance, tt.delta); got != tt.want {
-			t.Fatalf("CanApplyDelta(%d, %d) = %v, want %v", tt.balance, tt.delta, got, tt.want)
+			t.Fatalf("CanApplyDelta(%v, %v) = %v, want %v", tt.balance, tt.delta, got, tt.want)
 		}
 	}
 }
@@ -224,19 +224,19 @@ func TestResolveDistributionAgentPrice(t *testing.T) {
 	}
 
 	if got := ResolveDistributionAgentPrice(500, 1, configs); got != 300 {
-		t.Fatalf("fixed level price should win, got %d", got)
+		t.Fatalf("fixed level price should win, got %v", got)
 	}
 	if got := ResolveDistributionAgentPrice(500, 2, configs); got != 400 {
-		t.Fatalf("discount level price should apply, got %d", got)
+		t.Fatalf("discount level price should apply, got %v", got)
 	}
 	if got := ResolveDistributionAgentPrice(500, 3, configs); got != 500 {
-		t.Fatalf("fallback should use package default, got %d", got)
+		t.Fatalf("fallback should use package default, got %v", got)
 	}
 	if got := ResolveDistributionCustomerPrice(500, 9, configs); got != 100 {
-		t.Fatalf("customer fixed price should win, got %d", got)
+		t.Fatalf("customer fixed price should win, got %v", got)
 	}
 	if got := ResolveDistributionCustomerPrice(500, 8, configs); got != 500 {
-		t.Fatalf("fallback should use package default, got %d", got)
+		t.Fatalf("fallback should use package default, got %v", got)
 	}
 }
 
@@ -245,7 +245,7 @@ func TestValidateDistributionPromoDiscount(t *testing.T) {
 
 	tests := []struct {
 		discountType string
-		value        int
+		value        float64
 		wantErr      bool
 	}{
 		{discountType: "percent", value: 10000},
@@ -258,10 +258,10 @@ func TestValidateDistributionPromoDiscount(t *testing.T) {
 	for _, tt := range tests {
 		err := ValidateDistributionPromoDiscount(tt.discountType, tt.value)
 		if tt.wantErr && err == nil {
-			t.Fatalf("expected error for %s %d", tt.discountType, tt.value)
+			t.Fatalf("expected error for %s %v", tt.discountType, tt.value)
 		}
 		if !tt.wantErr && err != nil {
-			t.Fatalf("unexpected error for %s %d: %v", tt.discountType, tt.value, err)
+			t.Fatalf("unexpected error for %s %v: %v", tt.discountType, tt.value, err)
 		}
 	}
 }
