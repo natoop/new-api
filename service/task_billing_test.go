@@ -50,6 +50,7 @@ func TestMain(m *testing.M) {
 		&model.DistributionCustomerAttributionLog{},
 		&model.DistributionBalanceLedger{},
 		&model.DistributionCoupon{},
+		&model.DistributionInventory{},
 		&model.Redemption{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())

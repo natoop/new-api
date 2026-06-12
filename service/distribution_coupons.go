@@ -36,6 +36,12 @@ var (
 	couponSweepRunning atomic.Bool
 )
 
+// 优惠券兑换失败原因，供 controller 映射多语言提示
+var (
+	ErrCouponAlreadyUsed = errors.New("coupon already used")
+	ErrCouponExpired     = errors.New("coupon expired")
+)
+
 type DistributionCouponIssueItem struct {
 	Count        int     `json:"count"`
 	Amount       float64 `json:"amount"`
@@ -297,27 +303,70 @@ func GetCouponByCode(code string) (*model.DistributionCoupon, error) {
 	return &coupon, nil
 }
 
-// MarkCouponUsed 条件更新防并发：仅 active 状态的券能被标记为已使用
-func MarkCouponUsed(couponID int, usedUserID int) error {
-	if couponID <= 0 {
-		return fmt.Errorf("invalid coupon id")
+// RedeemCoupon 单事务完成优惠券兑换：用户额度到账、兑换码标记已用、券原子核销，
+// 消除事后核销的失败窗口（充值日志由 controller 记录）
+func RedeemCoupon(coupon *model.DistributionCoupon, userID int) (int, error) {
+	if coupon == nil || coupon.Id <= 0 {
+		return 0, fmt.Errorf("invalid coupon")
+	}
+	if userID <= 0 {
+		return 0, fmt.Errorf("invalid user id")
 	}
 	now := time.Now().Unix()
-	res := model.DB.Model(&model.DistributionCoupon{}).
-		Where("id = ? AND status = ?", couponID, DistributionCouponStatusActive).
-		Updates(map[string]any{
-			"status":       DistributionCouponStatusUsed,
-			"used_user_id": usedUserID,
-			"used_at":      now,
-			"updated_at":   now,
-		})
-	if res.Error != nil {
-		return res.Error
+	quota := 0
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var redemption model.Redemption
+		err := distributionLock(tx).Where("id = ?", coupon.RedemptionId).First(&redemption).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCouponAlreadyUsed
+		}
+		if err != nil {
+			return err
+		}
+		if redemption.Status != common.RedemptionCodeStatusEnabled {
+			return ErrCouponAlreadyUsed
+		}
+		if redemption.ExpiredTime > 0 && redemption.ExpiredTime < now {
+			return ErrCouponExpired
+		}
+		res := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Update("quota", gorm.Expr("quota + ?", redemption.Quota))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected != 1 {
+			return fmt.Errorf("user quota update failed")
+		}
+		// 照上游 Redeem 的字段语义标记兑换码已使用
+		redemption.RedeemedTime = now
+		redemption.Status = common.RedemptionCodeStatusUsed
+		redemption.UsedUserId = userID
+		if err := tx.Save(&redemption).Error; err != nil {
+			return err
+		}
+		// 同事务条件核销券，防并发重复兑换
+		couponRes := tx.Model(&model.DistributionCoupon{}).
+			Where("id = ? AND status = ?", coupon.Id, DistributionCouponStatusActive).
+			Updates(map[string]any{
+				"status":       DistributionCouponStatusUsed,
+				"used_user_id": userID,
+				"used_at":      now,
+				"updated_at":   now,
+			})
+		if couponRes.Error != nil {
+			return couponRes.Error
+		}
+		if couponRes.RowsAffected != 1 {
+			return ErrCouponAlreadyUsed
+		}
+		quota = redemption.Quota
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
-	if res.RowsAffected != 1 {
-		return fmt.Errorf("coupon is not active")
-	}
-	return nil
+	return quota, nil
 }
 
 // SweepExpiredCoupons 清扫到期未用的优惠券：券和兑换码都物理销毁，
@@ -351,7 +400,7 @@ func sweepExpiredCoupon(coupon *model.DistributionCoupon, now int64) error {
 			return err
 		}
 		if err == nil && redemption.Status != common.RedemptionCodeStatusEnabled {
-			// 兑换已发生但 MarkCouponUsed 尚未落库：补记 used，不退款不销毁
+			// 兑换码已用但券仍 active（历史残留数据）：补记 used 兜底，不退款不销毁
 			return tx.Model(&model.DistributionCoupon{}).
 				Where("id = ? AND status = ?", coupon.Id, DistributionCouponStatusActive).
 				Updates(map[string]any{

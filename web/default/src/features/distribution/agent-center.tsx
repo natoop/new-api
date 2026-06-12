@@ -125,8 +125,8 @@ function getPurchaseMessageKey(message?: string) {
   return 'Purchase failed'
 }
 
-function apiActionError(message?: string) {
-  return message?.trim() || 'Action failed'
+function apiActionError(message: string | undefined, fallback: string) {
+  return message?.trim() || fallback
 }
 
 function normalizeCouponAmountInput(value: string) {
@@ -399,7 +399,7 @@ export function AgentCenter() {
     try {
       const result = await applyAgentCoupon(amount)
       if (!result.success) {
-        toast.error(apiActionError(result.message))
+        toast.error(apiActionError(result.message, t('Action failed')))
         return
       }
       toast.success(t('Coupon applied'))
@@ -415,7 +415,8 @@ export function AgentCenter() {
   async function handleRefundInventory(row: DistributionInventory) {
     const result = await refundAgentInventory(row.id)
     if (!result.success) {
-      toast.error(apiActionError(result.message))
+      toast.error(apiActionError(result.message, t('Action failed')))
+      await refresh('inventory')
       return
     }
     toast.success(t('Refunded'))

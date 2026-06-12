@@ -79,6 +79,76 @@ func TestCreateSubscriptionOrderWithPromoReserve_MinMoneyRejected(t *testing.T) 
 }
 
 // ---------------------------------------------------------------------------
+// 分销订单同步守卫（库存码兑换订单不生成 original 订单）
+// ---------------------------------------------------------------------------
+
+func insertAgentInventorySubscriptionOrder(t *testing.T, userID int, tradeNo string) *SubscriptionOrder {
+	t.Helper()
+	order := &SubscriptionOrder{
+		UserId:          userID,
+		PlanId:          1,
+		Money:           10,
+		TradeNo:         tradeNo,
+		PaymentMethod:   SubscriptionPaymentMethodAgentInventory,
+		PaymentProvider: SubscriptionPaymentMethodAgentInventory,
+		Status:          common.TopUpStatusSuccess,
+	}
+	require.NoError(t, DB.Create(order).Error)
+	return order
+}
+
+func TestSyncSubscriptionDistributionOrder_SkipsAgentInventoryOrder(t *testing.T) {
+	truncateTables(t)
+
+	order := insertAgentInventorySubscriptionOrder(t, 703, "SUBINV_SYNC_GUARD_1")
+
+	// 库存码兑换的订阅订单由 redeem 类型订单表示，同步守卫直接跳过
+	require.NoError(t, SyncSubscriptionDistributionOrderTx(DB, order))
+
+	var count int64
+	require.NoError(t, DB.Model(&DistributionOrder{}).Count(&count).Error)
+	assert.Zero(t, count)
+}
+
+func TestBackfillDistributionOrders_CleansAgentInventoryOriginalOrders(t *testing.T) {
+	truncateTables(t)
+
+	order := insertAgentInventorySubscriptionOrder(t, 704, "SUBINV_BACKFILL_GUARD_1")
+
+	// 历史脏数据：库存码兑换曾被同步生成的 original 订单
+	dirty := &DistributionOrder{
+		OrderNo:             "DIRTY_ORIGINAL_1",
+		OrderType:           DistributionOrderTypeOriginal,
+		SubscriptionOrderId: order.Id,
+		IdempotencyKey:      "dirty_original_1",
+		AgentId:             1,
+		UserId:              order.UserId,
+		PackageId:           1,
+		Status:              DistributionOrderStatusFulfilled,
+	}
+	require.NoError(t, DB.Create(dirty).Error)
+	// 兑换本身产生的 redeem 订单必须保留
+	keep := &DistributionOrder{
+		OrderNo:             "KEEP_REDEEM_1",
+		OrderType:           DistributionOrderTypeRedeem,
+		SubscriptionOrderId: order.Id,
+		IdempotencyKey:      "keep_redeem_1",
+		AgentId:             1,
+		UserId:              order.UserId,
+		PackageId:           1,
+		Status:              DistributionOrderStatusFulfilled,
+	}
+	require.NoError(t, DB.Create(keep).Error)
+
+	require.NoError(t, BackfillDistributionOrders())
+
+	// original 脏数据被清掉，redeem 订单保留，且不会被重新同步出来
+	var types []string
+	require.NoError(t, DB.Model(&DistributionOrder{}).Pluck("order_type", &types).Error)
+	require.Equal(t, []string{DistributionOrderTypeRedeem}, types)
+}
+
+// ---------------------------------------------------------------------------
 // RechargeXunhu：订单翻 success 与加额度同事务，幂等不双加
 // ---------------------------------------------------------------------------
 

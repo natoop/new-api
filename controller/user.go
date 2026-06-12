@@ -1141,6 +1141,23 @@ func getTopUpLock(userID int) *topUpTryLock {
 	return l
 }
 
+// respondRedeemFailed 上游 Redeem 会把具体失败原因坍缩为 ErrRedeemFailed，
+// 这里补查一次兑换码，给出"已被使用/已过期"的准确提示
+func respondRedeemFailed(c *gin.Context, key string) {
+	redemption, err := model.GetRedemptionByKey(key)
+	if err == nil && redemption != nil {
+		if redemption.Status == common.RedemptionCodeStatusUsed {
+			common.ApiErrorI18n(c, i18n.MsgRedeemCodeUsed)
+			return
+		}
+		if redemption.ExpiredTime > 0 && redemption.ExpiredTime < common.GetTimestamp() {
+			common.ApiErrorI18n(c, i18n.MsgRedeemCodeExpired)
+			return
+		}
+	}
+	common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+}
+
 func TopUp(c *gin.Context) {
 	if !operation_setting.IsPaymentComplianceConfirmed() {
 		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
@@ -1167,22 +1184,25 @@ func TopUp(c *gin.Context) {
 		return
 	}
 	if coupon != nil {
-		if coupon.Status != service.DistributionCouponStatusActive || (coupon.ExpiresAt > 0 && coupon.ExpiresAt < common.GetTimestamp()) {
-			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+		if coupon.Status != service.DistributionCouponStatusActive {
+			common.ApiErrorI18n(c, i18n.MsgRedeemCodeUsed)
 			return
 		}
-		quota, err := model.Redeem(req.Key, id)
+		if coupon.ExpiresAt > 0 && coupon.ExpiresAt < common.GetTimestamp() {
+			common.ApiErrorI18n(c, i18n.MsgRedeemCodeExpired)
+			return
+		}
+		quota, err := service.RedeemCoupon(coupon, id)
 		if err != nil {
-			if errors.Is(err, model.ErrRedeemFailed) {
+			switch {
+			case errors.Is(err, service.ErrCouponAlreadyUsed):
+				common.ApiErrorI18n(c, i18n.MsgRedeemCodeUsed)
+			case errors.Is(err, service.ErrCouponExpired):
+				common.ApiErrorI18n(c, i18n.MsgRedeemCodeExpired)
+			default:
 				common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
-				return
 			}
-			common.ApiError(c, err)
 			return
-		}
-		// 标记失败仅记日志，不影响用户到账
-		if err := service.MarkCouponUsed(coupon.Id, id); err != nil {
-			common.SysLog(fmt.Sprintf("failed to mark distribution coupon %d used: %s", coupon.Id, err.Error()))
 		}
 		model.RecordLog(id, model.LogTypeTopup, fmt.Sprintf("通过代理优惠券充值 %s，优惠券 %s", logger.LogQuota(quota), coupon.Code))
 		c.JSON(http.StatusOK, gin.H{
@@ -1199,6 +1219,10 @@ func TopUp(c *gin.Context) {
 	}
 	inventoryResult, err := service.RedeemDistributionInventoryCode(id, req.Key)
 	if err != nil {
+		if errors.Is(err, service.ErrInventoryAlreadyRedeemed) {
+			common.ApiErrorI18n(c, i18n.MsgRedeemCodeUsed)
+			return
+		}
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
 		return
 	}
@@ -1218,7 +1242,7 @@ func TopUp(c *gin.Context) {
 	quota, err := model.Redeem(req.Key, id)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
-			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+			respondRedeemFailed(c, req.Key)
 			return
 		}
 		common.ApiError(c, err)

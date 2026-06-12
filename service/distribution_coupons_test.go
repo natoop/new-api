@@ -197,7 +197,7 @@ func TestSweepExpiredCoupons_RedeemedCouponMarkedUsedNotRefunded(t *testing.T) {
 	coupon, err := ApplyAgentCoupon(2400, 1)
 	require.NoError(t, err)
 
-	// 模拟兑换已发生但 MarkCouponUsed 尚未落库：兑换码已用、券仍 active 且已过期
+	// 模拟历史残留：兑换码已用、券仍 active 且已过期
 	require.NoError(t, model.DB.Model(&model.Redemption{}).Where("id = ?", coupon.RedemptionId).
 		Updates(map[string]any{
 			"status":        common.RedemptionCodeStatusUsed,
@@ -219,23 +219,95 @@ func TestSweepExpiredCoupons_RedeemedCouponMarkedUsedNotRefunded(t *testing.T) {
 	assert.InDelta(t, 4, couponAgentBalance(t, agent.Id), 1e-9)
 }
 
-func TestMarkCouponUsed_ConditionalUpdate(t *testing.T) {
+func seedCouponRedeemer(t *testing.T, userID int, quota int) {
+	t.Helper()
+	user := &model.User{
+		Id:       userID,
+		Username: fmt.Sprintf("coupon_redeemer_%d", userID),
+		AffCode:  fmt.Sprintf("coupon_raff_%d", userID),
+		Status:   common.UserStatusEnabled,
+		Quota:    quota,
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+}
+
+func TestRedeemCoupon_AtomicSuccess(t *testing.T) {
 	couponTruncate(t)
 	seedCouponAgent(t, 2500, 5)
+	seedCouponRedeemer(t, 2501, 100)
 
 	coupon, err := ApplyAgentCoupon(2500, 1)
 	require.NoError(t, err)
 
-	require.NoError(t, MarkCouponUsed(coupon.Id, 8888))
+	quota, err := RedeemCoupon(coupon, 2501)
+	require.NoError(t, err)
+	assert.Equal(t, int(common.QuotaPerUnit), quota)
 
+	// 用户额度到账
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 2501).First(&user).Error)
+	assert.Equal(t, 100+quota, user.Quota)
+
+	// 兑换码同事务标记已使用
+	var redemption model.Redemption
+	require.NoError(t, model.DB.Where("id = ?", coupon.RedemptionId).First(&redemption).Error)
+	assert.Equal(t, common.RedemptionCodeStatusUsed, redemption.Status)
+	assert.Equal(t, 2501, redemption.UsedUserId)
+	assert.NotZero(t, redemption.RedeemedTime)
+
+	// 券同事务原子核销
 	var saved model.DistributionCoupon
 	require.NoError(t, model.DB.Where("id = ?", coupon.Id).First(&saved).Error)
 	assert.Equal(t, DistributionCouponStatusUsed, saved.Status)
-	assert.Equal(t, 8888, saved.UsedUserId)
+	assert.Equal(t, 2501, saved.UsedUserId)
 	assert.NotZero(t, saved.UsedAt)
+}
 
-	// 二次标记必须失败（条件 UPDATE 防并发重复核销）
-	require.Error(t, MarkCouponUsed(coupon.Id, 7777))
+func TestRedeemCoupon_SecondRedeemReturnsAlreadyUsed(t *testing.T) {
+	couponTruncate(t)
+	seedCouponAgent(t, 2510, 5)
+	seedCouponRedeemer(t, 2511, 0)
+	seedCouponRedeemer(t, 2512, 0)
+
+	coupon, err := ApplyAgentCoupon(2510, 1)
+	require.NoError(t, err)
+
+	_, err = RedeemCoupon(coupon, 2511)
+	require.NoError(t, err)
+
+	// 重复兑换必须失败（条件核销防并发重复兑换）
+	_, err = RedeemCoupon(coupon, 2512)
+	require.ErrorIs(t, err, ErrCouponAlreadyUsed)
+
+	// 第二个用户额度不变，核销人仍是第一个用户
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 2512).First(&user).Error)
+	assert.Zero(t, user.Quota)
+	var saved model.DistributionCoupon
 	require.NoError(t, model.DB.Where("id = ?", coupon.Id).First(&saved).Error)
-	assert.Equal(t, 8888, saved.UsedUserId)
+	assert.Equal(t, 2511, saved.UsedUserId)
+}
+
+func TestRedeemCoupon_ExpiredReturnsExpired(t *testing.T) {
+	couponTruncate(t)
+	seedCouponAgent(t, 2520, 5)
+	seedCouponRedeemer(t, 2521, 0)
+
+	coupon, err := ApplyAgentCoupon(2520, 1)
+	require.NoError(t, err)
+
+	// 手工把绑定的兑换码改为已过期
+	require.NoError(t, model.DB.Model(&model.Redemption{}).Where("id = ?", coupon.RedemptionId).
+		Update("expired_time", time.Now().Unix()-60).Error)
+
+	_, err = RedeemCoupon(coupon, 2521)
+	require.ErrorIs(t, err, ErrCouponExpired)
+
+	// 额度未到账，券仍 active 留给到期清扫处理
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 2521).First(&user).Error)
+	assert.Zero(t, user.Quota)
+	var saved model.DistributionCoupon
+	require.NoError(t, model.DB.Where("id = ?", coupon.Id).First(&saved).Error)
+	assert.Equal(t, DistributionCouponStatusActive, saved.Status)
 }

@@ -39,6 +39,12 @@ type DistributionInventoryRedeemResult struct {
 	PlanTitle string
 }
 
+// 库存操作失败原因，供 controller 映射多语言提示
+var (
+	ErrInventoryAlreadyRedeemed = errors.New("inventory already redeemed")
+	ErrInventoryNotRefundable   = errors.New("inventory cannot be refunded")
+)
+
 type DistributionInventoryListInput struct {
 	Keyword  string
 	Status   string
@@ -677,14 +683,14 @@ func RefundDistributionAgentInventory(userID int, inventoryID int) (*Distributio
 			return err
 		}
 		if !CanRefundInventory(inventory.Status, inventory.AssignedTo) {
-			return fmt.Errorf("inventory cannot be refunded")
+			return ErrInventoryNotRefundable
 		}
 		var order model.DistributionOrder
 		if err := distributionLock(tx).Where("id = ? AND agent_id = ?", inventory.OrderId, agent.Id).First(&order).Error; err != nil {
 			return err
 		}
 		if order.Status != DistributionOrderStatusFulfilled {
-			return fmt.Errorf("order cannot be refunded")
+			return ErrInventoryNotRefundable
 		}
 		refundAmount := order.PaidAmount
 		if refundAmount <= 0 {
@@ -764,6 +770,9 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 			return err
 		}
 		result.Matched = true
+		if inventory.Status == DistributionInventoryStatusRedeemed {
+			return ErrInventoryAlreadyRedeemed
+		}
 		if inventory.Status != DistributionInventoryStatusAvailable && inventory.Status != DistributionInventoryStatusAssigned {
 			return fmt.Errorf("inventory cannot be redeemed")
 		}
@@ -805,8 +814,8 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 			PlanId:          plan.Id,
 			Money:           plan.PriceAmount,
 			TradeNo:         tradeNo,
-			PaymentMethod:   "agent_inventory",
-			PaymentProvider: "agent_inventory",
+			PaymentMethod:   model.SubscriptionPaymentMethodAgentInventory,
+			PaymentProvider: model.SubscriptionPaymentMethodAgentInventory,
 			Status:          common.TopUpStatusSuccess,
 			CreateTime:      now,
 			CompleteTime:    now,
@@ -867,9 +876,6 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 			UpdatedAt:                  now,
 		}
 		if err := tx.Create(&redeemOrder).Error; err != nil {
-			return err
-		}
-		if err := model.SyncSubscriptionDistributionOrderTx(tx, subscriptionOrder); err != nil {
 			return err
 		}
 		if err := bindDistributionCustomer(tx, userID, agent.Id, DistributionCustomerEventPurchase, DistributionSourceInventory, inventory.Id, inventory.InventoryNo, redeemOrder.Id, "inventory redeemed", now); err != nil {

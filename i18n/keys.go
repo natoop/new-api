@@ -297,10 +297,13 @@ const (
 
 // Model layer error messages (for translation in controller)
 const (
-	MsgRedeemFailed          = "redeem.failed"
-	MsgCreateDefaultTokenErr = "user.create_default_token_error"
-	MsgUuidDuplicate         = "common.uuid_duplicate"
-	MsgInvalidInput          = "common.invalid_input"
+	MsgRedeemFailed           = "redeem.failed"
+	MsgRedeemCodeUsed         = "redeem.code_used"
+	MsgRedeemCodeExpired      = "redeem.code_expired"
+	MsgInventoryNotRefundable = "distribution.inventory_not_refundable"
+	MsgCreateDefaultTokenErr  = "user.create_default_token_error"
+	MsgUuidDuplicate          = "common.uuid_duplicate"
+	MsgInvalidInput           = "common.invalid_input"
 )
 
 // Distributor related messages

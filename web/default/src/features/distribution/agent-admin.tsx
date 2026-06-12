@@ -245,12 +245,13 @@ function EmptyTableRow({
   )
 }
 
-function apiActionError(message?: string) {
-  return message?.trim() || 'Action failed'
+function apiActionError(message: string | undefined, fallback: string) {
+  return message?.trim() || fallback
 }
 
 function packageActionError(message?: string) {
-  const fallback = apiActionError(message)
+  // Result is passed through t() at the call site, so the fallback stays an i18n key.
+  const fallback = apiActionError(message, 'Action failed')
   const normalized = fallback.toLowerCase()
   if (
     normalized.includes('subscription plan already has') ||
@@ -764,7 +765,7 @@ export function AgentAdmin() {
           }
     const res = await adminSaveAgent(payload)
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -781,7 +782,7 @@ export function AgentAdmin() {
       balanceRemark
     )
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -848,7 +849,7 @@ export function AgentAdmin() {
       status: giftForm.status,
     })
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -895,7 +896,7 @@ export function AgentAdmin() {
       remark: couponRemark.trim() || undefined,
     })
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Coupons issued'))
@@ -908,7 +909,7 @@ export function AgentAdmin() {
   async function handleGrantOps() {
     const res = await adminGrantOpsAuthorization(Number(opsUserId), opsRemark)
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Granted'))
@@ -924,7 +925,7 @@ export function AgentAdmin() {
       nextDistributionStatus(row.status)
     )
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -937,7 +938,7 @@ export function AgentAdmin() {
       nextDistributionStatus(row.status)
     )
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -950,7 +951,7 @@ export function AgentAdmin() {
       nextDistributionStatus(row.status)
     )
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -971,7 +972,7 @@ export function AgentAdmin() {
   async function handleRevokeOps(row: DistributionOpsAuthorization) {
     const res = await adminRevokeOpsAuthorization(row.user_id)
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Saved'))
@@ -981,7 +982,7 @@ export function AgentAdmin() {
   async function handleReGrantOps(row: DistributionOpsAuthorization) {
     const res = await adminGrantOpsAuthorization(row.user_id, '')
     if (!res.success) {
-      toast.error(apiActionError(res.message))
+      toast.error(apiActionError(res.message, t('Action failed')))
       return
     }
     toast.success(t('Granted'))

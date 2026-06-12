@@ -20,6 +20,9 @@ const (
 	DistributionOrderStatusPending   = "pending"
 	DistributionOrderStatusFulfilled = "fulfilled"
 	DistributionOrderStatusCancelled = "cancelled"
+
+	// SubscriptionPaymentMethodAgentInventory 代理库存码兑换产生的订阅订单支付方式
+	SubscriptionPaymentMethodAgentInventory = "agent_inventory"
 )
 
 var (
@@ -68,6 +71,10 @@ func SyncSubscriptionDistributionOrderTx(tx *gorm.DB, order *SubscriptionOrder) 
 	}
 	if order == nil || order.Id <= 0 {
 		return errors.New("invalid subscription order")
+	}
+	// 库存码兑换的订阅订单已由 redeem 类型分销订单完整表示，不再同步生成 original 订单
+	if order.PaymentMethod == SubscriptionPaymentMethodAgentInventory {
+		return nil
 	}
 	var plan SubscriptionPlan
 	planErr := tx.Where("id = ?", order.PlanId).First(&plan).Error
@@ -302,6 +309,20 @@ func firstNonEmpty(current string, fallback string) string {
 func BackfillDistributionOrders() error {
 	if DB == nil {
 		return nil
+	}
+	// 历史脏数据清理：库存码兑换曾被同步生成过 original 订单，与 redeem 订单重复，统一删除
+	var inventorySubscriptionOrderIDs []int
+	if err := DB.Model(&SubscriptionOrder{}).
+		Where("payment_method = ?", SubscriptionPaymentMethodAgentInventory).
+		Pluck("id", &inventorySubscriptionOrderIDs).Error; err != nil {
+		return err
+	}
+	if len(inventorySubscriptionOrderIDs) > 0 {
+		if err := DB.Where("order_type = ? AND subscription_order_id IN ?",
+			DistributionOrderTypeOriginal, inventorySubscriptionOrderIDs).
+			Delete(&DistributionOrder{}).Error; err != nil {
+			return err
+		}
 	}
 	if err := DB.Model(&DistributionOrder{}).Where("order_type = '' OR order_type IS NULL").
 		Update("order_type", DistributionOrderTypeInventory).Error; err != nil {
