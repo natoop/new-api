@@ -18,6 +18,7 @@ func escapeLikeKeyword(s string) string {
 
 type DistributionOrderListInput struct {
 	Keyword   string
+	OrderType string
 	PlanId    int
 	Status    string
 	StartTime int64
@@ -28,12 +29,20 @@ type DistributionOrderListInput struct {
 
 func AdminListDistributionOrders(input DistributionOrderListInput) ([]model.DistributionOrder, int64, error) {
 	input.Keyword = strings.TrimSpace(input.Keyword)
+	input.OrderType = strings.TrimSpace(input.OrderType)
 	input.Status = strings.TrimSpace(input.Status)
 	var orders []model.DistributionOrder
 	query := model.DB.Model(&model.DistributionOrder{})
 	if input.Keyword != "" {
 		like := "%" + escapeLikeKeyword(input.Keyword) + "%"
 		query = query.Where("buyer_username LIKE ? ESCAPE '!' OR buyer_email LIKE ? ESCAPE '!' OR buyer_display_name LIKE ? ESCAPE '!'", like, like, like)
+	}
+	if input.OrderType != "" {
+		if input.OrderType == model.DistributionOrderTypeInventory {
+			query = query.Where("(order_type = ? OR order_type = '' OR order_type IS NULL)", input.OrderType)
+		} else {
+			query = query.Where("order_type = ?", input.OrderType)
+		}
 	}
 	if input.PlanId > 0 {
 		query = query.Where("subscription_plan_id = ?", input.PlanId)

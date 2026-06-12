@@ -218,7 +218,8 @@ type SubscriptionOrder struct {
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 
-	// PromoCode 下单时使用的促销码（redemptions.key），用于追溯与回调消耗次数；空表示未使用
+	// PromoCode records the inventory code used by agent-inventory redemption orders.
+	// Ordinary redemptions are balance codes and are not stored here.
 	PromoCode string `json:"promo_code" gorm:"type:varchar(64);default:''"`
 }
 
@@ -255,38 +256,30 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(o).Error; err != nil {
+			return err
+		}
+		return SyncSubscriptionDistributionOrderTx(tx, o)
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
 	return DB.Save(o).Error
 }
 
-// CreateSubscriptionOrderWithPromoReserve 在同一事务内创建订阅订单并原子预占促销码：
-//   - order.PromoCode 非空时调用 ConsumePromoRedemptionTx 预占一次使用次数，
-//     用尽/失效则整体回滚拒单（异步支付通道防绕过 max_uses 的预占模式）；
-//   - 按预占到的折扣以 planPrice 重算 order.Money；
-//   - minMoney > 0 时校验折后金额下限（如 epay/虎皮椒要求 >= 0.01）。
-//
-// 返回预占到的促销码（未使用促销码时为 nil）。订单后续过期/取消需走
-// ExpireSubscriptionOrder 回补预占次数；CompleteSubscriptionOrder 不再二次消耗。
+// CreateSubscriptionOrderWithPromoReserve keeps the historical API name used by
+// payment controllers. Redemption codes are no longer typed promo codes here;
+// orders are created at the plan price. PromoCode is retained for inventory-code
+// provenance when that path creates subscription orders directly.
 func CreateSubscriptionOrderWithPromoReserve(order *SubscriptionOrder, planPrice float64, minMoney float64) (*Redemption, error) {
 	if order == nil {
 		return nil, errors.New("order is nil")
 	}
-	var promo *Redemption
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		order.Money = planPrice
-		if order.PromoCode != "" {
-			p, err := ConsumePromoRedemptionTx(tx, order.PromoCode, order.PlanId)
-			if err != nil {
-				return err
-			}
-			promo = p
-			order.Money = ApplyPromoDiscount(planPrice, p.DiscountBps)
-		}
 		if minMoney > 0 && order.Money < minMoney {
-			return errors.New("折后金额过低")
+			return errors.New("订单金额过低")
 		}
 		if order.CreateTime == 0 {
 			order.CreateTime = common.GetTimestamp()
@@ -295,12 +288,12 @@ func CreateSubscriptionOrderWithPromoReserve(order *SubscriptionOrder, planPrice
 			common.SysError("failed to create subscription order: " + err.Error())
 			return errors.New("创建订单失败")
 		}
-		return nil
+		return SyncSubscriptionDistributionOrderTx(tx, order)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return promo, nil
+	return nil, nil
 }
 
 func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
@@ -638,8 +631,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err
 		}
-		// 促销码次数已在下单时（CreateSubscriptionOrderWithPromoReserve /
-		// PurchaseSubscriptionWithBalance）原子预占，此处不再消耗，避免双扣。
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
 		if providerPayload != "" {
@@ -649,6 +640,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			order.PaymentMethod = actualPaymentMethod
 		}
 		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		if err := SyncSubscriptionDistributionOrderTx(tx, &order); err != nil {
 			return err
 		}
 		logUserId = order.UserId
@@ -734,11 +728,8 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
-		// 回补下单时预占的促销码次数（原子 UPDATE，used_count > 0 防负数）
-		if order.PromoCode != "" {
-			if _, err := refundPromoUseRowsTx(tx, order.PromoCode); err != nil {
-				return err
-			}
+		if err := SyncSubscriptionDistributionOrderTx(tx, &order); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -782,12 +773,12 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
-// promoCode 可选：传入促销码时按折后金额扣费，并在同一事务内消耗促销码次数。
+// promoCode is kept as a compatibility parameter and is not applied to ordinary redemptions.
 func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
 	}
-	promoCode = strings.TrimSpace(promoCode)
+	_ = strings.TrimSpace(promoCode)
 
 	var logPlanTitle string
 	var logMoney float64
@@ -809,13 +800,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) e
 		}
 
 		finalMoney := plan.PriceAmount
-		if promoCode != "" {
-			promo, err := ConsumePromoRedemptionTx(tx, promoCode, plan.Id)
-			if err != nil {
-				return err
-			}
-			finalMoney = ApplyPromoDiscount(plan.PriceAmount, promo.DiscountBps)
-		}
 
 		requiredQuota, err := calcSubscriptionBalanceQuota(finalMoney)
 		if err != nil {
@@ -853,9 +837,11 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) e
 			CreateTime:      now,
 			CompleteTime:    now,
 			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
-			PromoCode:       promoCode,
 		}
 		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		if err := SyncSubscriptionDistributionOrderTx(tx, order); err != nil {
 			return err
 		}
 
@@ -878,9 +864,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, promoCode string) e
 		_ = UpdateUserGroupCache(userId, upgradeGroup)
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
-	if promoCode != "" {
-		msg += fmt.Sprintf("，优惠码: %s", promoCode)
-	}
 	RecordLog(userId, LogTypeTopup, msg)
 	fireSubscriptionPaidHook(userId)
 	return nil

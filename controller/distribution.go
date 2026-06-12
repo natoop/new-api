@@ -453,6 +453,7 @@ func AdminListDistributionOrders(c *gin.Context) {
 	endTime, _ := strconv.ParseInt(c.Query("end_time"), 10, 64)
 	orders, total, err := service.AdminListDistributionOrders(service.DistributionOrderListInput{
 		Keyword:   c.Query("keyword"),
+		OrderType: c.Query("order_type"),
 		PlanId:    planID,
 		Status:    c.Query("status"),
 		StartTime: startTime,

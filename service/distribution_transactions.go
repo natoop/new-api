@@ -33,6 +33,12 @@ type DistributionInventoryRefundResult struct {
 	Ledger    *model.DistributionBalanceLedger `json:"ledger"`
 }
 
+type DistributionInventoryRedeemResult struct {
+	Matched   bool
+	PlanId    int
+	PlanTitle string
+}
+
 type DistributionInventoryListInput struct {
 	Keyword  string
 	Status   string
@@ -46,6 +52,23 @@ type DistributionInventoryPackageOption struct {
 	// RetailPrice 为套餐"当前"零售价（USD），随订阅套餐改价实时刷新；
 	// 前端用它作为优惠码抵扣额上限，保持与套餐定价同步。
 	RetailPrice float64 `json:"retail_price"`
+}
+
+func distributionUserName(user model.User) string {
+	if strings.TrimSpace(user.DisplayName) != "" {
+		return user.DisplayName
+	}
+	if strings.TrimSpace(user.Username) != "" {
+		return user.Username
+	}
+	return user.Email
+}
+
+func firstNonEmpty(current string, fallback string) string {
+	if strings.TrimSpace(current) != "" {
+		return current
+	}
+	return fallback
 }
 
 func distributionLock(tx *gorm.DB) *gorm.DB {
@@ -290,9 +313,15 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 		orderNo := BuildPurchaseOrderNo(userID, packageID, key)
 		order := model.DistributionOrder{
 			OrderNo:               orderNo,
+			OrderType:             model.DistributionOrderTypeInventory,
 			IdempotencyKey:        key,
 			AgentId:               agent.Id,
+			AgentUserId:           userID,
+			AgentUserName:         distributionUserName(buyer),
+			AgentAgentId:          agent.Id,
 			UserId:                userID,
+			BuyUserId:             userID,
+			BuyUserName:           distributionUserName(buyer),
 			BuyerUserId:           userID,
 			BuyerUsername:         buyer.Username,
 			BuyerDisplayName:      buyer.DisplayName,
@@ -358,6 +387,7 @@ func PurchaseDistributionPackage(userID int, packageID int, idempotencyKey strin
 			return err
 		}
 		order.RedeemCode = inventoryNo
+		order.AgentActiveCode = inventoryNo
 		order.RedeemCodeOwnerUserId = userID
 		order.RedeemCodeOwnerUsername = buyer.Username
 		order.RedeemCodeOwnerDisplayName = buyer.DisplayName
@@ -712,6 +742,158 @@ func RefundDistributionAgentInventory(userID int, inventoryID int) (*Distributio
 	return &DistributionInventoryRefundResult{Inventory: &inventory, Ledger: &ledger}, nil
 }
 
+func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInventoryRedeemResult, error) {
+	code = strings.TrimSpace(code)
+	if userID <= 0 {
+		return nil, fmt.Errorf("invalid user id")
+	}
+	if code == "" {
+		return &DistributionInventoryRedeemResult{Matched: false}, nil
+	}
+	now := time.Now().Unix()
+	result := &DistributionInventoryRedeemResult{}
+	var upgradeGroup string
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var inventory model.DistributionInventory
+		err := distributionLock(tx).Where("inventory_no = ?", code).First(&inventory).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			result.Matched = false
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		result.Matched = true
+		if inventory.Status != DistributionInventoryStatusAvailable && inventory.Status != DistributionInventoryStatusAssigned {
+			return fmt.Errorf("inventory cannot be redeemed")
+		}
+		if inventory.AssignedTo > 0 && inventory.AssignedTo != userID {
+			return fmt.Errorf("inventory cannot be redeemed by this user")
+		}
+		var distributionPackage model.DistributionPackage
+		if err := tx.Where("id = ?", inventory.PackageId).First(&distributionPackage).Error; err != nil {
+			return err
+		}
+		if distributionPackage.SubscriptionPlanId <= 0 {
+			return fmt.Errorf("inventory package has no subscription plan")
+		}
+		var plan model.SubscriptionPlan
+		if err := tx.Where("id = ?", distributionPackage.SubscriptionPlanId).First(&plan).Error; err != nil {
+			return err
+		}
+		if !plan.Enabled {
+			return fmt.Errorf("subscription plan not found or disabled")
+		}
+		plan.NormalizeDefaults()
+		var buyer model.User
+		if err := tx.Select("id, username, display_name, email").Where("id = ?", userID).First(&buyer).Error; err != nil {
+			return err
+		}
+		var agent model.DistributionAgent
+		if err := tx.Where("id = ?", inventory.AgentId).First(&agent).Error; err != nil {
+			return err
+		}
+		var agentUser model.User
+		_ = tx.Select("id, username, display_name, email").Where("id = ?", agent.UserId).First(&agentUser).Error
+
+		if _, err := model.CreateUserSubscriptionFromPlanTx(tx, userID, &plan, "inventory"); err != nil {
+			return err
+		}
+		tradeNo := fmt.Sprintf("SUBINVUSR%dNO%s%d", userID, common.GetRandomString(6), time.Now().UnixNano())
+		subscriptionOrder := &model.SubscriptionOrder{
+			UserId:          userID,
+			PlanId:          plan.Id,
+			Money:           plan.PriceAmount,
+			TradeNo:         tradeNo,
+			PaymentMethod:   "agent_inventory",
+			PaymentProvider: "agent_inventory",
+			Status:          common.TopUpStatusSuccess,
+			CreateTime:      now,
+			CompleteTime:    now,
+			ProviderPayload: fmt.Sprintf("inventory_id=%d", inventory.Id),
+			PromoCode:       inventory.InventoryNo,
+		}
+		if err := tx.Create(subscriptionOrder).Error; err != nil {
+			return err
+		}
+
+		inventory.Status = DistributionInventoryStatusRedeemed
+		inventory.AssignedTo = userID
+		inventory.UpdatedAt = now
+		if err := tx.Save(&inventory).Error; err != nil {
+			return err
+		}
+
+		redeemOrder := model.DistributionOrder{
+			OrderNo:                    model.BuildDistributionOrderNo(model.DistributionOrderTypeRedeem),
+			OrderType:                  model.DistributionOrderTypeRedeem,
+			SubscriptionOrderId:        subscriptionOrder.Id,
+			IdempotencyKey:             fmt.Sprintf("inventory_redeem_%d", inventory.Id),
+			AgentId:                    inventory.AgentId,
+			AgentUserId:                agent.UserId,
+			AgentUserName:              distributionUserName(agentUser),
+			AgentAgentId:               inventory.AgentId,
+			UserId:                     userID,
+			BuyUserId:                  userID,
+			BuyUserName:                distributionUserName(buyer),
+			BuyerUserId:                userID,
+			BuyerUsername:              buyer.Username,
+			BuyerDisplayName:           buyer.DisplayName,
+			BuyerEmail:                 buyer.Email,
+			PackageId:                  distributionPackage.Id,
+			SubscriptionPlanId:         plan.Id,
+			SubscriptionTitle:          firstNonEmpty(plan.Title, distributionPackage.SubscriptionTitle),
+			SubscriptionSubtitle:       firstNonEmpty(plan.Subtitle, distributionPackage.SubscriptionSubtitle),
+			PackageName:                firstNonEmpty(distributionPackage.Name, plan.Title),
+			PackageSku:                 distributionPackage.Sku,
+			PackageDescription:         firstNonEmpty(distributionPackage.Description, plan.Subtitle),
+			PackageCreditAmount:        int(plan.TotalAmount),
+			RedeemCodeId:               inventory.Id,
+			RedeemCode:                 inventory.InventoryNo,
+			RedeemCodeOwnerUserId:      agent.UserId,
+			RedeemCodeOwnerUsername:    agentUser.Username,
+			RedeemCodeOwnerDisplayName: agentUser.DisplayName,
+			RedeemCodeOwnerEmail:       agentUser.Email,
+			AgentActiveCode:            inventory.InventoryNo,
+			OriginalAmount:             plan.PriceAmount,
+			PaidAmount:                 0,
+			Quantity:                   1,
+			RetailPrice:                plan.PriceAmount,
+			Status:                     DistributionOrderStatusFulfilled,
+			PaidAt:                     now,
+			FulfilledAt:                now,
+			CompletedAt:                now,
+			CreatedAt:                  now,
+			UpdatedAt:                  now,
+		}
+		if err := tx.Create(&redeemOrder).Error; err != nil {
+			return err
+		}
+		if err := model.SyncSubscriptionDistributionOrderTx(tx, subscriptionOrder); err != nil {
+			return err
+		}
+		if err := bindDistributionCustomer(tx, userID, agent.Id, DistributionCustomerEventPurchase, DistributionSourceInventory, inventory.Id, inventory.InventoryNo, redeemOrder.Id, "inventory redeemed", now); err != nil {
+			return err
+		}
+		result.PlanId = plan.Id
+		result.PlanTitle = plan.Title
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !result.Matched {
+		return result, nil
+	}
+	if upgradeGroup != "" {
+		_ = model.UpdateUserGroupCache(userID, upgradeGroup)
+	}
+	model.RecordLog(userID, model.LogTypeTopup, fmt.Sprintf("通过代理库存码开通套餐 %s，库存码 %s", result.PlanTitle, code))
+	model.FireSubscriptionPaidHook(userID)
+	return result, nil
+}
+
 func bindDistributionCustomer(tx *gorm.DB, customerUserID int, agentID int, eventType string, sourceType string, sourceID int, sourceNo string, orderID int, message string, now int64) error {
 	var ownership model.DistributionCustomerOwnership
 	err := tx.Where("customer_user_id = ?", customerUserID).First(&ownership).Error
@@ -923,4 +1105,3 @@ func SyncDistributionCustomerOnRegister(newUserID int, inviterID int) {
 		common.SysError("distribution: failed to sync customer on register: " + err.Error())
 	}
 }
-

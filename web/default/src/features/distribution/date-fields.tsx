@@ -16,11 +16,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState, type ComponentProps } from 'react'
+import { Calendar as CalendarIcon } from 'lucide-react'
+import { type DateRange } from 'react-day-picker'
+import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
-import { DatePicker } from '@/components/date-picker'
+import dayjs from '@/lib/dayjs'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { DatePicker } from '@/components/date-picker'
 
 const minimumDate = new Date('1900-01-01')
+
+const calendarLocales = {
+  en: enUS,
+  zh: zhCN,
+  fr,
+  ru,
+  ja,
+  vi,
+} as const
 
 export function unixSecondsToDate(value: string | number | undefined) {
   const seconds = Number(value)
@@ -88,6 +109,8 @@ type DateRangeFieldProps = {
   endValue: string | number | undefined
   onStartChange: (value: string) => void
   onEndChange: (value: string) => void
+  rangePicker?: boolean
+  disabled?: ComponentProps<typeof Calendar>['disabled']
 }
 
 export function DateRangeField({
@@ -97,10 +120,15 @@ export function DateRangeField({
   endValue,
   onStartChange,
   onEndChange,
+  rangePicker = false,
+  disabled,
 }: DateRangeFieldProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [open, setOpen] = useState(false)
   const startDate = unixSecondsToDate(startValue)
   const endDate = unixSecondsToDate(endValue)
+  const calendarLocale =
+    calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
 
   const updateStart = (date: Date | undefined) => {
     onStartChange(dateToStartOfDayUnixSeconds(date))
@@ -114,6 +142,54 @@ export function DateRangeField({
     if (date && startDate && dateOnlyTime(date) < dateOnlyTime(startDate)) {
       onStartChange(dateToStartOfDayUnixSeconds(date))
     }
+  }
+
+  if (rangePicker) {
+    const selectedRange: DateRange | undefined =
+      startDate || endDate ? { from: startDate, to: endDate } : undefined
+    const rangeLabel =
+      startDate && endDate
+        ? `${dayjs(startDate).format('YYYY-MM-DD')} - ${dayjs(endDate).format('YYYY-MM-DD')}`
+        : startDate
+          ? dayjs(startDate).format('YYYY-MM-DD')
+          : ''
+
+    return (
+      <div className='space-y-2'>
+        <Label>{t('Time Range')}</Label>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                variant='outline'
+                data-empty={!rangeLabel}
+                className='data-[empty=true]:text-muted-foreground w-full justify-start text-start font-normal'
+              />
+            }
+          >
+            {rangeLabel || <span>{t('Select date')}</span>}
+            <CalendarIcon className='ms-auto h-4 w-4 opacity-50' />
+          </PopoverTrigger>
+          <PopoverContent className='w-auto p-0'>
+            <Calendar
+              mode='range'
+              numberOfMonths={2}
+              captionLayout='dropdown'
+              selected={selectedRange}
+              onSelect={(range) => {
+                onStartChange(dateToStartOfDayUnixSeconds(range?.from))
+                onEndChange(dateToEndOfDayUnixSeconds(range?.to))
+                if (range?.from && range?.to) {
+                  setOpen(false)
+                }
+              }}
+              locale={calendarLocale}
+              disabled={disabled ?? ((date: Date) => date < minimumDate)}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    )
   }
 
   return (

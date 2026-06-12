@@ -423,6 +423,7 @@ export async function fetchAdminDistributionOrders(
     p?: number
     page_size?: number
     keyword?: string
+    order_type?: string
     plan_id?: number
     status?: string
     start_time?: number
@@ -433,6 +434,7 @@ export async function fetchAdminDistributionOrders(
   query.set('p', String(params.p || 1))
   query.set('page_size', String(params.page_size || 10))
   if (params.keyword?.trim()) query.set('keyword', params.keyword.trim())
+  if (params.order_type) query.set('order_type', params.order_type)
   if (params.plan_id) query.set('plan_id', String(params.plan_id))
   if (params.status) query.set('status', params.status)
   if (params.start_time) query.set('start_time', String(params.start_time))

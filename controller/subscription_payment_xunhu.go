@@ -16,7 +16,7 @@ import (
 type SubscriptionXunhuPayRequest struct {
 	PlanId    int    `json:"plan_id"`
 	PayType   string `json:"pay_type"`   // "wechat" | "alipay"
-	PromoCode string `json:"promo_code"` // 可选促销码，按折后金额下单
+	PromoCode string `json:"promo_code"` // compatibility only; ordinary redemption codes are not promo discounts
 }
 
 func normalizeXunhuPayType(payType string) (string, bool) {
@@ -89,8 +89,6 @@ func SubscriptionRequestXunhuPay(c *gin.Context) {
 		}
 	}
 
-	promoCode := strings.TrimSpace(req.PromoCode)
-
 	callBackAddress := service.GetCallbackAddress()
 	notifyUrl := callBackAddress + "/api/subscription/xunhu/notify"
 	returnUrl := paymentReturnPath("/console/topup?pay=success")
@@ -106,9 +104,8 @@ func SubscriptionRequestXunhuPay(c *gin.Context) {
 		PaymentProvider: model.PaymentProviderXunhu,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
-		PromoCode:       promoCode,
 	}
-	// 同一事务内创建订单并预占促销码次数（用尽/失效则拒单），order.Money 为折后金额
+	// 兼容历史方法名：普通兑换码不再作为促销码折扣使用。
 	if _, err := model.CreateSubscriptionOrderWithPromoReserve(order, plan.PriceAmount, 0.01); err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return

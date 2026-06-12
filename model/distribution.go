@@ -47,9 +47,16 @@ func (DistributionPackage) TableName() string {
 type DistributionOrder struct {
 	Id                         int     `json:"id"`
 	OrderNo                    string  `json:"order_no" gorm:"type:varchar(96);uniqueIndex;not null"`
+	OrderType                  string  `json:"order_type" gorm:"type:varchar(32);index;not null;default:'inventory'"`
+	SubscriptionOrderId        int     `json:"subscription_order_id" gorm:"index;not null;default:0"`
 	IdempotencyKey             string  `json:"idempotency_key" gorm:"type:varchar(128);index;not null"`
 	AgentId                    int     `json:"agent_id" gorm:"index;not null"`
+	AgentUserId                int     `json:"agent_user_id" gorm:"index;not null;default:0"`
+	AgentUserName              string  `json:"agent_user_name" gorm:"type:varchar(128);default:''"`
+	AgentAgentId               int     `json:"agent_agent_id" gorm:"index;not null;default:0"`
 	UserId                     int     `json:"user_id" gorm:"index;not null"`
+	BuyUserId                  int     `json:"buy_user_id" gorm:"index;not null;default:0"`
+	BuyUserName                string  `json:"buy_user_name" gorm:"type:varchar(128);default:''"`
 	BuyerUserId                int     `json:"buyer_user_id" gorm:"index;not null;default:0"`
 	BuyerUsername              string  `json:"buyer_username" gorm:"type:varchar(64);default:''"`
 	BuyerDisplayName           string  `json:"buyer_display_name" gorm:"type:varchar(128);default:''"`
@@ -68,6 +75,7 @@ type DistributionOrder struct {
 	RedeemCodeOwnerUsername    string  `json:"redeem_code_owner_username" gorm:"type:varchar(64);default:''"`
 	RedeemCodeOwnerDisplayName string  `json:"redeem_code_owner_display_name" gorm:"type:varchar(128);default:''"`
 	RedeemCodeOwnerEmail       string  `json:"redeem_code_owner_email" gorm:"type:varchar(255);default:''"`
+	AgentActiveCode            string  `json:"agent_active_code" gorm:"type:varchar(96);index;default:''"`
 	OriginalAmount             float64 `json:"original_amount" gorm:"type:decimal(10,6);not null;default:0"`
 	DiscountAmount             float64 `json:"discount_amount" gorm:"type:decimal(10,6);not null;default:0"`
 	CreditDeductionAmount      float64 `json:"credit_deduction_amount" gorm:"type:decimal(10,6);not null;default:0"`
@@ -81,6 +89,7 @@ type DistributionOrder struct {
 	Status                     string  `json:"status" gorm:"type:varchar(32);index;not null;default:'pending'"`
 	PaidAt                     int64   `json:"paid_at" gorm:"bigint;default:0"`
 	FulfilledAt                int64   `json:"fulfilled_at" gorm:"bigint;default:0"`
+	CompletedAt                int64   `json:"completed_at" gorm:"bigint;default:0"`
 	CreatedAt                  int64   `json:"created_at" gorm:"bigint"`
 	UpdatedAt                  int64   `json:"updated_at" gorm:"bigint"`
 }

@@ -25,7 +25,7 @@ type BillingPreferenceRequest struct {
 
 type SubscriptionBalancePayRequest struct {
 	PlanId    int    `json:"plan_id"`
-	PromoCode string `json:"promo_code"` // 可选促销码，折后扣费
+	PromoCode string `json:"promo_code"` // compatibility only; ordinary redemption codes are not promo discounts
 }
 
 // ---- User APIs ----

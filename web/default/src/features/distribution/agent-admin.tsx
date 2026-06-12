@@ -77,6 +77,8 @@ import { DateRangeField } from './date-fields'
 import {
   distributionOrderStatusLabel,
   distributionOrderStatuses,
+  distributionOrderTypeLabel,
+  distributionOrderTypes,
   distributionPriceTargetLabel,
   distributionPriceTypeLabel,
   distributionSourceTypeLabel,
@@ -325,6 +327,7 @@ const emptyPriceForm = {
 
 const emptyOrderFilters = {
   keyword: '',
+  order_type: '',
   plan_id: '',
   status: '',
   start_time: '',
@@ -533,6 +536,7 @@ export function AgentAdmin() {
             p: orderPage,
             page_size: pageSize,
             keyword: orderFilters.keyword,
+            order_type: orderFilters.order_type || undefined,
             plan_id: orderFilters.plan_id
               ? Number(orderFilters.plan_id)
               : undefined,
@@ -862,8 +866,8 @@ export function AgentAdmin() {
       toast.error(apiActionError(res.message))
       return
     }
-    toast.success(t("Saved"))
-    await refreshTab("ops")
+    toast.success(t('Saved'))
+    await refreshTab('ops')
   }
 
   async function handleReGrantOps(row: DistributionOpsAuthorization) {
@@ -875,7 +879,6 @@ export function AgentAdmin() {
     toast.success(t('Granted'))
     await refreshTab('ops')
   }
-
 
   const dialogTitle =
     dialogKind === 'agent'
@@ -1070,7 +1073,7 @@ export function AgentAdmin() {
 
           <TabsContent value='orders' className='space-y-4'>
             <TabCard title={t('Order Lookup')}>
-              <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+              <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-5'>
                 <div className='space-y-2'>
                   <Label>{t('Buyer')}</Label>
                   <Input
@@ -1085,6 +1088,42 @@ export function AgentAdmin() {
                       }))
                     }
                   />
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Order Type')}</Label>
+                  <Select
+                    value={orderFilterDraft.order_type || 'all'}
+                    onValueChange={(value) =>
+                      setOrderFilterDraft((state) => ({
+                        ...state,
+                        order_type: !value || value === 'all' ? '' : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectDisplay
+                        label={
+                          orderFilterDraft.order_type
+                            ? distributionOrderTypeLabel(
+                                orderFilterDraft.order_type,
+                                t
+                              )
+                            : t('All Types')
+                        }
+                        placeholder={t('All Types')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='all'>{t('All Types')}</SelectItem>
+                        {distributionOrderTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {distributionOrderTypeLabel(type, t)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className='space-y-2'>
                   <Label>{t('Subscription Plan')}</Label>
@@ -1178,6 +1217,7 @@ export function AgentAdmin() {
                         end_time: value,
                       }))
                     }
+                    rangePicker
                   />
                 </div>
                 <div className='flex items-end gap-2'>
@@ -1194,8 +1234,11 @@ export function AgentAdmin() {
                 <thead>
                   <tr className='border-b text-left'>
                     <th className='py-2'>{t('Order No')}</th>
+                    <th>{t('Order Type')}</th>
                     <th>{t('Buyer')}</th>
                     <th>{t('Subscription Plan')}</th>
+                    <th>{t('Activation Code')}</th>
+                    <th>{t('Original Amount')}</th>
                     <th>{t('Paid Amount')}</th>
                     <th>{t('Commission')}</th>
                     <th>{t('Status')}</th>
@@ -1204,14 +1247,16 @@ export function AgentAdmin() {
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <EmptyTableRow colSpan={7} loading={loading} />
+                    <EmptyTableRow colSpan={10} loading={loading} />
                   )}
                   {orders.map((row) => (
                     <tr key={row.id} className='border-b'>
                       <td className='py-2 font-mono text-xs'>{row.order_no}</td>
+                      <td>{distributionOrderTypeLabel(row.order_type, t)}</td>
                       <td>
                         <div className='font-medium'>
-                          {row.buyer_display_name?.trim() ||
+                          {row.buy_user_name?.trim() ||
+                            row.buyer_display_name?.trim() ||
                             row.buyer_username?.trim() ||
                             '-'}
                         </div>
@@ -1224,6 +1269,10 @@ export function AgentAdmin() {
                       <td>
                         {row.subscription_title || row.package_name || '-'}
                       </td>
+                      <td className='font-mono text-xs'>
+                        {row.agent_active_code || '-'}
+                      </td>
+                      <td>{formatMoney(row.original_amount)}</td>
                       <td>{formatMoney(row.paid_amount)}</td>
                       <td>{formatMoney(row.commission_amount)}</td>
                       <td>
@@ -1337,21 +1386,21 @@ export function AgentAdmin() {
                       </td>
                       <td>{formatTime(row.granted_at)}</td>
                       <td className='py-2'>
-                        {row.status === "granted" ? (
+                        {row.status === 'granted' ? (
                           <Button
-                            variant="outline"
-                            size="sm"
+                            variant='outline'
+                            size='sm'
                             onClick={() => void handleRevokeOps(row)}
                           >
-                            {t("Revoke")}
+                            {t('Revoke')}
                           </Button>
                         ) : (
                           <Button
-                            variant="outline"
-                            size="sm"
+                            variant='outline'
+                            size='sm'
                             onClick={() => void handleReGrantOps(row)}
                           >
-                            {t("Grant")}
+                            {t('Grant')}
                           </Button>
                         )}
                       </td>

@@ -21,6 +21,9 @@ import { ArrowRight, Crown, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
 // Agent entry point on the wallet page:
 // - Agents (role === ROLE.AGENT): prominent gradient banner linking to /agent
@@ -32,34 +35,65 @@ export function AgentBanner() {
 
   if (isAgent) {
     return (
-      <Link
-        to='/agent'
-        className='group from-primary/10 via-primary/5 to-card hover:border-primary/40 flex items-center justify-between gap-3 rounded-xl border bg-gradient-to-r px-4 py-3.5 transition-colors sm:px-5'
-      >
-        <div className='flex min-w-0 items-center gap-3'>
-          <div className='bg-primary/15 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
-            <Crown className='h-4 w-4' />
+      <Card className='from-primary/10 via-primary/5 to-card rounded-xl bg-gradient-to-r py-0'>
+        <CardContent className='space-y-3 p-4 sm:p-5'>
+          <div className='flex items-start justify-between gap-3'>
+            <div className='flex min-w-0 items-center gap-3'>
+              <div className='bg-primary/15 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+                <Crown className='h-4 w-4' />
+              </div>
+              <div className='min-w-0'>
+                <div className='text-sm font-semibold'>
+                  {t('Agent program upgraded')}
+                </div>
+                <p className='text-muted-foreground line-clamp-2 text-xs'>
+                  {t('Track your referrals, commissions and withdrawals')}
+                </p>
+              </div>
+            </div>
+            <Badge variant='secondary'>{t('Agent')}</Badge>
           </div>
-          <div className='min-w-0'>
-            <div className='text-sm font-semibold'>{t('Agent Center')}</div>
-            <p className='text-muted-foreground truncate text-xs'>
-              {t('Track your referrals, commissions and withdrawals')}
-            </p>
-          </div>
-        </div>
-        <ArrowRight className='text-muted-foreground group-hover:text-foreground h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5' />
-      </Link>
+
+          <Button className='w-full gap-2' render={<Link to='/agent' />}>
+            {t('Open Agent Center')}
+            <ArrowRight className='h-4 w-4' />
+          </Button>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <Link
-      to='/agent/guide'
-      className='text-muted-foreground hover:text-foreground group inline-flex items-center gap-1.5 self-start text-xs transition-colors'
-    >
-      <Sparkles className='h-3.5 w-3.5' />
-      {t('Learn about the agent program — share to earn')}
-      <ArrowRight className='h-3 w-3 transition-transform group-hover:translate-x-0.5' />
-    </Link>
+    <Card className='rounded-xl py-0'>
+      <CardContent className='space-y-3 p-4 sm:p-5'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='flex min-w-0 items-center gap-3'>
+            <div className='bg-accent-amber/15 text-accent-amber flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+              <Sparkles className='h-4 w-4' />
+            </div>
+            <div className='min-w-0'>
+              <div className='text-sm font-semibold'>
+                {t('Not an agent yet')}
+              </div>
+              <p className='text-muted-foreground line-clamp-2 text-xs'>
+                {t(
+                  'Upgrade to agent to unlock reseller pricing and commission workflows.'
+                )}
+              </p>
+            </div>
+          </div>
+          <Badge variant='outline'>{t('Referral Program')}</Badge>
+        </div>
+
+        <Button
+          variant='outline'
+          className='w-full gap-2'
+          render={<Link to='/agent/guide' />}
+        >
+          {t('View upgrade guide')}
+          <ArrowRight className='h-4 w-4' />
+        </Button>
+      </CardContent>
+    </Card>
   )
 }

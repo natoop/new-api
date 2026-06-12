@@ -16,8 +16,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,32 +36,6 @@ func ValidateSubscriptionPromo(c *gin.Context) {
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
-	if err != nil {
-		common.ApiErrorMsg(c, "套餐不存在")
-		return
-	}
-	if !plan.Enabled {
-		common.ApiErrorMsg(c, "套餐未启用")
-		return
-	}
-
-	promo, err := service.ValidatePromoCode(req.Code, plan.Id)
-	if err != nil {
-		// 防枚举：与 Redeem 一致，校验失败时随机延迟，拉平时序侧信道
-		common.RandomSleep()
-		common.ApiErrorMsg(c, err.Error())
-		return
-	}
-
-	finalAmount := service.ApplyPromoDiscount(plan.PriceAmount, promo.DiscountBps)
-	common.ApiSuccess(c, gin.H{
-		"code":            strings.TrimSpace(req.Code),
-		"plan_id":         plan.Id,
-		"plan_title":      plan.Title,
-		"currency":        plan.Currency,
-		"discount_bps":    promo.DiscountBps,
-		"original_amount": plan.PriceAmount,
-		"final_amount":    finalAmount,
-	})
+	common.RandomSleep()
+	common.ApiErrorMsg(c, "优惠码功能已禁用")
 }

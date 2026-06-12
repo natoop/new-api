@@ -47,12 +47,24 @@ export const distributionOrderStatuses = [
   'cancelled',
 ] as const
 
+export const distributionOrderTypes = [
+  'original',
+  'inventory',
+  'redeem',
+] as const
+
 const orderStatusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
   fulfilled: 'Fulfilled',
   paid: 'Paid',
   pending: 'Pending',
   refunded: 'Refunded',
+}
+
+const orderTypeLabels: Record<string, string> = {
+  inventory: 'Agent Inventory Order',
+  original: 'Original Order',
+  redeem: 'Redemption Order',
 }
 
 const scopeLabels: Record<string, string> = {
@@ -96,7 +108,10 @@ const discountTypeLabels: Record<string, string> = {
   percent: 'Percent',
 }
 
-export function distributionStatusLabel(status: string | undefined, t: Translate) {
+export function distributionStatusLabel(
+  status: string | undefined,
+  t: Translate
+) {
   if (!status) return '-'
   return t(statusLabels[status] || status)
 }
@@ -109,7 +124,18 @@ export function distributionOrderStatusLabel(
   return t(orderStatusLabels[status] || status)
 }
 
-export function distributionScopeLabel(scope: string | undefined, t: Translate) {
+export function distributionOrderTypeLabel(
+  type: string | undefined,
+  t: Translate
+) {
+  if (!type) return '-'
+  return t(orderTypeLabels[type] || type)
+}
+
+export function distributionScopeLabel(
+  scope: string | undefined,
+  t: Translate
+) {
   if (!scope) return '-'
   return t(scopeLabels[scope] || scope)
 }
@@ -122,22 +148,34 @@ export function distributionPriceTargetLabel(
   return t(priceTargetLabels[target] || target)
 }
 
-export function distributionPriceTypeLabel(type: string | undefined, t: Translate) {
+export function distributionPriceTypeLabel(
+  type: string | undefined,
+  t: Translate
+) {
   if (!type) return '-'
   return t(priceTypeLabels[type] || type)
 }
 
-export function distributionLedgerEntryLabel(type: string | undefined, t: Translate) {
+export function distributionLedgerEntryLabel(
+  type: string | undefined,
+  t: Translate
+) {
   if (!type) return '-'
   return t(ledgerEntryLabels[type] || type)
 }
 
-export function distributionSourceTypeLabel(type: string | undefined, t: Translate) {
+export function distributionSourceTypeLabel(
+  type: string | undefined,
+  t: Translate
+) {
   if (!type) return '-'
   return t(sourceTypeLabels[type] || type)
 }
 
-export function distributionDiscountTypeLabel(type: string | undefined, t: Translate) {
+export function distributionDiscountTypeLabel(
+  type: string | undefined,
+  t: Translate
+) {
   if (!type) return '-'
   return t(discountTypeLabels[type] || type)
 }

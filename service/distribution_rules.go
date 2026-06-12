@@ -19,6 +19,9 @@ const (
 	DistributionIdempotencyKeyMaxLen     = 128
 	DistributionStatusEnabled            = "enabled"
 	DistributionStatusDisabled           = "disabled"
+	DistributionOrderTypeOriginal        = "original"
+	DistributionOrderTypeInventory       = "inventory"
+	DistributionOrderTypeRedeem          = "redeem"
 	DistributionOrderStatusPending       = "pending"
 	DistributionOrderStatusPaid          = "paid"
 	DistributionOrderStatusFulfilled     = "fulfilled"
@@ -113,6 +116,10 @@ func ValidateDistributionStatus(status string) error {
 }
 
 func BuildPurchaseOrderNo(userID int, packageID int, key string) string {
+	return strconv.FormatInt(nextDistributionSnowflakeID(), 10)
+}
+
+func BuildDistributionOrderNo(orderType string) string {
 	return strconv.FormatInt(nextDistributionSnowflakeID(), 10)
 }
 

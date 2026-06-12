@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -41,10 +43,13 @@ export function AffiliateRewardsCard({
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
+  const authUser = useAuthStore((state) => state.auth.user)
+  const isAgent = (authUser?.role ?? 0) === ROLE.AGENT
+
   if (loading) {
     return (
       <Card className='bg-muted/20 py-0'>
-        <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(320px,1.15fr)] lg:items-center'>
+        <CardContent className='space-y-4 p-4 sm:p-5'>
           <div>
             <Skeleton className='h-5 w-32' />
             <Skeleton className='mt-2 h-4 w-48' />
@@ -59,8 +64,8 @@ export function AffiliateRewardsCard({
 
   return (
     <Card className='bg-muted/20 py-0'>
-      <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(280px,1fr)] lg:items-center'>
-        <div className='flex min-w-0 items-center gap-2.5'>
+      <CardContent className='space-y-4 p-4 sm:p-5'>
+        <div className='flex min-w-0 items-start gap-2.5'>
           <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
             <Share2 className='text-muted-foreground size-4' />
           </div>
@@ -68,10 +73,14 @@ export function AffiliateRewardsCard({
             <h3 className='truncate text-sm font-semibold'>
               {t('Referral Program')}
             </h3>
-            <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
-              )}
+            <p className='text-muted-foreground line-clamp-2 text-xs'>
+              {isAgent
+                ? t(
+                    'Your agent link is ready. Share it and track earnings in Agent Center.'
+                  )
+                : t(
+                    'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+                  )}
             </p>
           </div>
         </div>
@@ -93,7 +102,7 @@ export function AffiliateRewardsCard({
           {hasRewards && (
             <Button
               onClick={onTransfer}
-              disabled={!complianceConfirmed}
+              disabled={!complianceConfirmed || !isAgent}
               className='h-9 shrink-0 px-3'
               size='sm'
             >
@@ -101,8 +110,15 @@ export function AffiliateRewardsCard({
             </Button>
           )}
         </div>
+        {!isAgent ? (
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Upgrade to agent to unlock reseller pricing and commission workflows.'
+            )}
+          </p>
+        ) : null}
         {!complianceConfirmed ? (
-          <p className='text-muted-foreground text-xs lg:col-span-3'>
+          <p className='text-muted-foreground text-xs'>
             {t(
               'Referral reward transfer is disabled until the administrator confirms compliance terms.'
             )}

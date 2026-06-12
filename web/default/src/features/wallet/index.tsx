@@ -24,6 +24,7 @@ import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { AgentBanner } from './components/agent-banner'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { MySubscriptionCard } from './components/my-subscription-card'
 import { RedemptionCard } from './components/redemption-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { WalletTabs } from './components/wallet-tabs'
@@ -40,6 +41,8 @@ export function Wallet(props: WalletProps) {
   const [userLoading, setUserLoading] = useState(true)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [walletTab, setWalletTab] = useState<'topup' | 'plans'>('topup')
+  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0)
 
   const { topupInfo } = useTopupInfo()
   const {
@@ -85,6 +88,14 @@ export function Wallet(props: WalletProps) {
     return success
   }
 
+  const handlePurchaseSuccess = async () => {
+    await fetchUser()
+    setSubscriptionRefreshKey((key) => key + 1)
+  }
+
+  const goTopupTab = () => setWalletTab('topup')
+  const goPlansTab = () => setWalletTab('plans')
+
   return (
     <>
       <SectionPageLayout ambient>
@@ -93,31 +104,50 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
-            <RedemptionCard
-              enabled={topupInfo?.enable_redemption !== false}
-              topupLink={topupInfo?.topup_link}
-              onRedeemed={fetchUser}
-            />
+            <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]'>
+              <div className='min-w-0 space-y-4'>
+                <WalletTabs
+                  value={walletTab}
+                  onValueChange={(value) =>
+                    setWalletTab(value as 'topup' | 'plans')
+                  }
+                  topupInfo={topupInfo}
+                  userQuota={user?.quota}
+                  onPurchaseSuccess={handlePurchaseSuccess}
+                  onRedeemed={fetchUser}
+                  onOpenBilling={() => setBillingDialogOpen(true)}
+                  onGoTopup={goTopupTab}
+                />
 
-            <AgentBanner />
+                <RedemptionCard
+                  enabled={topupInfo?.enable_redemption !== false}
+                  topupLink={topupInfo?.topup_link}
+                  onRedeemed={async () => {
+                    await fetchUser()
+                    setSubscriptionRefreshKey((key) => key + 1)
+                  }}
+                />
+              </div>
 
-            <WalletTabs
-              topupInfo={topupInfo}
-              userQuota={user?.quota}
-              onPurchaseSuccess={fetchUser}
-              onRedeemed={fetchUser}
-              onOpenBilling={() => setBillingDialogOpen(true)}
-            />
+              <div className='min-w-0 space-y-4'>
+                <MySubscriptionCard
+                  refreshKey={subscriptionRefreshKey}
+                  onGoPlans={goPlansTab}
+                />
 
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
+                <AgentBanner />
+
+                <AffiliateRewardsCard
+                  user={user}
+                  affiliateLink={affiliateLink}
+                  onTransfer={() => setTransferDialogOpen(true)}
+                  complianceConfirmed={
+                    topupInfo?.payment_compliance_confirmed !== false
+                  }
+                  loading={affiliateLoading}
+                />
+              </div>
+            </div>
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

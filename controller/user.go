@@ -1160,7 +1160,25 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result, err := model.Redeem(req.Key, id)
+	inventoryResult, err := service.RedeemDistributionInventoryCode(id, req.Key)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+		return
+	}
+	if inventoryResult != nil && inventoryResult.Matched {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "兑换成功，套餐已开通",
+			"data": gin.H{
+				"quota":      0,
+				"type":       "plan",
+				"plan_id":    inventoryResult.PlanId,
+				"plan_title": inventoryResult.PlanTitle,
+			},
+		})
+		return
+	}
+	quota, err := model.Redeem(req.Key, id)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
@@ -1169,21 +1187,15 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	message := ""
-	switch result.Type {
-	case model.RedemptionTypePlan:
-		message = "兑换成功，套餐已开通"
-	case model.RedemptionTypeBalance:
-		message = "兑换成功，余额已到账"
-	}
+	message := "兑换成功，余额已到账"
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": message,
 		"data": gin.H{
-			"quota":      result.Quota,
-			"type":       result.Type,
-			"plan_id":    result.PlanId,
-			"plan_title": result.PlanTitle,
+			"quota":      quota,
+			"type":       "balance",
+			"plan_id":    0,
+			"plan_title": "",
 		},
 	})
 }

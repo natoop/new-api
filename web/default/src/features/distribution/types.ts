@@ -188,12 +188,23 @@ export interface DistributionOpsAuthorization {
 export interface DistributionOrderRecord {
   id: number
   order_no: string
+  order_type?: string
+  subscription_order_id?: number
+  buy_user_id?: number
+  buy_user_name?: string
+  agent_user_id?: number
+  agent_user_name?: string
+  agent_agent_id?: number
+  agent_active_code?: string
   buyer_username?: string
   buyer_display_name?: string
   buyer_email?: string
+  package_id?: number
   subscription_plan_id: number
+  subscription_subtitle?: string
   subscription_title?: string
   package_name?: string
+  quantity?: number
   original_amount: number
   discount_amount: number
   paid_amount: number

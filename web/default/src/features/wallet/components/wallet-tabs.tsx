@@ -19,44 +19,50 @@ For commercial licensing, please contact support@quantumnous.com
 import { Crown, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { TopupInfo } from '../types'
 import { PayAsYouGoTab } from './pay-as-you-go-tab'
 import { PurchasePlansTab } from './purchase-plans-tab'
 
 interface WalletTabsProps {
+  value?: string
+  onValueChange?: (value: string) => void
   topupInfo: TopupInfo | null
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
   onRedeemed?: () => void | Promise<void>
   onOpenBilling?: () => void
+  onGoTopup?: () => void
 }
 
 export function WalletTabs({
+  value,
+  onValueChange,
   topupInfo,
   userQuota,
   onPurchaseSuccess,
   onRedeemed,
   onOpenBilling,
+  onGoTopup,
 }: WalletTabsProps) {
   const { t } = useTranslation()
 
   return (
-    <Tabs defaultValue='plans' className='gap-3 sm:gap-4'>
+    <Tabs
+      value={value}
+      defaultValue='topup'
+      onValueChange={onValueChange}
+      className='gap-3 sm:gap-4'
+    >
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <TabsList className='h-9'>
-          <TabsTrigger value='plans' className='gap-1.5 px-3'>
-            <Crown className='h-3.5 w-3.5' />
-            {t('Buy Plans')}
-          </TabsTrigger>
           <TabsTrigger value='topup' className='gap-1.5 px-3'>
             <WalletCards className='h-3.5 w-3.5' />
             {t('Pay as you go')}
+          </TabsTrigger>
+          <TabsTrigger value='plans' className='gap-1.5 px-3'>
+            <Crown className='h-3.5 w-3.5' />
+            {t('Buy Plans')}
           </TabsTrigger>
         </TabsList>
         {onOpenBilling && (
@@ -77,6 +83,7 @@ export function WalletTabs({
           topupInfo={topupInfo}
           userQuota={userQuota}
           onPurchaseSuccess={onPurchaseSuccess}
+          onGoTopup={onGoTopup}
         />
       </TabsContent>
 
