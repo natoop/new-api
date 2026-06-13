@@ -99,8 +99,8 @@ export function Cooperation() {
           </div>
 
           {/* Inline form + brand visual */}
-          <div className='mt-8 grid gap-6 lg:grid-cols-2'>
-            <div className='glass-card rounded-2xl p-6'>
+          <div className='mt-8 grid items-stretch gap-6 lg:grid-cols-2'>
+            <div className='glass-card flex flex-col rounded-2xl p-6'>
               <h2 className='text-lg font-semibold tracking-tight'>
                 {t('Start a partnership')}
               </h2>

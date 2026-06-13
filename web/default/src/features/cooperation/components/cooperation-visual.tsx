@@ -19,60 +19,80 @@ For commercial licensing, please contact support@quantumnous.com
 import { Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { AnimateInView } from '@/components/animate-in-view'
 
-// Floating brand chips — keys verified renderable via @lobehub/icons (.Color).
-// `top`/`left` place each chip; `delay` staggers the entrance.
-const FLOATING_ICONS = [
-  { key: 'OpenAI.Color', top: '8%', left: '12%', size: 40, delay: 0 },
-  { key: 'Claude.Color', top: '18%', left: '64%', size: 48, delay: 90 },
-  { key: 'Gemini.Color', top: '40%', left: '24%', size: 44, delay: 180 },
-  { key: 'DeepSeek.Color', top: '34%', left: '74%', size: 38, delay: 270 },
-  { key: 'Qwen.Color', top: '62%', left: '14%', size: 42, delay: 360 },
-  { key: 'Kimi.Color', top: '70%', left: '58%', size: 40, delay: 450 },
-  { key: 'Mistral.Color', top: '78%', left: '36%', size: 36, delay: 540 },
-  { key: 'Doubao.Color', top: '52%', left: '50%', size: 46, delay: 630 },
-] as const
+interface Brand {
+  key: string
+  name: string
+}
+
+// Domestic vendors lead the wall; a few global names are sprinkled in.
+const COLUMN_A: readonly Brand[] = [
+  { key: 'DeepSeek.Color', name: 'DeepSeek' },
+  { key: 'Qwen.Color', name: 'Qwen' },
+  { key: 'Kimi.Color', name: 'Kimi' },
+  { key: 'Zhipu.Color', name: 'ChatGLM' },
+  { key: 'Doubao.Color', name: 'Doubao' },
+  { key: 'Hunyuan.Color', name: 'Hunyuan' },
+  { key: 'OpenAI.Color', name: 'OpenAI' },
+]
+
+const COLUMN_B: readonly Brand[] = [
+  { key: 'Wenxin.Color', name: 'ERNIE' },
+  { key: 'Spark.Color', name: 'Spark' },
+  { key: 'Minimax.Color', name: 'MiniMax' },
+  { key: 'Baichuan.Color', name: 'Baichuan' },
+  { key: 'Yi.Color', name: 'Yi' },
+  { key: 'Claude.Color', name: 'Claude' },
+  { key: 'Gemini.Color', name: 'Gemini' },
+]
+
+function BrandChip(props: { brand: Brand }) {
+  return (
+    <div className='border-border/50 bg-background/70 flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-sm backdrop-blur-sm'>
+      <span className='flex size-6 shrink-0 items-center justify-center'>
+        {getLobeIcon(props.brand.key, 22)}
+      </span>
+      <span className='text-foreground/85 truncate text-sm font-medium'>
+        {props.brand.name}
+      </span>
+    </div>
+  )
+}
+
+function ScrollColumn(props: {
+  brands: readonly Brand[]
+  direction: 'up' | 'down'
+}) {
+  const animation =
+    props.direction === 'up' ? 'animate-scroll-up' : 'animate-scroll-down'
+  return (
+    <div className={`flex flex-col gap-3 ${animation}`}>
+      {[...props.brands, ...props.brands].map((brand, i) => (
+        <BrandChip key={`${brand.key}-${i}`} brand={brand} />
+      ))}
+    </div>
+  )
+}
 
 export function CooperationVisual() {
   const { t } = useTranslation()
 
   return (
-    <div className='glass-card relative h-full min-h-80 overflow-hidden rounded-2xl p-6'>
+    <div className='glass-card relative flex h-full min-h-80 flex-col overflow-hidden rounded-2xl'>
       {/* Brand-tinted gradient wash */}
       <div
         aria-hidden
         className='pointer-events-none absolute inset-0 opacity-70 dark:opacity-50'
         style={{
           background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 35%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 55% 50% at 80% 75%, oklch(0.72 0.16 155 / 28%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 60% 50% at 20% 15%, oklch(0.72 0.18 250 / 35%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 55% 50% at 85% 85%, oklch(0.72 0.16 155 / 28%) 0%, transparent 70%)',
           ].join(', '),
         }}
       />
 
-      {/* Floating colored model icons */}
-      <div aria-hidden className='absolute inset-0'>
-        {FLOATING_ICONS.map((item) => (
-          <span
-            key={item.key}
-            className='absolute'
-            style={{ top: item.top, left: item.left }}
-          >
-            <AnimateInView animation='scale-in' delay={item.delay}>
-              <span
-                className='cooperation-float bg-background/70 ring-border/50 flex items-center justify-center rounded-2xl p-2.5 shadow-md ring-1 backdrop-blur-sm'
-                style={{ animationDelay: `${item.delay}ms` }}
-              >
-                {getLobeIcon(item.key, item.size)}
-              </span>
-            </AnimateInView>
-          </span>
-        ))}
-      </div>
-
-      {/* Caption */}
-      <div className='relative flex h-full flex-col justify-end'>
+      {/* Header */}
+      <div className='relative z-10 px-6 pt-6'>
         <div className='bg-primary/10 text-primary ring-primary/15 mb-3 flex size-10 w-fit items-center justify-center rounded-xl ring-1 ring-inset'>
           <Sparkles className='size-5' />
         </div>
@@ -84,6 +104,18 @@ export function CooperationVisual() {
             'Global frontier and domestic models, unified behind a single stable endpoint — ready to power your products at scale.'
           )}
         </p>
+      </div>
+
+      {/* Scrolling brand wall — domestic-led, global sprinkled in; runs to the
+          card's bottom edge so its height tracks the form column beside it. */}
+      <div
+        aria-hidden
+        className='relative z-10 mt-6 min-h-44 flex-1 overflow-hidden px-6 [mask-image:linear-gradient(to_bottom,transparent,#000_10%,#000_92%,transparent)]'
+      >
+        <div className='grid grid-cols-2 gap-3'>
+          <ScrollColumn brands={COLUMN_A} direction='up' />
+          <ScrollColumn brands={COLUMN_B} direction='down' />
+        </div>
       </div>
     </div>
   )
