@@ -56,6 +56,11 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
+export type XunhuPaymentResponse = ApiResponse<{
+  pay_url?: string
+  qr_url?: string
+  order_no?: string
+}>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
@@ -209,6 +214,16 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+}
+
+/**
+ * Xunhu payment request parameters
+ */
+export interface XunhuPaymentRequest {
+  /** Topup amount */
+  amount: number
+  /** Xunhu pay type */
+  pay_type: 'wechat' | 'alipay'
 }
 
 /**

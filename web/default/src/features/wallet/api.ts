@@ -28,6 +28,8 @@ import type {
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
+  XunhuPaymentRequest,
+  XunhuPaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
   BillingHistoryResponse,
@@ -117,6 +119,18 @@ export async function requestStripePayment(
   request: PaymentRequest
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request XunhuPay payment
+ */
+export async function requestXunhuPayment(
+  request: XunhuPaymentRequest
+): Promise<XunhuPaymentResponse> {
+  const res = await api.post('/api/user/xunhu/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

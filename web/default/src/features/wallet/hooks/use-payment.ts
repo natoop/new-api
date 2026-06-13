@@ -26,6 +26,7 @@ import {
   calculateXunhuAmount,
   requestPayment,
   requestStripePayment,
+  requestXunhuPayment,
   isApiSuccess,
 } from '../api'
 import {
@@ -38,6 +39,10 @@ import {
 // ============================================================================
 // Payment Hook
 // ============================================================================
+
+function getXunhuPayType(paymentType: string): 'wechat' | 'alipay' {
+  return paymentType === 'xunhu-alipay' ? 'alipay' : 'wechat'
+}
 
 export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
@@ -93,33 +98,54 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isXunhu = isXunhuPayment(paymentType)
         const amount = Math.floor(topupAmount)
 
-        const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-            })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+        if (isStripe) {
+          const response = await requestStripePayment({
+            amount,
+            payment_method: 'stripe',
+          })
+          if (!isApiSuccess(response)) {
+            toast.error(response.message || i18next.t('Payment request failed'))
+            return false
+          }
+          if (response.data?.pay_link) {
+            window.open(response.data.pay_link, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+          return false
+        }
 
+        if (isXunhu) {
+          const response = await requestXunhuPayment({
+            amount,
+            pay_type: getXunhuPayType(paymentType),
+          })
+          if (!isApiSuccess(response)) {
+            toast.error(response.message || i18next.t('Payment request failed'))
+            return false
+          }
+          const payUrl = response.data?.pay_url || response.data?.qr_url
+          if (payUrl) {
+            window.open(payUrl, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+          return false
+        }
+
+        const response = await requestPayment({
+          amount,
+          payment_method: paymentType,
+        })
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
-
-        // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
-          return true
-        }
-
-        // Handle non-Stripe payment
-        if (!isStripe && response.data) {
-          const url = (response as unknown as { url?: string }).url
+        if (response.data) {
+          const url = response.url
           if (url) {
             submitPaymentForm(url, response.data)
             toast.success(i18next.t('Redirecting to payment page...'))
