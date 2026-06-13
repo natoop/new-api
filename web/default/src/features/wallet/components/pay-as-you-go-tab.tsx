@@ -32,6 +32,7 @@ import {
   getDefaultPaymentType,
   getDiscountLabel,
   getMinTopupAmount,
+  getPaymentTypeDisplayName,
   mergePresetAmounts,
 } from '../lib'
 import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
@@ -309,7 +310,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                       {m.icon ? (
                         <img src={m.icon} alt='' className='size-4' />
                       ) : null}
-                      {m.name}
+                      {getPaymentTypeDisplayName(m.type, m.name, t)}
                     </button>
                   )
                 })}

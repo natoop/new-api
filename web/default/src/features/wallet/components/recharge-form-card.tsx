@@ -39,6 +39,7 @@ import {
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
+  getPaymentTypeDisplayName,
   calculatePresetPricing,
 } from '../lib'
 import type {
@@ -331,7 +332,7 @@ export function RechargeFormCard({
                               method.name
                             )
                           )}
-                          <span className='truncate'>{method.name}</span>
+                          <span className='truncate'>{getPaymentTypeDisplayName(method.type, method.name, t)}</span>
                         </Button>
                       )
 
@@ -394,7 +395,7 @@ export function RechargeFormCard({
                             ) : (
                               getPaymentIcon('waffo')
                             )}
-                            <span className='truncate'>{method.name}</span>
+                            <span className='truncate'>{getPaymentTypeDisplayName(method.payMethodType, method.name, t)}</span>
                           </Button>
                         )
 

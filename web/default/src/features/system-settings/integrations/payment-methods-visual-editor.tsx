@@ -46,58 +46,6 @@ type PaymentMethodsVisualEditorProps = {
   onChange: (value: string) => void
 }
 
-const PAYMENT_TEMPLATES = [
-  {
-    name: 'Alipay',
-    template: {
-      color: 'rgba(var(--semi-blue-5), 1)',
-      name: '支付宝',
-      type: 'alipay',
-    },
-  },
-  {
-    name: 'WeChat Pay',
-    template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: '微信',
-      type: 'wxpay',
-    },
-  },
-  {
-    name: 'Stripe',
-    template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: 'Stripe',
-      type: 'stripe',
-    },
-  },
-  {
-    name: 'XunhuPay WeChat',
-    template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: '微信',
-      type: 'xunhu-wechat',
-    },
-  },
-  {
-    name: 'XunhuPay Alipay',
-    template: {
-      color: 'rgba(var(--semi-blue-5), 1)',
-      name: '支付宝',
-      type: 'xunhu-alipay',
-    },
-  },
-  {
-    name: 'Custom',
-    template: {
-      color: 'black',
-      min_topup: '50',
-      name: '自定义1',
-      type: 'custom1',
-    },
-  },
-]
-
 export function PaymentMethodsVisualEditor({
   value,
   onChange,
@@ -106,6 +54,61 @@ export function PaymentMethodsVisualEditor({
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<PaymentMethodData | null>(null)
+
+  const paymentTemplates = useMemo(
+    () => [
+      {
+        name: t('Alipay'),
+        template: {
+          color: 'rgba(var(--semi-blue-5), 1)',
+          name: '支付宝',
+          type: 'alipay',
+        },
+      },
+      {
+        name: t('WeChat Pay'),
+        template: {
+          color: 'rgba(var(--semi-green-5), 1)',
+          name: '微信',
+          type: 'wxpay',
+        },
+      },
+      {
+        name: t('Stripe'),
+        template: {
+          color: 'rgba(var(--semi-green-5), 1)',
+          name: 'Stripe',
+          type: 'stripe',
+        },
+      },
+      {
+        name: t('WeChat Pay'),
+        template: {
+          color: 'rgba(var(--semi-green-5), 1)',
+          name: '微信',
+          type: 'xunhu-wechat',
+        },
+      },
+      {
+        name: t('Alipay'),
+        template: {
+          color: 'rgba(var(--semi-blue-5), 1)',
+          name: '支付宝',
+          type: 'xunhu-alipay',
+        },
+      },
+      {
+        name: t('Custom'),
+        template: {
+          color: 'black',
+          min_topup: '50',
+          name: '自定义1',
+          type: 'custom1',
+        },
+      },
+    ],
+    [t]
+  )
 
   const paymentMethods = useMemo(() => {
     const parsed = safeJsonParseWithValidation<unknown[]>(value, {
@@ -261,7 +264,7 @@ export function PaymentMethodsVisualEditor({
                   {t('Quick insert common payment methods')}
                 </p>
                 <div className='space-y-1'>
-                  {PAYMENT_TEMPLATES.map((item) => (
+                  {paymentTemplates.map((item) => (
                     <Button
                       key={item.name}
                       type='button'

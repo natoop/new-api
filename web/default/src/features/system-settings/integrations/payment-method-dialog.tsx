@@ -63,14 +63,6 @@ type PaymentMethodDialogProps = {
   editData?: PaymentMethodData | null
 }
 
-const PAYMENT_TYPES = [
-  { value: 'alipay', label: 'Alipay' },
-  { value: 'wxpay', label: 'WeChat Pay' },
-  { value: 'stripe', label: 'Stripe' },
-  { value: 'xunhu-wechat', label: 'XunhuPay WeChat' },
-  { value: 'xunhu-alipay', label: 'XunhuPay Alipay' },
-]
-
 const getColorPreview = (color: string) => {
   if (color.includes('var(--')) {
     return null
@@ -78,29 +70,16 @@ const getColorPreview = (color: string) => {
   return color
 }
 
-const COLOR_PRESETS = [
-  { value: '#1677FF', label: 'Blue (Alipay)' },
-  { value: '#07C160', label: 'Green (WeChat)' },
-  { value: '#635BFF', label: 'Purple (Stripe)' },
-  { value: '#1890FF', label: 'Sky Blue' },
-  { value: '#52C41A', label: 'Lime Green' },
-  { value: 'black', label: 'Black' },
-  { value: '#FF4D4F', label: 'Red' },
-  { value: '#FFA940', label: 'Orange' },
-].map((preset) => {
-  const previewColor = getColorPreview(preset.value)
-  return {
-    ...preset,
-    icon: previewColor ? (
-      <div
-        className='size-4 rounded border'
-        style={{ backgroundColor: previewColor }}
-      />
-    ) : (
-      <div className='bg-muted size-4 rounded border' />
-    ),
-  }
-})
+const COLOR_PRESET_VALUES = [
+  { value: '#1677FF', labelKey: 'Blue (Alipay)' },
+  { value: '#07C160', labelKey: 'Green (WeChat)' },
+  { value: '#635BFF', labelKey: 'Purple (Stripe)' },
+  { value: '#1890FF', labelKey: 'Sky Blue' },
+  { value: '#52C41A', labelKey: 'Lime Green' },
+  { value: 'black', labelKey: 'Black' },
+  { value: '#FF4D4F', labelKey: 'Red' },
+  { value: '#FFA940', labelKey: 'Orange' },
+]
 
 export function PaymentMethodDialog({
   open,
@@ -111,6 +90,37 @@ export function PaymentMethodDialog({
   const { t } = useTranslation()
   const isEditMode = !!editData
   const paymentMethodDialogSchema = createPaymentMethodDialogSchema(t)
+
+  const paymentTypes = useMemo(
+    () => [
+      { value: 'alipay', label: t('Alipay') },
+      { value: 'wxpay', label: t('WeChat Pay') },
+      { value: 'stripe', label: t('Stripe') },
+      { value: 'xunhu-wechat', label: t('WeChat Pay') },
+      { value: 'xunhu-alipay', label: t('Alipay') },
+    ],
+    [t]
+  )
+
+  const colorPresets = useMemo(
+    () =>
+      COLOR_PRESET_VALUES.map((preset) => {
+        const previewColor = getColorPreview(preset.value)
+        return {
+          value: preset.value,
+          label: t(preset.labelKey),
+          icon: previewColor ? (
+            <div
+              className='size-4 rounded border'
+              style={{ backgroundColor: previewColor }}
+            />
+          ) : (
+            <div className='bg-muted size-4 rounded border' />
+          ),
+        }
+      }),
+    [t]
+  )
 
   const form = useForm<PaymentMethodDialogFormValues>({
     resolver: zodResolver(paymentMethodDialogSchema),
@@ -220,7 +230,7 @@ export function PaymentMethodDialog({
                 <FormLabel>{t('Type')}</FormLabel>
                 <FormControl>
                   <Combobox
-                    options={PAYMENT_TYPES}
+                    options={paymentTypes}
                     value={field.value}
                     onValueChange={field.onChange}
                     placeholder={t('Select or enter payment type')}
@@ -245,7 +255,7 @@ export function PaymentMethodDialog({
                 <FormControl>
                   <div className='flex items-center gap-2'>
                     <Combobox
-                      options={COLOR_PRESETS}
+                      options={colorPresets}
                       value={field.value}
                       onValueChange={field.onChange}
                       placeholder={t('Select or enter color value')}

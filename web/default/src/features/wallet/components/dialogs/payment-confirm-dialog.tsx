@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_DISCOUNT_RATE } from '../../constants'
-import { getPaymentIcon } from '../../lib'
+import { getPaymentIcon, getPaymentTypeDisplayName } from '../../lib'
 import type { PaymentMethod } from '../../types'
 
 const XUNHU_PAYMENT_TYPES = ['xunhu-wechat', 'xunhu-alipay']
@@ -152,7 +152,7 @@ export function PaymentConfirmDialog({
                   paymentMethod?.icon,
                   paymentMethod?.name
                 )}
-                <span className='font-medium'>{paymentMethod?.name}</span>
+                <span className='font-medium'>{getPaymentTypeDisplayName(paymentMethod?.type, paymentMethod?.name || '', t)}</span>
               </div>
             </div>
           </div>

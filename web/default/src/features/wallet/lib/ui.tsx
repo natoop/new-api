@@ -30,6 +30,40 @@ const HAS_LOCATION =
   typeof globalThis !== 'undefined' && 'location' in globalThis
 
 /**
+ * Payment type → i18n key mapping.
+ *
+ * Keys are stable payment type identifiers (from constants or backend),
+ * values are the i18n translation keys used across all locale files.
+ */
+const PAYMENT_TYPE_I18N_KEYS: Record<string, string> = {
+  [PAYMENT_TYPES.ALIPAY]: 'Alipay',
+  [PAYMENT_TYPES.WECHAT]: 'WeChat Pay',
+  [PAYMENT_TYPES.STRIPE]: 'Stripe',
+  [PAYMENT_TYPES.CREEM]: 'Creem',
+  [PAYMENT_TYPES.WAFFO]: 'Waffo',
+  [PAYMENT_TYPES.WAFFO_PANCAKE]: 'Waffo',
+  'xunhu-wechat': 'WeChat Pay',
+  'xunhu-alipay': 'Alipay',
+}
+
+/**
+ * Get translated payment type display name.
+ *
+ * Looks up the payment type in {@link PAYMENT_TYPE_I18N_KEYS} and returns
+ * the translated version. Falls back to `fallbackName` (typically the
+ * backend-provided name) when the type is unknown or undefined.
+ */
+export function getPaymentTypeDisplayName(
+  paymentType: string | undefined,
+  fallbackName: string,
+  t: (key: string) => string
+): string {
+  if (!paymentType) return fallbackName
+  const i18nKey = PAYMENT_TYPE_I18N_KEYS[paymentType]
+  return i18nKey ? t(i18nKey) : fallbackName
+}
+
+/**
  * Resolves a backend-provided image URL to http(s) only. Rejects javascript:,
  * data:, blob:, file:, and URLs with userinfo, which are unsafe in <img src/>.
  */
