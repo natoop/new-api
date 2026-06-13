@@ -49,7 +49,7 @@ export function stripTrailingZeros(formatted: string): string {
     result = parsed.toFixed(20).replace(/\.?0+$/, '')
   }
 
-  return `${symbol}${result}${suffix}`
+  return `${result}${symbol}${suffix}`
 }
 
 /**

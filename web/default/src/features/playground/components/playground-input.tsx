@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -35,8 +35,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
-import { loadPlaygroundToken, savePlaygroundToken } from '../lib/storage'
+import { loadPlaygroundToken } from '../lib/storage'
+import { TokenPromptDialog } from './token-prompt-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,31 +93,31 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
-  const [apiToken, setApiToken] = useState('')
-
-  useEffect(() => {
-    setApiToken(loadPlaygroundToken())
-  }, [])
-
-  const hasToken = apiToken.trim().length > 0
-
-  const handleTokenChange = (value: string) => {
-    setApiToken(value)
-    savePlaygroundToken(value.trim())
-  }
+  // The token gate is "ask when needed": no token blocks the page, instead we
+  // open this dialog and replay the intended action once a token is saved.
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false)
+  const [pendingText, setPendingText] = useState<string | null>(null)
 
   const isModelSelectDisabled =
     disabled || isModelLoading || models.length === 0
   const isGroupSelectDisabled = disabled || groups.length === 0
 
+  // Run `text` now if a token exists, otherwise remember it and open the dialog.
+  const submitOrPrompt = (value: string) => {
+    if (loadPlaygroundToken().trim() === '') {
+      setPendingText(value)
+      setTokenDialogOpen(true)
+      return false
+    }
+    onSubmit(value)
+    return true
+  }
+
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled) return
-    if (!hasToken) {
-      toast.warning(t('Enter your own API token to use the Playground'))
-      return
+    if (submitOrPrompt(message.text)) {
+      setText('')
     }
-    onSubmit(message.text)
-    setText('')
   }
 
   const handleFileAction = (action: string) => {
@@ -127,38 +127,27 @@ export function PlaygroundInput({
   }
 
   const handleSuggestionClick = (suggestion: string) => {
-    if (!hasToken) {
-      toast.warning(t('Enter your own API token to use the Playground'))
-      return
-    }
-    onSubmit(suggestion)
+    submitOrPrompt(suggestion)
+  }
+
+  const handleTokenSaved = () => {
+    if (pendingText === null) return
+    const replay = pendingText
+    setPendingText(null)
+    onSubmit(replay)
+    if (replay === text) setText('')
   }
 
   return (
     <div className='grid shrink-0 gap-3 px-1 md:pb-4'>
-      {/* Playground requires the caller's OWN API token — no platform free use. */}
-      <div className='flex flex-col gap-1'>
-        <div className='relative'>
-          <KeyRoundIcon className='text-muted-foreground/70 pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
-          <Input
-            type='password'
-            autoComplete='off'
-            spellCheck={false}
-            value={apiToken}
-            onChange={(e) => handleTokenChange(e.target.value)}
-            placeholder={t('Paste your API token (sk-...) to use the Playground')}
-            className='h-9 pl-9 text-sm'
-            aria-invalid={!hasToken}
-          />
-        </div>
-        {!hasToken ? (
-          <p className='text-muted-foreground px-1 text-xs'>
-            {t(
-              'The Playground runs on your own token — create one on the Tokens page. Platform quota is never used directly.'
-            )}
-          </p>
-        ) : null}
-      </div>
+      <TokenPromptDialog
+        open={tokenDialogOpen}
+        onOpenChange={(open) => {
+          setTokenDialogOpen(open)
+          if (!open) setPendingText(null)
+        }}
+        onSaved={handleTokenSaved}
+      />
 
       <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
         <PromptInputTextarea
@@ -227,6 +216,18 @@ export function PlaygroundInput({
               <span className='hidden sm:inline'>{t('Search')}</span>
               <span className='sr-only sm:hidden'>{t('Search')}</span>
             </PromptInputButton>
+
+            <PromptInputButton
+              className='text-muted-foreground'
+              onClick={() => {
+                setPendingText(null)
+                setTokenDialogOpen(true)
+              }}
+              variant='ghost'
+            >
+              <KeyRoundIcon size={16} />
+              <span className='sr-only'>{t('Use your own API token')}</span>
+            </PromptInputButton>
           </PromptInputTools>
 
           <div className='flex items-center gap-1.5 md:gap-2'>
@@ -253,7 +254,7 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground font-medium'
-                disabled={disabled || !text.trim() || !hasToken}
+                disabled={disabled || !text.trim()}
                 type='submit'
                 variant='secondary'
               >

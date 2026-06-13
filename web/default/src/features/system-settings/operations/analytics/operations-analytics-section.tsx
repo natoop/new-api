@@ -47,8 +47,7 @@ import {
 } from './api'
 import { OpsTimeSeriesChart } from './ops-charts'
 
-// Top-up / subscription `money` is settled in the deployment's payment-gateway
-// currency (CNY for the WeChat/Alipay/Xunhu rails this build ships with).
+// 运营看板按部署结算币种展示，通常为人民币；非用户面充值场景，故此处固定 ¥ 前缀，非货币符号残留。
 const MONEY_PREFIX = '¥'
 const RANGE_OPTIONS = [7, 30, 90] as const
 

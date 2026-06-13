@@ -30,7 +30,7 @@ export function formatCreemPrice(
   currency: 'USD' | 'EUR'
 ): string {
   const symbol = currency === 'EUR' ? '€' : '$'
-  return `${symbol}${price.toFixed(2)}`
+  return `${price.toFixed(2)}${symbol}`
 }
 
 /**
@@ -43,8 +43,8 @@ export function formatPlanAmount(
 ): string {
   const code = (currency || 'USD').trim().toUpperCase()
   const value = amount.toFixed(2)
-  if (code === 'CNY') return `¥${value}`
-  if (code === 'USD') return `$${value}`
+  if (code === 'CNY') return `${value}¥`
+  if (code === 'USD') return `${value}$`
   return `${code} ${value}`
 }
 

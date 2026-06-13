@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { CherryStudio } from '@lobehub/icons'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { CherryStudio, LobeHub, Dify } from '@lobehub/icons'
+import { ArrowRight, BookOpen, Handshake } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,72 @@ const MoreIcon = () => (
     <circle cx='18' cy='12' r='2' fill='currentColor' />
   </svg>
 )
+
+// Lettered avatar fallback for apps without a brand icon (e.g. our own tools).
+const AppInitials = (props: { text: string }) => (
+  <span className='flex size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'>
+    {props.text}
+  </span>
+)
+
+interface SupportedApp {
+  name: string
+  url?: string
+  icon?: React.ReactNode
+  initials?: string
+}
+
+// Compatible client apps. lobe icons where available, lettered avatars for the
+// rest (incl. our own OpenClaw / Hermes) so every chip stays on-brand.
+const SUPPORTED_APPS: readonly SupportedApp[] = [
+  {
+    name: 'Cherry Studio',
+    url: 'https://cherry-ai.com',
+    icon: <CherryStudio.Color size={24} className='shrink-0' />,
+  },
+  { name: 'CC Switch', url: 'https://ccswitch.io', initials: 'CC' },
+  {
+    name: 'LobeChat',
+    url: 'https://lobehub.com',
+    icon: <LobeHub.Color size={24} className='shrink-0' />,
+  },
+  {
+    name: 'Dify',
+    url: 'https://dify.ai',
+    icon: <Dify.Color size={24} className='shrink-0' />,
+  },
+  { name: 'OpenClaw', initials: 'OC' },
+  { name: 'Hermes', initials: 'HM' },
+  { name: 'Chatbox', url: 'https://chatboxai.app', initials: 'CB' },
+  { name: 'NextChat', url: 'https://nextchat.dev', initials: 'NC' },
+  { name: 'Open WebUI', url: 'https://openwebui.com', initials: 'OW' },
+  { name: 'Cline', url: 'https://cline.bot', initials: 'CL' },
+]
+
+const APP_CHIP_CLASS =
+  'group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
+
+const AppChip = (props: { app: SupportedApp }) => {
+  const inner = (
+    <>
+      {props.app.icon ?? <AppInitials text={props.app.initials ?? '?'} />}
+      <span>{props.app.name}</span>
+    </>
+  )
+  if (props.app.url) {
+    return (
+      <a
+        href={props.app.url}
+        target='_blank'
+        rel='noopener noreferrer'
+        className={APP_CHIP_CLASS}
+      >
+        {inner}
+      </a>
+    )
+  }
+  return <div className={`${APP_CHIP_CLASS} cursor-default`}>{inner}</div>
+}
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
@@ -76,6 +142,17 @@ export function Hero(props: HeroProps) {
       </Button>
     )
   }
+
+  const renderCooperationButton = () => (
+    <Button
+      variant='outline'
+      className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-12 items-center gap-1.5 rounded-xl px-6 text-base font-medium'
+      render={<Link to='/cooperation' />}
+    >
+      <Handshake className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
+      <span>{t('Business Cooperation')}</span>
+    </Button>
+  )
 
   return (
     <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
@@ -144,6 +221,7 @@ export function Hero(props: HeroProps) {
                   {t('Go to Dashboard')}
                   <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
+                {renderCooperationButton()}
                 {renderDocsButton()}
               </>
             ) : (
@@ -162,6 +240,7 @@ export function Hero(props: HeroProps) {
                 >
                   {t('View Pricing')}
                 </Button>
+                {renderCooperationButton()}
                 {renderDocsButton()}
               </>
             )}
@@ -178,51 +257,17 @@ export function Hero(props: HeroProps) {
               </span>
               <p className='text-muted-foreground/60 text-xs leading-relaxed'>
                 {t(
-                  'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
+                  'Supports one-click configuration and perfectly adapts to multi-protocol setups.'
                 )}
               </p>
             </div>
-            <div className='flex flex-wrap items-center gap-3'>
-              {/* Cherry Studio */}
-              <a
-                href='https://cherry-ai.com'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <CherryStudio.Color size={24} className='shrink-0' />
-                <span>Cherry Studio</span>
-              </a>
-
-              {/* CC Switch */}
-              <a
-                href='https://ccswitch.io'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <img
-                  src='https://ccswitch.io/favicon.png'
-                  alt='CC Switch'
-                  className='size-6 shrink-0 rounded-md object-contain'
-                  onError={(e) => {
-                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
-                    e.currentTarget.style.display = 'none'
-                    const fallback = e.currentTarget.nextSibling as HTMLElement
-                    if (fallback) fallback.style.display = 'flex'
-                  }}
-                />
-                <span
-                  style={{ display: 'none' }}
-                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
-                >
-                  CC
-                </span>
-                <span>CC Switch</span>
-              </a>
+            <div className='flex flex-wrap items-center gap-2.5'>
+              {SUPPORTED_APPS.map((app) => (
+                <AppChip key={app.name} app={app} />
+              ))}
 
               {/* "更多" */}
-              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
+              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
                 <MoreIcon />
                 <span>{t('More Apps')}</span>
               </div>

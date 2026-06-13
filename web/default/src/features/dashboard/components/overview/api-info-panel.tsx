@@ -46,12 +46,8 @@ export function ApiInfoPanel() {
 
   return (
     <PanelWrapper
-      title={
-        <span className='flex items-center gap-2'>
-          <Route className='text-muted-foreground/60 size-4' />
-          {t('API Info')}
-        </span>
-      }
+      title={t('API Info')}
+      icon={<Route className='size-4' />}
       description={t('Configured routes and latency checks')}
       loading={loading}
       empty={!list.length}

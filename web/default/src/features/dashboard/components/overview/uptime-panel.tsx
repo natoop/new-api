@@ -93,12 +93,8 @@ export function UptimePanel() {
 
   return (
     <PanelWrapper
-      title={
-        <span className='flex items-center gap-2'>
-          <Activity className='text-muted-foreground/60 size-4' />
-          {t('Uptime')}
-        </span>
-      }
+      title={t('Uptime')}
+      icon={<Activity className='size-4' />}
       description={t('Grouped monitor status from Uptime Kuma')}
       loading={loading}
       empty={!groups.length}

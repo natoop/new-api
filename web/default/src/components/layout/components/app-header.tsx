@@ -69,7 +69,7 @@ type AppHeaderProps = {
   leftContent?: React.ReactNode
   /**
    * Whether to show search box
-   * @default true
+   * @default false
    */
   showSearch?: boolean
   /**
@@ -83,7 +83,7 @@ type AppHeaderProps = {
   showNotifications?: boolean
   /**
    * Whether to show config drawer
-   * @default true
+   * @default false
    */
   showConfigDrawer?: boolean
   /**
@@ -97,10 +97,10 @@ export function AppHeader({
   navLinks,
   showTopNav = true,
   leftContent,
-  showSearch = true,
+  showSearch = false,
   rightContent,
   showNotifications = true,
-  showConfigDrawer = true,
+  showConfigDrawer = false,
   showProfileDropdown = true,
 }: AppHeaderProps) {
   // Backend-driven links are authoritative: useTopNavLinks already applies

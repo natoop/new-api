@@ -742,39 +742,34 @@ export function OverviewDashboard() {
       <SummaryCards />
 
       {showContentPanels && (
-        <CardStaggerContainer
-          className={cn(
-            'grid grid-cols-1 gap-4',
-            showLeftContentPanels &&
-              showUptimePanel &&
-              'xl:grid-cols-[minmax(0,1fr)_22rem]'
-          )}
-        >
+        <CardStaggerContainer className='grid grid-cols-1 gap-4'>
           {showLeftContentPanels && (
             <div
               className={cn(
                 'grid min-w-0 grid-cols-1 gap-4',
                 (showApiInfoPanel || showAnnouncementsPanel || showFAQPanel) &&
-                  'lg:grid-cols-2'
+                  'lg:grid-cols-12'
               )}
             >
               {isAdmin && (
-                <CardStaggerItem className='lg:col-span-2'>
+                <CardStaggerItem className='lg:col-span-12'>
                   <PerformanceHealthPanel />
                 </CardStaggerItem>
               )}
+              {/* API info reads as a compact reference card, so it stays narrow
+                  while announcements and FAQ share the remaining width. */}
               {showApiInfoPanel && (
-                <CardStaggerItem>
+                <CardStaggerItem className='lg:col-span-3'>
                   <ApiInfoPanel />
                 </CardStaggerItem>
               )}
               {showAnnouncementsPanel && (
-                <CardStaggerItem>
+                <CardStaggerItem className='lg:col-span-5'>
                   <AnnouncementsPanel />
                 </CardStaggerItem>
               )}
               {showFAQPanel && (
-                <CardStaggerItem>
+                <CardStaggerItem className='lg:col-span-4'>
                   <FAQPanel />
                 </CardStaggerItem>
               )}

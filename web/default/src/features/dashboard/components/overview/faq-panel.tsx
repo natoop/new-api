@@ -36,20 +36,16 @@ export function FAQPanel() {
 
   return (
     <PanelWrapper
-      title={
-        <span className='flex items-center gap-2'>
-          <HelpCircle className='text-muted-foreground/60 size-4' />
-          {t('FAQ')}
-        </span>
-      }
+      title={t('FAQ')}
+      icon={<HelpCircle className='size-4' />}
       description={t('Answers for common access and billing questions')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No FAQ entries available')}
-      height='h-80'
+      height='h-72'
       contentClassName='p-0'
     >
-      <ScrollArea className='h-80'>
+      <ScrollArea className='h-72'>
         <Accordion className='w-full px-4 sm:px-5'>
           {list.map((item: FAQItem, idx: number) => {
             const key = item.id ?? `faq-${idx}`

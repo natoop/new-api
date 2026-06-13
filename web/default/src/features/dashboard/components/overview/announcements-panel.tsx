@@ -56,12 +56,8 @@ export function AnnouncementsPanel() {
 
   return (
     <PanelWrapper
-      title={
-        <span className='flex items-center gap-2'>
-          <Megaphone className='text-muted-foreground/60 size-4' />
-          {t('Announcements')}
-        </span>
-      }
+      title={t('Announcements')}
+      icon={<Megaphone className='size-4' />}
       description={t('Latest platform updates and notices')}
       loading={loading}
       empty={!list.length}

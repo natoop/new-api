@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 interface PanelWrapperProps {
   title: ReactNode
   description?: ReactNode
+  icon?: ReactNode
   loading?: boolean
   empty?: boolean
   emptyMessage?: string
@@ -37,23 +38,33 @@ interface PanelWrapperProps {
 function PanelHeader(props: {
   title: ReactNode
   description?: ReactNode
+  icon?: ReactNode
   actions?: ReactNode
 }) {
   const heading = (
-    <div className='flex flex-col gap-1'>
-      <div className='text-sm font-semibold'>{props.title}</div>
-      {props.description != null && (
-        <div className='text-muted-foreground text-xs'>{props.description}</div>
+    <div className='flex min-w-0 items-center gap-3'>
+      {props.icon != null && (
+        <span className='bg-primary/10 text-primary ring-primary/15 flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset'>
+          {props.icon}
+        </span>
       )}
+      <div className='flex min-w-0 flex-col gap-0.5'>
+        <div className='truncate text-sm font-semibold'>{props.title}</div>
+        {props.description != null && (
+          <div className='text-muted-foreground truncate text-xs'>
+            {props.description}
+          </div>
+        )}
+      </div>
     </div>
   )
 
   return (
-    <div className='border-b px-4 py-3 sm:px-5'>
+    <div className='from-muted/30 border-b bg-gradient-to-b to-transparent px-4 py-3 sm:px-5'>
       {props.actions != null ? (
-        <div className='flex items-start justify-between gap-2'>
+        <div className='flex items-center justify-between gap-2'>
           {heading}
-          {props.actions}
+          <div className='shrink-0'>{props.actions}</div>
         </div>
       ) : (
         heading
@@ -74,7 +85,11 @@ export function PanelWrapper(props: PanelWrapperProps) {
   if (props.loading) {
     return (
       <div className={frameClassName}>
-        <PanelHeader title={props.title} description={props.description} />
+        <PanelHeader
+          title={props.title}
+          description={props.description}
+          icon={props.icon}
+        />
         <div className={cn('p-4 sm:p-5', props.contentClassName)}>
           <Skeleton className={`w-full ${height}`} />
         </div>
@@ -85,7 +100,11 @@ export function PanelWrapper(props: PanelWrapperProps) {
   if (props.empty) {
     return (
       <div className={frameClassName}>
-        <PanelHeader title={props.title} description={props.description} />
+        <PanelHeader
+          title={props.title}
+          description={props.description}
+          icon={props.icon}
+        />
         <div
           className={cn(
             'text-muted-foreground flex items-center justify-center px-4 text-sm',
@@ -104,6 +123,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
       <PanelHeader
         title={props.title}
         description={props.description}
+        icon={props.icon}
         actions={props.headerActions}
       />
       <div className={cn('p-4 sm:p-5', props.contentClassName)}>

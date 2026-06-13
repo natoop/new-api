@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
+import { TokenPromptDialog } from './components/token-prompt-dialog'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import { loadPlaygroundToken } from './lib/storage'
@@ -52,6 +53,12 @@ export function Playground() {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
+
+  // "Ask when needed" token gate for regenerate / edit-resend. When no token is
+  // set we stash the intended action and open the dialog instead of blocking;
+  // once a token is saved the stashed action is replayed automatically.
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -132,29 +139,32 @@ export function Playground() {
     console.log('Message copied:', message.key)
   }
 
-  // Regenerate / edit-resend must respect the same own-token gate as the
-  // primary input (otherwise they'd fire requests with an empty token).
-  const ensurePlaygroundToken = () => {
+  // Regenerate / edit-resend share the same "ask when needed" token gate as the
+  // primary input: with no token we stash the action and open the dialog rather
+  // than firing a request with an empty token.
+  const runWithToken = (action: () => void) => {
     if (loadPlaygroundToken().trim() === '') {
-      toast.warning(t('Enter your own API token to use the Playground'))
-      return false
+      setPendingAction(() => action)
+      setTokenDialogOpen(true)
+      return
     }
-    return true
+    action()
   }
 
   const handleRegenerateMessage = (message: MessageType) => {
-    if (!ensurePlaygroundToken()) return
-    // Find the message index and regenerate from there
-    const messageIndex = messages.findIndex((m) => m.key === message.key)
-    if (messageIndex === -1) return
+    runWithToken(() => {
+      // Find the message index and regenerate from there
+      const messageIndex = messages.findIndex((m) => m.key === message.key)
+      if (messageIndex === -1) return
 
-    // Remove messages after this one and regenerate
-    const messagesUpToHere = messages.slice(0, messageIndex)
-    const loadingMessage = createLoadingAssistantMessage()
-    const newMessages = [...messagesUpToHere, loadingMessage]
+      // Remove messages after this one and regenerate
+      const messagesUpToHere = messages.slice(0, messageIndex)
+      const loadingMessage = createLoadingAssistantMessage()
+      const newMessages = [...messagesUpToHere, loadingMessage]
 
-    updateMessages(newMessages)
-    sendChat(newMessages)
+      updateMessages(newMessages)
+      sendChat(newMessages)
+    })
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -185,20 +195,26 @@ export function Playground() {
         return
       }
 
+      const submitEdit = () => {
+        const toSubmit = [
+          ...updated.slice(0, index + 1),
+          createLoadingAssistantMessage(),
+        ]
+        updateMessages(toSubmit)
+        sendChat(toSubmit)
+      }
+
       if (loadPlaygroundToken().trim() === '') {
-        toast.warning(t('Enter your own API token to use the Playground'))
+        // Persist the edit now; defer the resend until a token is provided.
         updateMessages(updated)
+        setPendingAction(() => submitEdit)
+        setTokenDialogOpen(true)
         return
       }
 
-      const toSubmit = [
-        ...updated.slice(0, index + 1),
-        createLoadingAssistantMessage(),
-      ]
-      updateMessages(toSubmit)
-      sendChat(toSubmit)
+      submitEdit()
     },
-    [editingMessageKey, messages, updateMessages, sendChat, t]
+    [editingMessageKey, messages, updateMessages, sendChat]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
@@ -223,6 +239,19 @@ export function Playground() {
           onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
         />
       </div>
+
+      <TokenPromptDialog
+        open={tokenDialogOpen}
+        onOpenChange={(open) => {
+          setTokenDialogOpen(open)
+          if (!open) setPendingAction(null)
+        }}
+        onSaved={() => {
+          const action = pendingAction
+          setPendingAction(null)
+          action?.()
+        }}
+      />
 
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>

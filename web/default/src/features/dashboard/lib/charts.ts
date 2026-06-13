@@ -86,9 +86,9 @@ function renderQuotaCompat(rawQuota: number, digits = 4): string {
   const value = usd * rate
   const fixed = value.toFixed(digits)
   if (parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
-    return symbol + Math.pow(10, -digits).toFixed(digits)
+    return Math.pow(10, -digits).toFixed(digits) + symbol
   }
-  return symbol + fixed
+  return fixed + symbol
 }
 
 /**

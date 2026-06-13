@@ -18,20 +18,34 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import {
+  User,
+  Wallet,
+  LogOut,
+  Settings,
+  Monitor,
+  Sun,
+  Moon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
+import { useTheme } from '@/context/theme-provider'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
@@ -43,6 +57,7 @@ export function ProfileDropdown() {
   const navigate = useNavigate()
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
+  const { theme, setTheme } = useTheme()
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
   const avatarName = user?.username || displayName
@@ -109,18 +124,57 @@ export function ProfileDropdown() {
             {t('Wallet')}
           </DropdownMenuItem>
 
+          <DropdownMenuSeparator />
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              {theme === 'light' ? (
+                <Sun className='size-4' />
+              ) : theme === 'dark' ? (
+                <Moon className='size-4' />
+              ) : (
+                <Monitor className='size-4' />
+              )}
+              {t('Theme')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={theme}
+                onValueChange={(value) =>
+                  setTheme(value as 'system' | 'light' | 'dark')
+                }
+              >
+                <DropdownMenuRadioItem value='system'>
+                  <Monitor className='size-4' />
+                  {t('System')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value='light'>
+                  <Sun className='size-4' />
+                  {t('Light')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value='dark'>
+                  <Moon className='size-4' />
+                  {t('Dark')}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
           {isSuperAdmin && (
-            <DropdownMenuItem
-              onClick={() =>
-                navigate({
-                  to: '/system-settings/site/$section',
-                  params: { section: 'system-info' },
-                })
-              }
-            >
-              <Settings className='size-4' />
-              {t('System Settings')}
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() =>
+                  navigate({
+                    to: '/system-settings/site/$section',
+                    params: { section: 'system-info' },
+                  })
+                }
+              >
+                <Settings className='size-4' />
+                {t('System Settings')}
+              </DropdownMenuItem>
+            </>
           )}
 
           <DropdownMenuSeparator />
