@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
+import type { BaseUIEvent } from '@base-ui/react/types'
 import { Add01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
@@ -195,22 +196,21 @@ export function MultiSelect(props: MultiSelectProps) {
     }
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    // Enter without a highlighted option commits the typed value.
-    if (event.key === 'Enter' && props.allowCreate && canCreate) {
-      // Only fire when Base UI has no highlighted item to select. We rely on
-      // the highlighted item's data attribute on the popup. If the popup is
-      // closed or empty, manually commit the typed value.
-      const popup = document.querySelector<HTMLElement>(
-        '[data-slot="combobox-content"][data-open]'
-      )
-      const hasHighlight = popup?.querySelector('[data-highlighted]') != null
-      if (!hasHighlight) {
-        event.preventDefault()
-        addValues([trimmedInput])
-        setInputValue('')
-      }
+  const handleKeyDown = (
+    event: BaseUIEvent<React.KeyboardEvent<HTMLInputElement>>
+  ) => {
+    // When the typed text is a brand-new value (not an existing option and not
+    // already selected), Enter commits it directly. We must also suppress Base
+    // UI's own Enter handling — otherwise it would either select a fuzzy-matched
+    // existing item or just close the popup, dropping the user's custom value.
+    if (event.key === 'Enter' && canCreate) {
+      event.preventDefault()
+      event.preventBaseUIHandler()
+      addValues([trimmedInput])
+      setInputValue('')
     }
+    // Otherwise (empty input or input matching an existing option) we leave the
+    // event to Base UI so highlighted options can be picked as usual.
   }
 
   return (

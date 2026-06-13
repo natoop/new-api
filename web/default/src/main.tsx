@@ -58,9 +58,12 @@ const queryClient = new QueryClient({
         if (failureCount >= 0 && import.meta.env.DEV) return false
         if (failureCount > 3 && import.meta.env.PROD) return false
 
+        // Don't retry auth errors (401/403), missing resources (404), or rate
+        // limits (429) — retrying these can't succeed and a retried 429 only
+        // amplifies the rate-limit storm it was trying to recover from.
         return !(
           error instanceof AxiosError &&
-          [401, 403].includes(error.response?.status ?? 0)
+          [401, 403, 404, 429].includes(error.response?.status ?? 0)
         )
       },
       refetchOnWindowFocus: import.meta.env.PROD,
