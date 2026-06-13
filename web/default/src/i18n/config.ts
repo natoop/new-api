@@ -50,7 +50,9 @@ i18n
       escapeValue: false, // not needed for react as it escapes by default
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // 原始: order: ['localStorage', 'navigator'] — 首次访问跟随浏览器语言
+      // 修改: 仅检查 localStorage，无记录时回退 fallbackLng (en)，确保默认英文
+      order: ['localStorage'],
       caches: ['localStorage'],
     },
   })

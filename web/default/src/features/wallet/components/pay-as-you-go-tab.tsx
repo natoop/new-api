@@ -130,10 +130,11 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
     quotedPaymentAmount !== null &&
     !calculating
 
-  // 虎皮椒支付渠道使用专属资金符号展示应付金额，其余渠道走全局货币
+  // 原始(42e786c8): 数字在前 xunhu_fund_symbol在后
+  // 修改: xunhu_fund_symbol在前 数字在后
   const formatPaymentAmount = (value: number) => {
     if (XUNHU_PAYMENT_TYPES.includes(method) && topupInfo?.xunhu_fund_symbol) {
-      return `${value.toFixed(2)}${topupInfo.xunhu_fund_symbol}`
+      return `${topupInfo.xunhu_fund_symbol}${value.toFixed(2)}`
     }
     return formatLocalCurrencyAmount(value, {
       digitsLarge: 2,
@@ -253,7 +254,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
               {t('Or enter a custom amount')}
             </p>
             <div className='relative max-w-xs'>
-              <span className='text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 text-sm'>
+              <span className='text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm'>
                 {XUNHU_PAYMENT_TYPES.includes(method) && topupInfo?.xunhu_fund_symbol
                   ? topupInfo.xunhu_fund_symbol
                   : '$'}
@@ -271,7 +272,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                     Math.max(0, Math.floor(Number(e.target.value) || 0))
                   )
                 }}
-                className='h-10 pr-7'
+                className='h-10 pl-7'
                 placeholder={String(min)}
               />
             </div>

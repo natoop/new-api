@@ -276,18 +276,25 @@ function formatCurrencyValue(
     Math.abs(value) >= 1 ? options.digitsLarge : options.digitsSmall
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
 
-  // Symbol always trails the number (e.g. "10$", "70¥") to match the
-  // platform's preferred reading habit for both USD and CNY.
+  // 原始(42e786c8): 数字在前 符号在后 (e.g. "10$", "70¥")
+  // 修改: 符号在前 数字在后 (e.g. "$10", "¥70") — currency 类型用 Intl.NumberFormat 自动定位
+  if (meta.kind === 'currency') {
+    const formatted = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: meta.currencyCode,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: digits,
+    }).format(adjustedValue)
+    return formatted
+  }
+
+  // custom 类型: 符号 + 空格 + 数字
   const decimal = new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   }).format(adjustedValue)
-
-  if (meta.kind === 'currency') {
-    return `${decimal}${meta.symbol}`
-  }
-
-  return `${decimal} ${meta.symbol}`
+  return `${meta.symbol} ${decimal}`
 }
 
 /**
@@ -317,11 +324,11 @@ export function getCurrencyDisplay() {
  *
  * @example
  * // With quotaDisplayType: 'USD'
- * formatCurrencyFromUSD(10) → "10$"
+ * formatCurrencyFromUSD(10) → "$10"
  *
  * @example
  * // With quotaDisplayType: 'CNY', usdExchangeRate: 7
- * formatCurrencyFromUSD(10) → "70¥"
+ * formatCurrencyFromUSD(10) → "¥70"
  *
  * @example
  * // With quotaDisplayType: 'TOKENS', quotaPerUnit: 500000
@@ -329,7 +336,7 @@ export function getCurrencyDisplay() {
  *
  * @example
  * // With quotaDisplayType: 'CUSTOM', customCurrencySymbol: '€', customCurrencyExchangeRate: 0.9
- * formatCurrencyFromUSD(10) → "9 €"
+ * formatCurrencyFromUSD(10) → "€9"
  *
  * @remarks
  * Use this function for:

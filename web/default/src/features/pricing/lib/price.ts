@@ -49,7 +49,9 @@ export function stripTrailingZeros(formatted: string): string {
     result = parsed.toFixed(20).replace(/\.?0+$/, '')
   }
 
-  return `${result}${symbol}${suffix}`
+  // 原始(42e786c8): result在前 symbol在后
+  // 修改: symbol在前 result在后
+  return `${symbol}${result}${suffix}`
 }
 
 /**

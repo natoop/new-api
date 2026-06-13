@@ -29,8 +29,10 @@ export function formatCreemPrice(
   price: number,
   currency: 'USD' | 'EUR'
 ): string {
+  // 原始(42e786c8): price在前 symbol在后
+  // 修改: symbol在前 price在后
   const symbol = currency === 'EUR' ? '€' : '$'
-  return `${price.toFixed(2)}${symbol}`
+  return `${symbol}${price.toFixed(2)}`
 }
 
 /**
@@ -43,8 +45,10 @@ export function formatPlanAmount(
 ): string {
   const code = (currency || 'USD').trim().toUpperCase()
   const value = amount.toFixed(2)
-  if (code === 'CNY') return `${value}¥`
-  if (code === 'USD') return `${value}$`
+  // 原始(42e786c8): value在前 ¥/$在后
+  // 修改: 符号在前 value在后
+  if (code === 'CNY') return `¥${value}`
+  if (code === 'USD') return `$${value}`
   return `${code} ${value}`
 }
 
