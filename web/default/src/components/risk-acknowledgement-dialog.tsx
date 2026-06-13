@@ -255,10 +255,10 @@ export function RiskAcknowledgementDialog({
                           t('Type the confirmation text here')
                         }
                         autoFocus={open && part.inputIndex === 0}
-                        onCopy={(event) => event.preventDefault()}
-                        onCut={(event) => event.preventDefault()}
-                        onPaste={(event) => event.preventDefault()}
-                        onDrop={(event) => event.preventDefault()}
+                        // onCopy={(event) => event.preventDefault()}
+                        // onCut={(event) => event.preventDefault()}
+                        // onPaste={(event) => event.preventDefault()}
+                        // onDrop={(event) => event.preventDefault()}
                         aria-invalid={hasTypedRequiredText && !typedMatched}
                         className='w-full font-mono sm:w-64'
                       />
@@ -273,10 +273,10 @@ export function RiskAcknowledgementDialog({
                     inputPlaceholder ?? t('Type the confirmation text here')
                   }
                   autoFocus={open}
-                  onCopy={(event) => event.preventDefault()}
-                  onCut={(event) => event.preventDefault()}
-                  onPaste={(event) => event.preventDefault()}
-                  onDrop={(event) => event.preventDefault()}
+                  // onCopy={(event) => event.preventDefault()}
+                  // onCut={(event) => event.preventDefault()}
+                  // onPaste={(event) => event.preventDefault()}
+                  // onDrop={(event) => event.preventDefault()}
                   aria-invalid={hasTypedRequiredText && !typedMatched}
                 />
               )}
