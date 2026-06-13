@@ -153,6 +153,9 @@ const paymentSchema = z.object({
     if (!trimmed) return true
     return /^https?:\/\//.test(trimmed)
   }, 'Provide a valid URL starting with http:// or https://'),
+  XunhuExchangeRate: z.coerce.number().min(0),
+  XunhuFundType: z.string(),
+  XunhuFundSymbol: z.string(),
   WaffoEnabled: z.boolean(),
   WaffoApiKey: z.string(),
   WaffoPrivateKey: z.string(),
@@ -182,6 +185,9 @@ const XUNHU_OPTION_DEFAULTS = {
   XunhuAlipayAppId: '',
   XunhuAlipayAppSecret: '',
   XunhuGatewayUrl: '',
+  XunhuExchangeRate: 7.0,
+  XunhuFundType: 'CNY',
+  XunhuFundSymbol: '¥',
 }
 
 type XunhuSettingsValues = typeof XUNHU_OPTION_DEFAULTS
@@ -471,6 +477,9 @@ export function PaymentSettingsSection({
       XunhuAlipayAppId: values.XunhuAlipayAppId.trim(),
       XunhuAlipayAppSecret: values.XunhuAlipayAppSecret.trim(),
       XunhuGatewayUrl: removeTrailingSlash(values.XunhuGatewayUrl.trim()),
+      XunhuExchangeRate: values.XunhuExchangeRate,
+      XunhuFundType: values.XunhuFundType.trim(),
+      XunhuFundSymbol: values.XunhuFundSymbol.trim(),
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
       WaffoMerchantId: values.WaffoMerchantId.trim(),
@@ -524,6 +533,9 @@ export function PaymentSettingsSection({
       XunhuGatewayUrl: removeTrailingSlash(
         initialRef.current.XunhuGatewayUrl.trim()
       ),
+      XunhuExchangeRate: initialRef.current.XunhuExchangeRate,
+      XunhuFundType: initialRef.current.XunhuFundType.trim(),
+      XunhuFundSymbol: initialRef.current.XunhuFundSymbol.trim(),
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
       WaffoMerchantId: initialRef.current.WaffoMerchantId.trim(),
@@ -714,6 +726,18 @@ export function PaymentSettingsSection({
         key: 'XunhuGatewayUrl',
         value: sanitized.XunhuGatewayUrl,
       })
+    }
+
+    if (sanitized.XunhuExchangeRate !== initial.XunhuExchangeRate) {
+      updates.push({ key: 'XunhuExchangeRate', value: sanitized.XunhuExchangeRate })
+    }
+
+    if (sanitized.XunhuFundType !== initial.XunhuFundType) {
+      updates.push({ key: 'XunhuFundType', value: sanitized.XunhuFundType })
+    }
+
+    if (sanitized.XunhuFundSymbol !== initial.XunhuFundSymbol) {
+      updates.push({ key: 'XunhuFundSymbol', value: sanitized.XunhuFundSymbol })
     }
 
     if (sanitized.WaffoEnabled !== initial.WaffoEnabled) {
@@ -1783,6 +1807,72 @@ export function PaymentSettingsSection({
                     {t('Leave blank to use the default gateway {{url}}', {
                       url: XUNHU_DEFAULT_GATEWAY_URL,
                     })}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-3'>
+            <FormField
+              control={form.control}
+              name='XunhuExchangeRate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Exchange Rate (local currency / USD)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min={0}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('How much to charge for each US dollar (XunhuPay)')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='XunhuFundType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Fund Type (currency code)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='CNY'
+                      autoComplete='off'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Currency code for XunhuPay, e.g. CNY, USD')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='XunhuFundSymbol'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Fund Symbol')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='¥'
+                      autoComplete='off'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Currency symbol for XunhuPay, e.g. ¥, $')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

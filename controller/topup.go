@@ -120,6 +120,9 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
+		"xunhu_fund_type":        setting.XunhuFundType,
+		"xunhu_fund_symbol":      setting.XunhuFundSymbol,
+		"xunhu_exchange_rate":    setting.XunhuExchangeRate,
 	}
 	common.ApiSuccess(c, data)
 }

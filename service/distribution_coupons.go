@@ -120,7 +120,7 @@ func ApplyAgentCoupon(userID int, amount float64) (*model.DistributionCoupon, er
 			return err
 		}
 		if agent.Balance < amount {
-			return fmt.Errorf("balance is not enough")
+			return fmt.Errorf("insufficient balance")
 		}
 		before := agent.Balance
 		after := before - amount

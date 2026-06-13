@@ -120,6 +120,9 @@ func InitOptionMap() {
 	common.OptionMap["XunhuAlipayAppId"] = setting.XunhuAlipayAppId
 	common.OptionMap["XunhuAlipayAppSecret"] = setting.XunhuAlipayAppSecret
 	common.OptionMap["XunhuGatewayUrl"] = setting.XunhuGatewayUrl
+	common.OptionMap["XunhuFundType"] = setting.XunhuFundType
+	common.OptionMap["XunhuFundSymbol"] = setting.XunhuFundSymbol
+	common.OptionMap["XunhuExchangeRate"] = strconv.FormatFloat(setting.XunhuExchangeRate, 'f', -1, 64)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -480,6 +483,12 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.XunhuAlipayAppSecret = value
 	case "XunhuGatewayUrl":
 		setting.XunhuGatewayUrl = value
+		case "XunhuFundType":
+			setting.XunhuFundType = value
+		case "XunhuFundSymbol":
+			setting.XunhuFundSymbol = value
+		case "XunhuExchangeRate":
+			setting.XunhuExchangeRate, _ = strconv.ParseFloat(value, 64)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

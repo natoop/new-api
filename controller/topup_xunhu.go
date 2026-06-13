@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -52,7 +53,7 @@ func RequestXunhuTopup(c *gin.Context) {
 		common.ApiErrorMsg(c, "获取用户分组失败")
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney := calcXunhuPayMoney(req.Amount, group)
 	if payMoney < 0.01 {
 		common.ApiErrorMsg(c, "充值金额过低")
 		return
@@ -102,6 +103,61 @@ func RequestXunhuTopup(c *gin.Context) {
 		"qr_url":   qrUrl,
 		"order_no": tradeNo,
 	})
+}
+
+
+// calcXunhuPayMoney 计算虎皮椒支付应付金额，使用 XunhuExchangeRate 替代全局 Price。
+// 计算逻辑与 getPayMoney 一致：amount × XunhuExchangeRate × groupRatio × discount。
+func calcXunhuPayMoney(amount int64, group string) float64 {
+	dAmount := decimal.NewFromInt(amount)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		dAmount = dAmount.Div(dQuotaPerUnit)
+	}
+
+	topupGroupRatio := common.GetTopupGroupRatio(group)
+	if topupGroupRatio == 0 {
+		topupGroupRatio = 1
+	}
+
+	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
+	// 使用虎皮椒专属汇率替代全局 Price
+	dPrice := decimal.NewFromFloat(setting.XunhuExchangeRate)
+	if dPrice.LessThanOrEqual(decimal.Zero) {
+		// 兜底：若管理员未配置汇率则回退到全局 Price
+		dPrice = decimal.NewFromFloat(operation_setting.Price)
+	}
+	discount := 1.0
+	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
+		if ds > 0 {
+			discount = ds
+		}
+	}
+	dDiscount := decimal.NewFromFloat(discount)
+
+	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
+
+	return payMoney.InexactFloat64()
+}
+
+// RequestXunhuAmount 计算虎皮椒支付应付金额（用于钱包页实时报价预览）。
+// 与 RequestAmount 的区别：使用 XunhuExchangeRate 替代全局 Price。
+func RequestXunhuAmount(c *gin.Context) {
+	var req AmountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	userId := c.GetInt("id")
+	group, err := model.GetUserGroup(userId, true)
+	if err != nil {
+		common.ApiErrorMsg(c, "获取用户分组失败")
+		return
+	}
+
+	payMoney := calcXunhuPayMoney(req.Amount, group)
+	common.ApiSuccess(c, fmt.Sprintf("%.2f", payMoney))
 }
 
 func XunhuTopupNotify(c *gin.Context) {

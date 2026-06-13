@@ -87,6 +87,14 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 /**
+ * Check if payment method is a XunhuPay (虎皮椒) flavour.
+ * Supported xunhu pay type strings: "xunhu-wechat", "xunhu-alipay".
+ */
+export function isXunhuPayment(paymentType: string): boolean {
+  return paymentType === 'xunhu-wechat' || paymentType === 'xunhu-alipay'
+}
+
+/**
  * Get default payment type from topup info
  */
 export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {

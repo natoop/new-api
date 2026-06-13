@@ -11,4 +11,9 @@ var (
 	XunhuAlipayAppId     string
 	XunhuAlipayAppSecret string
 	XunhuGatewayUrl      = "https://api.xunhupay.com/payment/do.html"
+
+	// 资金展示配置（钱包页应付金额用）
+	XunhuFundType     = "CNY"
+	XunhuFundSymbol   = "¥"
+	XunhuExchangeRate = 1.0
 )

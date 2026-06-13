@@ -115,7 +115,7 @@ For commercial licensing, please contact support@quantumnous.com
    * in theme-presets.css. Default mirrors `--font-sans` so behavior is
    * identical when no font preference is set. */
   --font-body: var(--font-sans);
-  /* Goswich brand gradient — azure → fresh-green, sampled from the GS
+  /* GoSwitch brand gradient — azure → fresh-green, sampled from the GS
    * logomark (#0190EF → #66C74B). Reserved for the logomark, auth hero and
    * rare hero CTAs; everyday surfaces stay neutral and only --primary
    * carries the brand. */

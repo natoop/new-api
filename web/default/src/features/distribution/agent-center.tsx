@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -399,7 +400,7 @@ export function AgentCenter() {
     try {
       const result = await applyAgentCoupon(amount)
       if (!result.success) {
-        toast.error(apiActionError(result.message, t('Action failed')))
+        toast.error(t(getPurchaseMessageKey(result.message)))
         return
       }
       toast.success(t('Coupon applied'))
@@ -826,7 +827,9 @@ export function AgentCenter() {
                               <span className='font-mono text-xs'>
                                 {row.code}
                               </span>
-                              <ClipboardButton text={row.code} />
+                              {row.status !== 'used' && (
+                                <ClipboardButton text={row.code} />
+                              )}
                             </div>
                           </td>
                           <td>{formatMoney(row.amount)}</td>
@@ -858,6 +861,11 @@ export function AgentCenter() {
           <DialogContent className='max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-lg'>
             <DialogHeader>
               <DialogTitle>{t('Apply Coupon')}</DialogTitle>
+              <DialogDescription className='text-destructive font-medium'>
+                {t(
+                  'Applied coupons cannot be manually refunded and will only be refunded to your balance when they expire unused.'
+                )}
+              </DialogDescription>
             </DialogHeader>
             <div className='flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto'>
               <div className='space-y-2'>
@@ -896,7 +904,7 @@ export function AgentCenter() {
                 disabled={couponSubmitting}
                 onClick={() => void handleApplyCoupon()}
               >
-                {couponSubmitting ? t('Loading') : t('Apply')}
+                {couponSubmitting ? t('Loading') : t('Confirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -37,6 +37,8 @@ import { DEFAULT_DISCOUNT_RATE } from '../../constants'
 import { getPaymentIcon } from '../../lib'
 import type { PaymentMethod } from '../../types'
 
+const XUNHU_PAYMENT_TYPES = ['xunhu-wechat', 'xunhu-alipay']
+
 interface PaymentConfirmDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -47,6 +49,8 @@ interface PaymentConfirmDialogProps {
   calculating: boolean
   processing: boolean
   discountRate?: number
+  /** Fund symbol for XunhuPay, e.g. '¥' */
+  xunhuFundSymbol?: string
 }
 
 export function PaymentConfirmDialog({
@@ -59,11 +63,26 @@ export function PaymentConfirmDialog({
   calculating,
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
+  xunhuFundSymbol,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
   const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
+
+  const fmtPayment = (value: number) => {
+    if (
+      XUNHU_PAYMENT_TYPES.includes(paymentMethod?.type ?? '') &&
+      xunhuFundSymbol
+    ) {
+      return `${xunhuFundSymbol}${value.toFixed(2)}`
+    }
+    return formatLocalCurrencyAmount(value, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+  }
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -99,11 +118,7 @@ export function PaymentConfirmDialog({
               <Skeleton className='h-6 w-24' />
             ) : (
               <span className='text-2xl font-semibold'>
-                {formatLocalCurrencyAmount(paymentAmount, {
-                  digitsLarge: 2,
-                  digitsSmall: 2,
-                  abbreviate: false,
-                })}
+                {fmtPayment(paymentAmount)}
               </span>
             )}
           </div>
@@ -115,18 +130,10 @@ export function PaymentConfirmDialog({
                 <div className='flex items-baseline gap-2'>
                   <span className='font-semibold text-green-600'>
                     -
-                    {formatLocalCurrencyAmount(discountAmount, {
-                      digitsLarge: 2,
-                      digitsSmall: 2,
-                      abbreviate: false,
-                    })}
+                    {fmtPayment(discountAmount)}
                   </span>
                   <span className='text-muted-foreground text-xs line-through'>
-                    {formatLocalCurrencyAmount(originalAmount, {
-                      digitsLarge: 2,
-                      digitsSmall: 2,
-                      abbreviate: false,
-                    })}
+                    {fmtPayment(originalAmount)}
                   </span>
                 </div>
               </div>

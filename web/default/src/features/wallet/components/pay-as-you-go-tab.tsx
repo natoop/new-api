@@ -37,6 +37,8 @@ import {
 import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
 import { PaymentConfirmDialog } from './dialogs/payment-confirm-dialog'
 
+const XUNHU_PAYMENT_TYPES = ['xunhu-wechat', 'xunhu-alipay']
+
 interface PayAsYouGoTabProps {
   topupInfo: TopupInfo | null
   onPaid?: () => void | Promise<void>
@@ -127,6 +129,18 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
     Boolean(method) &&
     quotedPaymentAmount !== null &&
     !calculating
+
+  // 虎皮椒支付渠道使用专属资金符号展示应付金额，其余渠道走全局货币
+  const formatPaymentAmount = (value: number) => {
+    if (XUNHU_PAYMENT_TYPES.includes(method) && topupInfo?.xunhu_fund_symbol) {
+      return `${topupInfo.xunhu_fund_symbol}${value.toFixed(2)}`
+    }
+    return formatLocalCurrencyAmount(value, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+  }
 
   if (!hasChannel) {
     return (
@@ -240,7 +254,9 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
             </p>
             <div className='relative max-w-xs'>
               <span className='text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm'>
-                $
+                {XUNHU_PAYMENT_TYPES.includes(method) && topupInfo?.xunhu_fund_symbol
+                  ? topupInfo.xunhu_fund_symbol
+                  : '$'}
               </span>
               <Input
                 type='number'
@@ -323,19 +339,11 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                   <Loader2 className='size-4 animate-spin' />
                 ) : hasDiscount && originalPaymentAmount !== null ? (
                   <span className='text-muted-foreground line-through'>
-                    {formatLocalCurrencyAmount(originalPaymentAmount, {
-                      digitsLarge: 2,
-                      digitsSmall: 2,
-                      abbreviate: false,
-                    })}
+                    {formatPaymentAmount(originalPaymentAmount)}
                   </span>
                 ) : quotedPaymentAmount !== null ? (
                   <span className='font-medium'>
-                    {formatLocalCurrencyAmount(quotedPaymentAmount, {
-                      digitsLarge: 2,
-                      digitsSmall: 2,
-                      abbreviate: false,
-                    })}
+                    {formatPaymentAmount(quotedPaymentAmount)}
                   </span>
                 ) : (
                   <span className='text-muted-foreground'>--</span>
@@ -349,11 +357,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                   ) : discountAmount !== null ? (
                     <span className='text-accent-coral font-semibold'>
                       -
-                      {formatLocalCurrencyAmount(discountAmount, {
-                        digitsLarge: 2,
-                        digitsSmall: 2,
-                        abbreviate: false,
-                      })}
+                      {formatPaymentAmount(discountAmount)}
                     </span>
                   ) : (
                     <span className='text-muted-foreground'>--</span>
@@ -368,11 +372,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
                   {calculating ? (
                     <Loader2 className='size-5 animate-spin' />
                   ) : quotedPaymentAmount !== null ? (
-                    formatLocalCurrencyAmount(quotedPaymentAmount, {
-                      digitsLarge: 2,
-                      digitsSmall: 2,
-                      abbreviate: false,
-                    })
+                    formatPaymentAmount(quotedPaymentAmount)
                   ) : (
                     '--'
                   )}
@@ -406,6 +406,7 @@ export function PayAsYouGoTab({ topupInfo, onPaid }: PayAsYouGoTabProps) {
         calculating={calculating}
         processing={processing}
         discountRate={discountRate}
+        xunhuFundSymbol={topupInfo?.xunhu_fund_symbol}
       />
     </>
   )

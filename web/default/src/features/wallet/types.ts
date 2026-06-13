@@ -175,6 +175,12 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Fund type for XunhuPay (currency code), e.g. 'CNY' */
+  xunhu_fund_type?: string
+  /** Fund symbol for XunhuPay, e.g. '¥' */
+  xunhu_fund_symbol?: string
+  /** Exchange rate for XunhuPay (local currency per USD) */
+  xunhu_exchange_rate?: number
 }
 
 /**
