@@ -282,6 +282,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&UserAgreementConsent{},
+		&BusinessLead{},
 	)
 	if err != nil {
 		return err

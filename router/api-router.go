@@ -54,6 +54,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
+		// 匿名提交商务线索（合作意向收集）
+		apiRouter.POST("/business/lead", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.SubmitBusinessLead)
+
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
@@ -470,6 +473,15 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+		}
+
+		// Business leads (合作意向 / 商务线索管理)
+		bl := apiRouter.Group("/business-lead")
+		bl.Use(middleware.AdminAuth())
+		{
+			bl.GET("/", controller.AdminListBusinessLeads)
+			bl.PUT("/:id/status", controller.AdminUpdateBusinessLeadStatus)
+			bl.DELETE("/:id", controller.AdminDeleteBusinessLead)
 		}
 	}
 }

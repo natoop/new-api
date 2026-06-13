@@ -23,6 +23,7 @@ import {
   FileText,
   FlaskConical,
   Handshake,
+  Inbox,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -156,6 +157,11 @@ export function useSidebarData(): SidebarData {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
+          },
+          {
+            title: t('Business Leads'),
+            url: '/business-leads',
+            icon: Inbox,
           },
           {
             title: t('Subscription Management'),

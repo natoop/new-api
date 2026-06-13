@@ -16,19 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  ExternalLink,
-  Handshake,
-  Boxes,
-  Network,
-  Headset,
-} from 'lucide-react'
+import { Handshake, Boxes, Network, Headset } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { PublicLayout } from '@/components/layout'
-
-const COOPERATION_FORM_URL =
-  'https://packymellc.feishu.cn/share/base/form/shrcn0MQ2rxSWdr2N9WKT5cyQ3n'
+import { CooperationForm } from './components/cooperation-form'
+import { CooperationVisual } from './components/cooperation-visual'
 
 const PARTNERSHIPS = [
   {
@@ -50,6 +44,8 @@ const PARTNERSHIPS = [
 
 export function Cooperation() {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const brand = (status?.system_name as string | undefined) || DEFAULT_SYSTEM_NAME
 
   return (
     <PublicLayout showMainContainer={false}>
@@ -66,7 +62,7 @@ export function Cooperation() {
           }}
         />
 
-        <div className='mx-auto max-w-5xl'>
+        <div className='mx-auto max-w-6xl'>
           {/* Header */}
           <div className='max-w-2xl'>
             <div className='border-primary/20 bg-primary/5 text-primary mb-5 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium'>
@@ -78,13 +74,14 @@ export function Cooperation() {
             </h1>
             <p className='text-muted-foreground/85 mt-4 text-base leading-relaxed'>
               {t(
-                "Whether you're an API reseller, distribution agent, SaaS integrator, or enterprise buyer, we offer competitive volume pricing, a stable multi-protocol gateway, and dedicated support to help you onboard fast and scale."
+                'As {{brand}}, we offer competitive volume pricing, a stable multi-protocol gateway, and dedicated support — for API resellers, distribution agents, SaaS integrators, and enterprise buyers to onboard fast and scale.',
+                { brand }
               )}
             </p>
           </div>
 
-          {/* Partnership tracks */}
-          <div className='mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+          {/* Partnership cards, full width on top */}
+          <div className='mt-10 grid gap-4 sm:grid-cols-3'>
             {PARTNERSHIPS.map((item) => (
               <div
                 key={item.title}
@@ -101,46 +98,21 @@ export function Cooperation() {
             ))}
           </div>
 
-          {/* Lead form */}
-          <div className='mt-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
-            <div>
-              <h2 className='text-xl font-semibold tracking-tight'>
-                {t('Tell us about your needs')}
+          {/* Inline form + brand visual */}
+          <div className='mt-8 grid gap-6 lg:grid-cols-2'>
+            <div className='glass-card rounded-2xl p-6'>
+              <h2 className='text-lg font-semibold tracking-tight'>
+                {t('Start a partnership')}
               </h2>
-              <p className='text-muted-foreground/80 mt-1.5 text-sm'>
+              <p className='text-muted-foreground/80 mt-2 mb-5 text-sm leading-relaxed'>
                 {t(
                   'Leave your details and our team will reach out to discuss the partnership that fits you.'
                 )}
               </p>
+              <CooperationForm />
             </div>
-            <Button
-              variant='outline'
-              className='shrink-0'
-              render={
-                <a
-                  href={COOPERATION_FORM_URL}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                />
-              }
-            >
-              <ExternalLink className='size-4' />
-              {t('Open cooperation form in a new tab')}
-            </Button>
+            <CooperationVisual />
           </div>
-
-          <div className='border-border/60 bg-card mt-4 overflow-hidden rounded-2xl border shadow-sm'>
-            <iframe
-              src={COOPERATION_FORM_URL}
-              className='h-[64vh] w-full border-0'
-              title={t('Business Cooperation')}
-            />
-          </div>
-          <p className='text-muted-foreground/60 mt-3 text-center text-xs'>
-            {t(
-              "If the form doesn't load here, use the button above to open it in a new tab."
-            )}
-          </p>
         </div>
       </section>
     </PublicLayout>

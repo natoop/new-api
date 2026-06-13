@@ -49,6 +49,7 @@ import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedBusinessLeadsIndexRouteImport } from './routes/_authenticated/business-leads/index'
 import { Route as AuthenticatedAgentIndexRouteImport } from './routes/_authenticated/agent/index'
 import { Route as AuthenticatedAgentAdminIndexRouteImport } from './routes/_authenticated/agent-admin/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
@@ -282,6 +283,12 @@ const AuthenticatedChannelsIndexRoute =
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedBusinessLeadsIndexRoute =
+  AuthenticatedBusinessLeadsIndexRouteImport.update({
+    id: '/business-leads/',
+    path: '/business-leads/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAgentIndexRoute = AuthenticatedAgentIndexRouteImport.update({
   id: '/agent/',
   path: '/agent/',
@@ -452,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/agent-admin/': typeof AuthenticatedAgentAdminIndexRoute
   '/agent/': typeof AuthenticatedAgentIndexRoute
+  '/business-leads/': typeof AuthenticatedBusinessLeadsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -514,6 +522,7 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/agent-admin': typeof AuthenticatedAgentAdminIndexRoute
   '/agent': typeof AuthenticatedAgentIndexRoute
+  '/business-leads': typeof AuthenticatedBusinessLeadsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -580,6 +589,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/agent-admin/': typeof AuthenticatedAgentAdminIndexRoute
   '/_authenticated/agent/': typeof AuthenticatedAgentIndexRoute
+  '/_authenticated/business-leads/': typeof AuthenticatedBusinessLeadsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/agent-admin/'
     | '/agent/'
+    | '/business-leads/'
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/agent-admin'
     | '/agent'
+    | '/business-leads'
     | '/channels'
     | '/dashboard'
     | '/keys'
@@ -772,6 +784,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/agent-admin/'
     | '/_authenticated/agent/'
+    | '/_authenticated/business-leads/'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
@@ -1105,6 +1118,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/business-leads/': {
+      id: '/_authenticated/business-leads/'
+      path: '/business-leads'
+      fullPath: '/business-leads/'
+      preLoaderRoute: typeof AuthenticatedBusinessLeadsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agent/': {
       id: '/_authenticated/agent/'
       path: '/agent'
@@ -1363,6 +1383,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedAgentAdminIndexRoute: typeof AuthenticatedAgentAdminIndexRoute
   AuthenticatedAgentIndexRoute: typeof AuthenticatedAgentIndexRoute
+  AuthenticatedBusinessLeadsIndexRoute: typeof AuthenticatedBusinessLeadsIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1388,6 +1409,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedAgentAdminIndexRoute: AuthenticatedAgentAdminIndexRoute,
   AuthenticatedAgentIndexRoute: AuthenticatedAgentIndexRoute,
+  AuthenticatedBusinessLeadsIndexRoute: AuthenticatedBusinessLeadsIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
