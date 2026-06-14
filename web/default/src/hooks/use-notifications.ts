@@ -165,7 +165,6 @@ export function useNotifications() {
     // Data
     notice: noticeContent,
     announcements,
-    announcementsEnabled,
     loading: noticeLoading || statusLoading,
 
     // Unread counts

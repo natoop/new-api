@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { WelcomeAnnouncement } from '@/features/home/components/welcome-announcement'
 import type { TopNavLink } from '../types'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
@@ -46,8 +45,6 @@ export function PublicLayout(props: PublicLayoutProps) {
         siteName={props.siteName}
         {...props.headerProps}
       />
-
-      <WelcomeAnnouncement />
 
       {props.showMainContainer !== false ? (
         <main className='container px-4 py-6 pt-20 md:px-4'>

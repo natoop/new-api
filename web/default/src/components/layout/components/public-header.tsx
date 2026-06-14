@@ -18,10 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowRight, Bell } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { useAnnouncementStore } from '@/stores/announcement-store'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -30,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import type { TopNavLink } from '../types'
@@ -88,7 +88,6 @@ export function PublicHeader(props: PublicHeaderProps) {
   } = useSystemConfig()
   const dynamicLinks = useTopNavLinks()
   const notifications = useNotifications()
-  const openAnnouncement = useAnnouncementStore((s) => s.openNow)
   const routerState = useRouterState()
   const pathname = routerState.location.pathname
 
@@ -267,19 +266,16 @@ export function PublicHeader(props: PublicHeaderProps) {
               {showLanguageSwitcher && <LanguageSwitcher />}
               {showThemeSwitch && <ThemeSwitch />}
               {showNotifications && (
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='icon'
-                  className='relative size-9'
-                  aria-label={t('System Announcements')}
-                  onClick={openAnnouncement}
-                >
-                  <Bell className='size-[1.2rem]' />
-                  {notifications.unreadCount > 0 ? (
-                    <span className='bg-destructive absolute top-1 right-1 size-2 rounded-full' />
-                  ) : null}
-                </Button>
+                <NotificationPopover
+                  open={notifications.popoverOpen}
+                  onOpenChange={notifications.setPopoverOpen}
+                  unreadCount={notifications.unreadCount}
+                  activeTab={notifications.activeTab}
+                  onTabChange={notifications.setActiveTab}
+                  notice={notifications.notice}
+                  announcements={notifications.announcements}
+                  loading={notifications.loading}
+                />
               )}
 
               {showAuthButtons && (
