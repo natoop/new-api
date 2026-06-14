@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { ArrowRight, Megaphone, ShieldCheck, Activity, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { useAnnouncementStore } from '@/stores/announcement-store'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -102,21 +103,28 @@ export function WelcomeAnnouncement() {
 
   const dismissKey =
     STORAGE_PREFIX + shortHash(buildFingerprint(notice, announcements))
-  const [open, setOpen] = useState(false)
+  const open = useAnnouncementStore((s) => s.open)
+  const manual = useAnnouncementStore((s) => s.manual)
+  const setOpen = useAnnouncementStore((s) => s.setOpen)
   const [dontShowAgain, setDontShowAgain] = useState(false)
+
+  const routerState = useRouterState()
+  const pathname = routerState.location.pathname
+  const isHome = pathname === '/'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!isHome) return // 只在首页自动弹；其它公开页不自动弹
     if (notifications.loading) return
     if (window.localStorage.getItem(dismissKey)) return
 
     const timeoutId = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS)
     return () => window.clearTimeout(timeoutId)
-  }, [notifications.loading, dismissKey])
+  }, [isHome, notifications.loading, dismissKey, setOpen])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
-    if (!next && dontShowAgain && typeof window !== 'undefined') {
+    if (!next && !manual && dontShowAgain && typeof window !== 'undefined') {
       window.localStorage.setItem(dismissKey, '1')
     }
   }

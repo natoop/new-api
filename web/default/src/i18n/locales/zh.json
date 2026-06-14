@@ -5096,6 +5096,7 @@
     "Live health, latency, and availability for every channel, checked on a fixed interval.": "每个渠道的健康、延迟、可用性实时呈现，按固定周期巡检。",
     "Requests are sent to the lowest-latency healthy channel automatically.": "请求自动发往延迟最低的健康渠道。",
     "Per-key quotas and scopes, with zero data retention by default.": "按密钥设额度与权限，默认零数据留存。",
+    "Issue scoped keys per project, each with its own quota and rate limit — revoke any time, with zero data retention by default.": "按项目签发独立密钥，各自配额与限速、可随时吊销，默认零数据留存。",
     "Absorbs traffic spikes without degradation.": "吸收流量峰值不降级。",
     "Stable access to global models across regions.": "多区域稳定访问全球模型。",
     "One balance across every model and route.": "全模型全路由一个余额。",

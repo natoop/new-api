@@ -5096,6 +5096,7 @@
     "Live health, latency, and availability for every channel, checked on a fixed interval.": "Live health, latency, and availability for every channel, checked on a fixed interval.",
     "Requests are sent to the lowest-latency healthy channel automatically.": "Requests are sent to the lowest-latency healthy channel automatically.",
     "Per-key quotas and scopes, with zero data retention by default.": "Per-key quotas and scopes, with zero data retention by default.",
+    "Issue scoped keys per project, each with its own quota and rate limit — revoke any time, with zero data retention by default.": "Issue scoped keys per project, each with its own quota and rate limit — revoke any time, with zero data retention by default.",
     "Absorbs traffic spikes without degradation.": "Absorbs traffic spikes without degradation.",
     "Stable access to global models across regions.": "Stable access to global models across regions.",
     "One balance across every model and route.": "One balance across every model and route.",

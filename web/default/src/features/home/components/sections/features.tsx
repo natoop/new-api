@@ -100,23 +100,26 @@ export function Features(_props: FeaturesProps) {
       num: '04',
       title: t('Key isolation'),
       desc: t(
-        'Per-key quotas and scopes, with zero data retention by default.'
+        'Issue scoped keys per project, each with its own quota and rate limit — revoke any time, with zero data retention by default.'
       ),
       span: 'md:col-span-2',
       icon: <ShieldCheck className='size-4 text-amber-400' />,
       visual: (
-        <div className='mt-4 flex items-center gap-3'>
-          <div className='flex -space-x-2'>
-            {['key·1', 'key·2', 'key·3', 'key·n'].map((n) => (
-              <div
-                key={n}
-                className='border-background from-muted to-muted/60 text-muted-foreground flex size-9 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
-              >
-                {n}
-              </div>
-            ))}
+        <div className='mt-4'>
+          <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
+            {['key · prod', 'key · dev', 'key · ci', 'key · staging', 'key · app', 'key · n'].map(
+              (name) => (
+                <div
+                  key={name}
+                  className='border-border/30 bg-muted/20 text-muted-foreground flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-amber-500/30 hover:bg-amber-500/5'
+                >
+                  <ShieldCheck className='size-3.5 shrink-0 text-amber-500/70' />
+                  <span className='truncate'>{name}</span>
+                </div>
+              )
+            )}
           </div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
+          <div className='text-muted-foreground mt-3 flex items-center justify-center gap-1.5 text-xs'>
             <ShieldCheck className='size-3.5 text-emerald-500' />
             {t('0 data retained')}
           </div>
