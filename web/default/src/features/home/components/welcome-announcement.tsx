@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ShieldCheck, Activity, Zap } from 'lucide-react'
+import { ArrowRight, Megaphone, ShieldCheck, Activity, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getAnnouncementColorClass } from '@/lib/colors'
@@ -61,6 +61,13 @@ const PILLARS = [
   },
 ] as const
 
+type AnnouncementItem = {
+  type?: string
+  content?: string
+  extra?: string
+  publishDate?: string
+}
+
 function shortHash(input: string): string {
   let h = 0
   for (let i = 0; i < input.length; i += 1) {
@@ -70,14 +77,12 @@ function shortHash(input: string): string {
   return (h >>> 0).toString(36)
 }
 
-function buildFingerprint(items: Record<string, unknown>[]): string {
-  if (items.length === 0) return BRAND_FINGERPRINT
-  return items
-    .map((it) => {
-      const a = it as { type?: string; content?: string; publishDate?: string }
-      return `${a.type || ''}|${(a.content || '').trim()}|${a.publishDate || ''}`
-    })
+function buildFingerprint(notice: string, items: AnnouncementItem[]): string {
+  const announcementPart = items
+    .map((a) => `${a.type || ''}|${(a.content || '').trim()}|${a.publishDate || ''}`)
     .join('::')
+  const combined = `${notice.trim()}##${announcementPart}`
+  return combined === '##' ? BRAND_FINGERPRINT : combined
 }
 
 export function WelcomeAnnouncement() {
@@ -85,10 +90,18 @@ export function WelcomeAnnouncement() {
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const notifications = useNotifications()
-  const visible = notifications.announcementsEnabled
-    ? notifications.announcements.slice(0, 3)
+
+  // The entry popup IS the system announcement: it surfaces whatever an admin
+  // edits in either Notice (System Notice) or the Announcements list, so the
+  // two are one and the same thing. Falls back to a branded welcome when empty.
+  const notice = (notifications.notice || '').trim()
+  const announcements = notifications.announcementsEnabled
+    ? (notifications.announcements as AnnouncementItem[]).slice(0, 3)
     : []
-  const dismissKey = STORAGE_PREFIX + shortHash(buildFingerprint(visible))
+  const hasContent = notice.length > 0 || announcements.length > 0
+
+  const dismissKey =
+    STORAGE_PREFIX + shortHash(buildFingerprint(notice, announcements))
   const [open, setOpen] = useState(false)
   const [dontShowAgain, setDontShowAgain] = useState(false)
 
@@ -108,22 +121,28 @@ export function WelcomeAnnouncement() {
     }
   }
 
+  const title = (
+    <div className='flex items-center gap-2'>
+      <span className='text-sm font-bold tracking-[-0.01em]'>GoSwitch</span>
+      <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
+        {hasContent ? t('Announcements') : t('Welcome to GoSwitch')}
+      </span>
+    </div>
+  )
+
+  const description = hasContent
+    ? t('Latest platform updates and notices')
+    : t(
+        'The stable, fast gateway for AI models — auto-failover keeps you online, nearest-healthy routing keeps you quick.'
+      )
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       contentClassName='glass-card sm:max-w-lg'
-      title={
-        <div className='flex items-center gap-2'>
-          <span className='text-sm font-bold tracking-[-0.01em]'>GoSwitch</span>
-          <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-            {t('Welcome to GoSwitch')}
-          </span>
-        </div>
-      }
-      description={t(
-        'The stable, fast gateway for AI models — auto-failover keeps you online, nearest-healthy routing keeps you quick.'
-      )}
+      title={title}
+      description={description}
       footer={
         <div className='flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <label className='text-muted-foreground flex cursor-pointer items-center gap-2 text-sm select-none'>
@@ -149,17 +168,22 @@ export function WelcomeAnnouncement() {
         </div>
       }
     >
-      {visible.length > 0 ? (
+      {hasContent ? (
         <div className='max-h-[min(48vh,22rem)] space-y-3 overflow-y-auto pr-1'>
-          {visible.map((item, idx) => {
-            const announcement = item as {
-              type?: string
-              content?: string
-              extra?: string
-              publishDate?: string
-            }
-            const date = announcement.publishDate
-              ? formatDateTimeObject(new Date(announcement.publishDate))
+          {notice ? (
+            <div className='border-primary/20 bg-primary/5 flex items-start gap-3 rounded-xl border p-3.5'>
+              <div className='border-primary/20 bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg border'>
+                <Megaphone className='size-4.5' />
+              </div>
+              <div className='min-w-0 flex-1 text-sm leading-[1.65]'>
+                <Markdown>{notice}</Markdown>
+              </div>
+            </div>
+          ) : null}
+
+          {announcements.map((item, idx) => {
+            const date = item.publishDate
+              ? formatDateTimeObject(new Date(item.publishDate))
               : ''
             return (
               <div
@@ -169,16 +193,16 @@ export function WelcomeAnnouncement() {
                 <span
                   className={cn(
                     'mt-1.5 inline-block size-2 shrink-0 rounded-full',
-                    getAnnouncementColorClass(announcement.type)
+                    getAnnouncementColorClass(item.type)
                   )}
                 />
                 <div className='min-w-0 flex-1'>
                   <div className='text-sm leading-[1.65]'>
-                    <Markdown>{announcement.content || ''}</Markdown>
+                    <Markdown>{item.content || ''}</Markdown>
                   </div>
-                  {announcement.extra ? (
+                  {item.extra ? (
                     <div className='text-muted-foreground mt-1 text-xs'>
-                      <Markdown>{announcement.extra}</Markdown>
+                      <Markdown>{item.extra}</Markdown>
                     </div>
                   ) : null}
                   {date ? (
