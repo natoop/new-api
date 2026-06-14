@@ -53,15 +53,15 @@ export function CTA(props: CTAProps) {
         animation='scale-in'
       >
         <h2 className='text-3xl leading-tight font-bold tracking-tight md:text-5xl'>
-          {t('Ready to simplify')}
+          {t('Run on a gateway')}
           <br />
           <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
+            {t('that stays up')}
           </span>
         </h2>
         <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
           {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
+            'Start free today — automatic failover, real-time monitoring, and one unified API included.'
           )}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>

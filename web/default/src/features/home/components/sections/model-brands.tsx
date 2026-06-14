@@ -77,11 +77,11 @@ export function ModelBrands() {
             {t('Model Providers')}
           </span>
           <h2 className='mt-3 text-3xl leading-tight font-bold tracking-tight md:text-4xl'>
-            {t('Powered by leading models')}
+            {t('Every major provider, one stable endpoint')}
           </h2>
           <p className='text-muted-foreground/80 mx-auto mt-4 max-w-xl text-sm leading-relaxed md:text-base'>
             {t(
-              'Access top models from global and domestic providers through a single unified gateway.'
+              'Global and domestic models, unified behind a single gateway with automatic failover between them.'
             )}
           </p>
         </AnimateInView>

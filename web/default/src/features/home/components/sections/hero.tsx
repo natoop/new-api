@@ -186,17 +186,17 @@ export function Hero(props: HeroProps) {
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
               <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
             </span>
-            <span>{t('AI Application Infrastructure Foundation')}</span>
+            <span>{t('Reliable AI gateway')}</span>
           </div>
 
           <h1
             className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.08] font-bold tracking-[-0.02em]'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Unified API Gateway for')}{' '}
+            {t('One stable endpoint for')}{' '}
             <br className='hidden sm:block' />
             <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-              {t('Vast Range of AI Models')}
+              {t('every AI model')}
             </span>
           </h1>
           <p
@@ -204,7 +204,15 @@ export function Hero(props: HeroProps) {
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
+              'Automatic multi-channel failover, real-time health monitoring, and unified routing — so your product stays online while you build.'
+            )}
+          </p>
+          <p
+            className='landing-animate-fade-up text-muted-foreground/60 mt-4 text-xs font-medium opacity-0 md:text-sm'
+            style={{ animationDelay: '150ms' }}
+          >
+            {t(
+              'OpenAI-compatible · Global and domestic models · Single unified API'
             )}
           </p>
 

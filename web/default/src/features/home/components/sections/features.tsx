@@ -17,14 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
+  Activity,
   Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
+  Network,
+  ShieldCheck,
+  Layers,
+  Globe,
+  Wallet,
+  Plug,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
@@ -38,21 +38,21 @@ export function Features(_props: FeaturesProps) {
 
   const features = [
     {
-      id: 'fast',
+      id: 'failover',
       num: '01',
-      title: t('Lightning Fast'),
+      title: t('Automatic failover'),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        'When a channel slows or errors, traffic reroutes to the next healthy upstream in under a second — no manual switching, no downtime.'
       ),
       span: 'md:col-span-2',
-      icon: <Zap className='size-4 text-blue-400' />,
+      icon: <Activity className='size-4 text-sky-400' />,
       visual: (
         <div className='mt-4 grid grid-cols-3 gap-2'>
           {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map(
             (name) => (
               <div
                 key={name}
-                className='border-border/30 bg-muted/20 text-muted-foreground flex items-center justify-center rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-blue-500/30 hover:bg-blue-500/5'
+                className='border-border/30 bg-muted/20 text-muted-foreground flex items-center justify-center rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-sky-500/30 hover:bg-sky-500/5'
               >
                 {name}
               </div>
@@ -62,93 +62,61 @@ export function Features(_props: FeaturesProps) {
       ),
     },
     {
-      id: 'secure',
+      id: 'monitoring',
       num: '02',
-      title: t('Secure & Reliable'),
+      title: t('Real-time monitoring'),
       desc: t(
-        'Enterprise-grade security with comprehensive permission management'
+        'Live health, latency, and availability for every channel, refreshed continuously.'
       ),
       span: 'md:col-span-1',
-      icon: <Shield className='size-4 text-emerald-400' />,
+      icon: <Gauge className='size-4 text-emerald-400' />,
       visual: (
         <div className='mt-4 flex items-center justify-center'>
-          <div className='relative'>
-            <div className='flex size-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5'>
-              <Shield
-                className='size-7 text-emerald-500/70'
-                strokeWidth={1.5}
-              />
-            </div>
-            <div className='absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500'>
-              <svg
-                className='size-2.5 text-white'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='m4.5 12.75 6 6 9-13.5'
-                />
-              </svg>
-            </div>
+          <div className='flex size-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5'>
+            <Gauge className='size-7 text-emerald-500/70' strokeWidth={1.5} />
           </div>
         </div>
       ),
     },
     {
-      id: 'global',
+      id: 'routing',
       num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
+      title: t('Smart routing'),
+      desc: t(
+        'Requests go to the lowest-latency healthy channel automatically.'
+      ),
       span: 'md:col-span-1',
-      icon: <Globe className='size-4 text-violet-400' />,
+      icon: <Network className='size-4 text-violet-400' />,
       visual: (
-        <div className='mt-4 space-y-2'>
-          {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
-            (step, i) => (
-              <div key={step} className='flex items-center gap-2'>
-                <div
-                  className={`flex size-6 items-center justify-center rounded-full text-[10px] font-bold ${
-                    i === 1
-                      ? 'border border-blue-500/30 bg-blue-500/20 text-blue-500'
-                      : 'border-border/40 bg-muted text-muted-foreground border'
-                  }`}
-                >
-                  {i + 1}
-                </div>
-                <div className='bg-border/40 h-px flex-1' />
-                <span className='text-muted-foreground text-xs'>{step}</span>
-              </div>
-            )
-          )}
+        <div className='mt-4 flex items-center justify-center'>
+          <div className='flex size-16 items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/5'>
+            <Network className='size-7 text-violet-500/70' strokeWidth={1.5} />
+          </div>
         </div>
       ),
     },
     {
-      id: 'developer',
+      id: 'keys',
       num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
+      title: t('Key isolation'),
+      desc: t('Per-key quotas, scopes, and zero data retention by default.'),
       span: 'md:col-span-2',
-      icon: <Code className='size-4 text-amber-400' />,
+      icon: <ShieldCheck className='size-4 text-amber-400' />,
       visual: (
         <div className='mt-4 flex items-center gap-3'>
           <div className='flex -space-x-2'>
-            {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
+            {['key·1', 'key·2', 'key·3', 'key·n'].map((n) => (
               <div
                 key={n}
-                className='border-background from-muted to-muted/60 text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
+                className='border-background from-muted to-muted/60 text-muted-foreground flex size-9 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
               >
                 {n}
               </div>
             ))}
           </div>
           <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <Code className='size-3.5 text-blue-500' />
-            {t('Multi-protocol Compatible')}
+            <ShieldCheck className='size-3.5 text-emerald-500' />
+            {t('0 data retained')}
           </div>
         </div>
       ),
@@ -157,38 +125,36 @@ export function Features(_props: FeaturesProps) {
 
   const additionalFeatures = [
     {
-      icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
+      icon: <Layers className='size-5' strokeWidth={1.5} />,
+      title: t('High concurrency'),
+      desc: t('Built to absorb traffic spikes without degradation.'),
     },
     {
-      icon: <DollarSign className='size-5' strokeWidth={1.5} />,
-      title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
+      icon: <Globe className='size-5' strokeWidth={1.5} />,
+      title: t('Multi-region'),
+      desc: t('Stable global access from multiple regions.'),
     },
     {
-      icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
+      icon: <Wallet className='size-5' strokeWidth={1.5} />,
+      title: t('Unified billing'),
+      desc: t('One balance across all models and routes.'),
     },
     {
-      icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
+      icon: <Plug className='size-5' strokeWidth={1.5} />,
+      title: t('Drop-in migration'),
+      desc: t('Point your base URL at GoSwitch — keep your existing SDK and code.'),
     },
   ]
 
   return (
     <section className='relative z-10 px-6 py-24 md:py-32'>
       <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 max-w-lg'>
+        <AnimateInView className='mb-16 max-w-lg' animation='fade-up'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
             {t('Core Features')}
           </p>
           <h2 className='text-3xl leading-tight font-bold tracking-tight md:text-4xl'>
-            {t('Built for developers,')}
-            <br />
-            {t('designed for scale')}
+            {t('Engineered for teams that ship')}
           </h2>
         </AnimateInView>
 

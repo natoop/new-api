@@ -328,6 +328,9 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
         )}
       >
         <CodeLine>
+          <Muted>{'// same call, any model'}</Muted>
+        </CodeLine>
+        <CodeLine>
           <Command>curl</Command> <Flag>-X</Flag> <Flag>POST</Flag>{' '}
           <StringText>&quot;{demo.endpoint}&quot;</StringText>{' '}
           <Muted>{'\\'}</Muted>

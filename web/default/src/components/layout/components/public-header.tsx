@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -285,13 +286,24 @@ export function PublicHeader(props: PublicHeaderProps) {
                   ) : isAuthenticated ? (
                     <ProfileDropdown />
                   ) : (
-                    <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      render={<Link to='/sign-in' />}
-                    >
-                      {t('Sign in')}
-                    </Button>
+                    <div className='flex items-center gap-1.5'>
+                      <Button
+                        size='sm'
+                        variant='ghost'
+                        className='text-muted-foreground hover:text-foreground h-8 rounded-lg px-3 text-xs font-medium'
+                        render={<Link to='/sign-in' />}
+                      >
+                        {t('Sign in')}
+                      </Button>
+                      <Button
+                        size='sm'
+                        className='group h-8 rounded-lg px-3.5 text-xs font-medium'
+                        render={<Link to='/sign-up' />}
+                      >
+                        {t('Sign up')}
+                        <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
+                      </Button>
+                    </div>
                   )}
                 </>
               )}
@@ -402,14 +414,32 @@ export function PublicHeader(props: PublicHeaderProps) {
             )}
             style={{ transitionDelay: mobileOpen ? '250ms' : '0ms' }}
           >
-            {showAuthButtons && (
+            {showAuthButtons && isAuthenticated && (
               <Link
-                to={isAuthenticated ? '/dashboard' : '/sign-in'}
+                to='/dashboard'
                 onClick={() => setMobileOpen(false)}
                 className='bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80'
               >
-                {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
+                {t('Go to Dashboard')}
               </Link>
+            )}
+            {showAuthButtons && !isAuthenticated && (
+              <>
+                <Link
+                  to='/sign-in'
+                  onClick={() => setMobileOpen(false)}
+                  className='border-border text-foreground hover:bg-muted inline-flex h-10 items-center justify-center rounded-lg border text-sm font-medium transition-colors'
+                >
+                  {t('Sign in')}
+                </Link>
+                <Link
+                  to='/sign-up'
+                  onClick={() => setMobileOpen(false)}
+                  className='bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80'
+                >
+                  {t('Sign up')}
+                </Link>
+              </>
             )}
           </div>
         </div>
