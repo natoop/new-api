@@ -193,10 +193,10 @@ export function Hero(props: HeroProps) {
             className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.05] font-bold tracking-[-0.025em]'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Every AI model,')}{' '}
+            {t('Multimodal API models,')}{' '}
             <br className='hidden sm:block' />
             <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-              {t('always on, always fast.')}
+              {t('stable and high-speed.')}
             </span>
           </h1>
           <p
