@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useStatus } from '@/hooks/use-status'
 
 interface CounterProps {
   end: number
@@ -96,12 +97,30 @@ interface StatItem {
 
 export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+
+  const uptime =
+    typeof status?.measured_uptime_pct === 'number'
+      ? (status.measured_uptime_pct as number)
+      : 99.9
+  const latencyMs =
+    typeof status?.typical_latency_ms === 'number'
+      ? (status.typical_latency_ms as number)
+      : 400
+  const channels =
+    typeof status?.channel_count === 'number'
+      ? (status.channel_count as number)
+      : 50
+  const models =
+    typeof status?.model_count === 'number'
+      ? (status.model_count as number)
+      : 100
 
   const stats: StatItem[] = [
-    { end: 99.9, suffix: '%', decimals: 1, label: t('measured uptime') },
-    { end: 50, suffix: '+', label: t('upstream channels with failover') },
-    { end: 100, suffix: '+', label: t('models behind one endpoint') },
-    { end: 30, suffix: 's', label: t('health-check interval') },
+    { end: latencyMs, suffix: 'ms', label: t('typical first-token latency') },
+    { end: uptime, suffix: '%', decimals: 1, label: t('measured uptime') },
+    { end: channels, suffix: '+', label: t('channels with auto-failover') },
+    { end: models, suffix: '+', label: t('models behind one endpoint') },
   ]
 
   return (
@@ -113,15 +132,18 @@ export function Stats(_props: StatsProps) {
               key={s.label}
               className='flex flex-col items-center text-center'
             >
-              <span className='text-3xl font-bold tracking-tight md:text-4xl'>
+              <span className='text-3xl font-bold tracking-[-0.02em] md:text-4xl'>
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
+              <span className='text-muted-foreground/75 mt-2 text-xs tracking-[0.01em]'>
                 {s.label}
               </span>
             </div>
           ))}
         </div>
+        <p className='text-muted-foreground/55 mt-8 text-center text-[11px] tracking-[0.01em]'>
+          {t('Measured / typical figures, not guarantees.')}
+        </p>
       </div>
     </div>
   )

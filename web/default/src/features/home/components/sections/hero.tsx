@@ -186,25 +186,25 @@ export function Hero(props: HeroProps) {
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
               <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
             </span>
-            <span>{t('Reliable AI gateway')}</span>
+            <span>{t('Always-on AI gateway')}</span>
           </div>
 
           <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.08] font-bold tracking-[-0.02em]'
+            className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.05] font-bold tracking-[-0.025em]'
             style={{ animationDelay: '60ms' }}
           >
-            {t('One stable endpoint for')}{' '}
+            {t('Every AI model,')}{' '}
             <br className='hidden sm:block' />
             <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-              {t('every AI model')}
+              {t('always on, always fast.')}
             </span>
           </h1>
           <p
-            className='landing-animate-fade-up text-muted-foreground/85 mt-6 max-w-2xl text-lg leading-relaxed opacity-0 md:text-xl'
+            className='landing-animate-fade-up text-muted-foreground/85 mt-6 max-w-2xl text-lg leading-[1.65] tracking-[-0.003em] opacity-0 md:text-xl'
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'Automatic multi-channel failover, real-time health monitoring, and unified routing — so your product stays online while you build.'
+              'One OpenAI-compatible API — automatic failover and nearest-healthy routing keep every request online and fast.'
             )}
           </p>
           <p
@@ -212,7 +212,7 @@ export function Hero(props: HeroProps) {
             style={{ animationDelay: '150ms' }}
           >
             {t(
-              'OpenAI-compatible · Global and domestic models · Single unified API'
+              'OpenAI-compatible · Global and domestic models · Auto-failover'
             )}
           </p>
 
@@ -285,7 +285,7 @@ export function Hero(props: HeroProps) {
 
         {/* Right Column: Hero Terminal API Demo */}
         <div
-          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6'
+          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6 lg:self-center'
           style={{ animationDelay: '320ms' }}
         >
           <HeroTerminalDemo className='mt-8 lg:mt-0' />

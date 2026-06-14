@@ -35,7 +35,7 @@ export function CTA(props: CTAProps) {
   }
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
+    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-28'>
       {/* Gradient mesh background */}
       <div
         aria-hidden
@@ -52,16 +52,16 @@ export function CTA(props: CTAProps) {
         className='mx-auto max-w-2xl text-center'
         animation='scale-in'
       >
-        <h2 className='text-3xl leading-tight font-bold tracking-tight md:text-5xl'>
+        <h2 className='text-3xl leading-[1.08] font-bold tracking-[-0.02em] md:text-5xl'>
           {t('Run on a gateway')}
           <br />
           <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-            {t('that stays up')}
+            {t('that stays up and stays fast')}
           </span>
         </h2>
-        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
+        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-[15px] leading-[1.7] tracking-[-0.002em] md:text-base'>
           {t(
-            'Start free today — automatic failover, real-time monitoring, and one unified API included.'
+            'Start free — multi-channel auto-failover, continuous health checks, and one unified OpenAI-compatible API, included.'
           )}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>

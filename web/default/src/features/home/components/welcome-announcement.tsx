@@ -21,11 +21,17 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight, ShieldCheck, Activity, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { getAnnouncementColorClass } from '@/lib/colors'
+import { formatDateTimeObject } from '@/lib/time'
+import { cn } from '@/lib/utils'
+import { useNotifications } from '@/hooks/use-notifications'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Markdown } from '@/components/ui/markdown'
 import { Dialog } from '@/components/dialog'
 
-const DISMISS_STORAGE_KEY = 'goswitch_home_announcement_dismissed_v1'
+const STORAGE_PREFIX = 'goswitch_home_welcome_dismissed_'
+const BRAND_FINGERPRINT = 'brand-v1'
 const OPEN_DELAY_MS = 600
 
 const PILLARS = [
@@ -33,9 +39,17 @@ const PILLARS = [
     id: 'stability',
     icon: Activity,
     title: 'Stability',
-    desc: 'Automatic multi-channel failover keeps you online, monitored continuously.',
+    desc: 'Auto-failover keeps you online, monitored continuously.',
     accent: 'text-sky-500',
     surface: 'border-sky-500/20 bg-sky-500/10',
+  },
+  {
+    id: 'speed',
+    icon: Zap,
+    title: 'Speed',
+    desc: 'Nearest-healthy routing over one OpenAI-compatible protocol — low latency, minimal code.',
+    accent: 'text-amber-500',
+    surface: 'border-amber-500/20 bg-amber-500/10',
   },
   {
     id: 'security',
@@ -45,35 +59,52 @@ const PILLARS = [
     accent: 'text-emerald-500',
     surface: 'border-emerald-500/20 bg-emerald-500/10',
   },
-  {
-    id: 'efficiency',
-    icon: Zap,
-    title: 'Efficiency',
-    desc: 'One unified protocol gives low-latency access to global AI models.',
-    accent: 'text-amber-500',
-    surface: 'border-amber-500/20 bg-amber-500/10',
-  },
 ] as const
+
+function shortHash(input: string): string {
+  let h = 0
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h << 5) - h + input.charCodeAt(i)
+    h |= 0
+  }
+  return (h >>> 0).toString(36)
+}
+
+function buildFingerprint(items: Record<string, unknown>[]): string {
+  if (items.length === 0) return BRAND_FINGERPRINT
+  return items
+    .map((it) => {
+      const a = it as { type?: string; content?: string; publishDate?: string }
+      return `${a.type || ''}|${(a.content || '').trim()}|${a.publishDate || ''}`
+    })
+    .join('::')
+}
 
 export function WelcomeAnnouncement() {
   const { t } = useTranslation()
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
+  const notifications = useNotifications()
+  const visible = notifications.announcementsEnabled
+    ? notifications.announcements.slice(0, 3)
+    : []
+  const dismissKey = STORAGE_PREFIX + shortHash(buildFingerprint(visible))
   const [open, setOpen] = useState(false)
   const [dontShowAgain, setDontShowAgain] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (window.localStorage.getItem(DISMISS_STORAGE_KEY)) return
+    if (notifications.loading) return
+    if (window.localStorage.getItem(dismissKey)) return
 
     const timeoutId = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS)
     return () => window.clearTimeout(timeoutId)
-  }, [])
+  }, [notifications.loading, dismissKey])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next && dontShowAgain && typeof window !== 'undefined') {
-      window.localStorage.setItem(DISMISS_STORAGE_KEY, '1')
+      window.localStorage.setItem(dismissKey, '1')
     }
   }
 
@@ -83,12 +114,15 @@ export function WelcomeAnnouncement() {
       onOpenChange={handleOpenChange}
       contentClassName='glass-card sm:max-w-lg'
       title={
-        <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-          {t('Welcome to GoSwitch')}
-        </span>
+        <div className='flex items-center gap-2'>
+          <span className='text-sm font-bold tracking-[-0.01em]'>GoSwitch</span>
+          <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
+            {t('Welcome to GoSwitch')}
+          </span>
+        </div>
       }
       description={t(
-        'The reliable gateway for AI models — stable by default, secure by design, efficient at scale.'
+        'The stable, fast gateway for AI models — auto-failover keeps you online, nearest-healthy routing keeps you quick.'
       )}
       footer={
         <div className='flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
@@ -115,26 +149,70 @@ export function WelcomeAnnouncement() {
         </div>
       }
     >
-      <div className='space-y-3'>
-        {PILLARS.map((pillar) => (
-          <div
-            key={pillar.id}
-            className='border-border/40 bg-muted/20 flex items-start gap-3 rounded-xl border p-3.5'
-          >
+      {visible.length > 0 ? (
+        <div className='max-h-[min(48vh,22rem)] space-y-3 overflow-y-auto pr-1'>
+          {visible.map((item, idx) => {
+            const announcement = item as {
+              type?: string
+              content?: string
+              extra?: string
+              publishDate?: string
+            }
+            const date = announcement.publishDate
+              ? formatDateTimeObject(new Date(announcement.publishDate))
+              : ''
+            return (
+              <div
+                key={idx}
+                className='border-border/40 bg-muted/20 flex items-start gap-3 rounded-xl border p-3.5'
+              >
+                <span
+                  className={cn(
+                    'mt-1.5 inline-block size-2 shrink-0 rounded-full',
+                    getAnnouncementColorClass(announcement.type)
+                  )}
+                />
+                <div className='min-w-0 flex-1'>
+                  <div className='text-sm leading-[1.65]'>
+                    <Markdown>{announcement.content || ''}</Markdown>
+                  </div>
+                  {announcement.extra ? (
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      <Markdown>{announcement.extra}</Markdown>
+                    </div>
+                  ) : null}
+                  {date ? (
+                    <div className='text-muted-foreground/70 mt-1.5 text-[11px] tracking-[0.01em]'>
+                      {date}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className='space-y-3'>
+          {PILLARS.map((pillar) => (
             <div
-              className={`flex size-9 shrink-0 items-center justify-center rounded-lg border ${pillar.surface}`}
+              key={pillar.id}
+              className='border-border/40 bg-muted/20 flex items-start gap-3 rounded-xl border p-3.5'
             >
-              <pillar.icon className={`size-4.5 ${pillar.accent}`} />
+              <div
+                className={`flex size-9 shrink-0 items-center justify-center rounded-lg border ${pillar.surface}`}
+              >
+                <pillar.icon className={`size-4.5 ${pillar.accent}`} />
+              </div>
+              <div className='min-w-0'>
+                <h4 className='text-sm font-semibold'>{t(pillar.title)}</h4>
+                <p className='text-muted-foreground mt-0.5 text-sm leading-relaxed'>
+                  {t(pillar.desc)}
+                </p>
+              </div>
             </div>
-            <div className='min-w-0'>
-              <h4 className='text-sm font-semibold'>{t(pillar.title)}</h4>
-              <p className='text-muted-foreground mt-0.5 text-sm leading-relaxed'>
-                {t(pillar.desc)}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Dialog>
   )
 }

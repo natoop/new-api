@@ -35,14 +35,14 @@ interface Pillar {
 }
 
 // Stability sits center and slightly larger (the spec's reliability axis);
-// Security and Efficiency flank it. Colors reuse the welcome-dialog token set.
+// Security and Speed flank it. Colors reuse the welcome-dialog token set.
 const PILLARS: readonly Pillar[] = [
   {
     id: 'security',
     icon: ShieldCheck,
     title: 'Security',
-    desc: 'Per-key isolation and zero data retention by default. Your prompts and responses are never stored or reused — your keys stay yours.',
-    badge: '0 data retained',
+    desc: 'Per-key isolation with zero data retention by default. Prompts and responses are not stored or reused — your keys stay yours.',
+    badge: 'Zero data retention by default',
     accent: 'text-emerald-500',
     surface: 'border-emerald-500/20 bg-emerald-500/10',
     dot: 'bg-emerald-500',
@@ -54,8 +54,8 @@ const PILLARS: readonly Pillar[] = [
     id: 'stability',
     icon: Activity,
     title: 'Stability',
-    desc: 'When an upstream slows or errors, automatic multi-channel failover reroutes traffic in under a second. High availability is the default, monitored continuously.',
-    badge: 'Failover < 1s',
+    desc: 'When an upstream slows or errors, multi-channel auto-failover reroutes traffic within seconds. High availability is the default and is monitored continuously.',
+    badge: 'Auto-failover · continuous health checks',
     accent: 'text-sky-500',
     surface: 'border-sky-500/20 bg-sky-500/10',
     dot: 'bg-sky-500',
@@ -64,11 +64,11 @@ const PILLARS: readonly Pillar[] = [
     delay: 0,
   },
   {
-    id: 'efficiency',
+    id: 'speed',
     icon: Zap,
-    title: 'Efficiency',
-    desc: 'One unified, OpenAI-compatible protocol routes each request to the nearest healthy channel — less integration code, lower latency.',
-    badge: 'Routed to nearest healthy channel',
+    title: 'Speed',
+    desc: 'Each request is routed to the nearest healthy channel over a single OpenAI-compatible protocol — lower latency, less integration overhead.',
+    badge: 'Nearest-healthy routing',
     accent: 'text-amber-500',
     surface: 'border-amber-500/20 bg-amber-500/10',
     dot: 'bg-amber-500',
@@ -98,11 +98,13 @@ export function Pillars() {
 
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-14 text-center' animation='fade-up'>
-          <h2 className='text-3xl leading-tight font-bold tracking-tight md:text-4xl'>
-            {t('Three guarantees behind every request')}
+          <h2 className='text-3xl leading-[1.12] font-bold tracking-[-0.02em] md:text-4xl'>
+            {t('Built to stay up. Tuned to stay fast.')}
           </h2>
-          <p className='text-muted-foreground/80 mx-auto mt-4 max-w-xl text-sm leading-relaxed md:text-base'>
-            {t('Reliability you can operate on — not just promises.')}
+          <p className='text-muted-foreground/80 mx-auto mt-4 max-w-xl text-[15px] leading-[1.7] tracking-[-0.002em] md:text-base'>
+            {t(
+              'Reliability and speed you can operate on — security underpins both.'
+            )}
           </p>
         </AnimateInView>
 
@@ -120,7 +122,7 @@ export function Pillars() {
                 <pillar.icon className={`size-4.5 ${pillar.accent}`} />
               </div>
               <h3 className='mt-4 text-lg font-semibold'>{t(pillar.title)}</h3>
-              <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
+              <p className='text-muted-foreground mt-2 text-sm leading-[1.65] tracking-[-0.002em]'>
                 {t(pillar.desc)}
               </p>
               <div className='text-muted-foreground mt-auto flex items-center gap-2 pt-5 text-xs'>

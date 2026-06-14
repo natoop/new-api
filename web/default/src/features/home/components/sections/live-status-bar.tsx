@@ -30,14 +30,19 @@ export function LiveStatusBar() {
     (status?.docs_link as string | undefined) || 'https://docs.goswitch.online'
   const statusIsExternal = docsUrl.startsWith('http')
 
+  const uptime = (status?.measured_uptime as string) || '99.9%'
+  const latency = (status?.typical_latency as string) || '~0.4s'
+  const interval = (status?.health_interval as string) || '30s'
+
   const metrics = [
-    t('Uptime 99.9%'),
-    t('Median latency 0.4s'),
-    t('Auto-failover active'),
-    t('Health check every 30s'),
+    t('Typical latency {{v}}', { v: latency }),
+    t('Nearest-healthy routing'),
+    t('Measured uptime {{v}}', { v: uptime }),
+    t('Auto-failover on error'),
+    t('Health check every {{v}}', { v: interval }),
   ]
 
-  const detailsLabel = t('Status details')
+  const detailsLabel = t('Live status')
 
   return (
     <section className='relative z-10 -mt-4 px-6 md:-mt-6'>
@@ -48,7 +53,7 @@ export function LiveStatusBar() {
               <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60' />
               <span className='relative inline-flex size-2.5 rounded-full bg-emerald-500' />
             </span>
-            {t('All systems operational')}
+            {t('All channels operational')}
           </span>
           {metrics.map((metric) => (
             <span

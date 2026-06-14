@@ -42,7 +42,7 @@ export function Features(_props: FeaturesProps) {
       num: '01',
       title: t('Automatic failover'),
       desc: t(
-        'When a channel slows or errors, traffic reroutes to the next healthy upstream in under a second — no manual switching, no downtime.'
+        'When a channel slows or errors, traffic reroutes to the next healthy upstream within seconds — no manual switching, no downtime for your users.'
       ),
       span: 'md:col-span-2',
       icon: <Activity className='size-4 text-sky-400' />,
@@ -64,9 +64,9 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'monitoring',
       num: '02',
-      title: t('Real-time monitoring'),
+      title: t('Continuous health monitoring'),
       desc: t(
-        'Live health, latency, and availability for every channel, refreshed continuously.'
+        'Live health, latency, and availability for every channel, checked on a fixed interval.'
       ),
       span: 'md:col-span-1',
       icon: <Gauge className='size-4 text-emerald-400' />,
@@ -81,9 +81,9 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'routing',
       num: '03',
-      title: t('Smart routing'),
+      title: t('Nearest-healthy routing'),
       desc: t(
-        'Requests go to the lowest-latency healthy channel automatically.'
+        'Requests are sent to the lowest-latency healthy channel automatically.'
       ),
       span: 'md:col-span-1',
       icon: <Network className='size-4 text-violet-400' />,
@@ -99,7 +99,9 @@ export function Features(_props: FeaturesProps) {
       id: 'keys',
       num: '04',
       title: t('Key isolation'),
-      desc: t('Per-key quotas, scopes, and zero data retention by default.'),
+      desc: t(
+        'Per-key quotas and scopes, with zero data retention by default.'
+      ),
       span: 'md:col-span-2',
       icon: <ShieldCheck className='size-4 text-amber-400' />,
       visual: (
@@ -127,34 +129,36 @@ export function Features(_props: FeaturesProps) {
     {
       icon: <Layers className='size-5' strokeWidth={1.5} />,
       title: t('High concurrency'),
-      desc: t('Built to absorb traffic spikes without degradation.'),
+      desc: t('Absorbs traffic spikes without degradation.'),
     },
     {
       icon: <Globe className='size-5' strokeWidth={1.5} />,
       title: t('Multi-region'),
-      desc: t('Stable global access from multiple regions.'),
+      desc: t('Stable access to global models across regions.'),
     },
     {
       icon: <Wallet className='size-5' strokeWidth={1.5} />,
       title: t('Unified billing'),
-      desc: t('One balance across all models and routes.'),
+      desc: t('One balance across every model and route.'),
     },
     {
       icon: <Plug className='size-5' strokeWidth={1.5} />,
       title: t('Drop-in migration'),
-      desc: t('Point your base URL at GoSwitch — keep your existing SDK and code.'),
+      desc: t(
+        'Point your base URL at GoSwitch — your SDK and code stay unchanged.'
+      ),
     },
   ]
 
   return (
-    <section className='relative z-10 px-6 py-24 md:py-32'>
+    <section className='relative z-10 px-6 py-24 md:py-28'>
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-16 max-w-lg' animation='fade-up'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('Core Features')}
+          <p className='text-muted-foreground/55 mb-3 text-[11px] font-semibold tracking-[0.16em] uppercase'>
+            {t('Core Capabilities')}
           </p>
-          <h2 className='text-3xl leading-tight font-bold tracking-tight md:text-4xl'>
-            {t('Engineered for teams that ship')}
+          <h2 className='text-3xl leading-[1.12] font-bold tracking-[-0.02em] md:text-4xl'>
+            {t('Engineered to stay up under real traffic')}
           </h2>
         </AnimateInView>
 
@@ -173,7 +177,7 @@ export function Features(_props: FeaturesProps) {
                 </span>
                 <h3 className='text-sm font-semibold'>{f.title}</h3>
               </div>
-              <p className='text-muted-foreground text-sm leading-relaxed'>
+              <p className='text-muted-foreground text-sm leading-[1.65] tracking-[-0.002em]'>
                 {f.desc}
               </p>
               {f.visual}
