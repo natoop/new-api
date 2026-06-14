@@ -176,7 +176,7 @@ export function Hero(props: HeroProps) {
 
       <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
         {/* Left Column: Title, description, action buttons and application support */}
-        <div className='flex flex-col items-start text-left lg:col-span-6'>
+        <div className='flex flex-col items-start text-left lg:col-span-7'>
           {/* Top Pill Badge */}
           <div
             className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3.5 py-1.5 text-xs font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
@@ -190,13 +190,13 @@ export function Hero(props: HeroProps) {
           </div>
 
           <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.05] font-bold tracking-[-0.025em]'
+            className='landing-animate-fade-up text-[clamp(1.875rem,4.2vw,3rem)] leading-[1.18] font-bold tracking-[-0.02em]'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Multimodal API models,')}{' '}
+            {t('One-stop access,')}{' '}
             <br className='hidden sm:block' />
             <span className='bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent'>
-              {t('stable and high-speed.')}
+              {t('millisecond-stable at scale.')}
             </span>
           </h1>
           <p
@@ -285,7 +285,7 @@ export function Hero(props: HeroProps) {
 
         {/* Right Column: Hero Terminal API Demo */}
         <div
-          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6 lg:self-center'
+          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-5 lg:self-center'
           style={{ animationDelay: '320ms' }}
         >
           <HeroTerminalDemo className='mt-8 lg:mt-0' />
