@@ -1,0 +1,50 @@
+# Frontend Development - Backend built from local source
+#
+# Usage:
+#   1. docker compose -f docker-compose.dev.yml up -d
+#   2. cd web && bun install && bun run dev
+#   3. Open http://localhost:5000 (Rsbuild dev server, API auto-proxied to :3000)
+#
+# Rebuild backend after Go code changes:
+#   docker compose -f docker-compose.dev.local.yml up -d --build new-api
+#
+# Stop:
+#   docker compose -f docker-compose.dev.local.yml down
+#
+# Reset data:
+#   docker compose -f docker-compose.dev.local.yml down -v
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.host
+      args:
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+        GOSUMDB: ${GOSUMDB:-sum.golang.google.cn}
+    image: new-api-dev:latest
+    container_name: new-api-dev
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "5000:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
+#      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
+#      - LOG_SQL_DSN=postgresql://root:123456@postgres:5432/new-api-log # OPTIONAL: If you want a separate database for logging, uncomment and set this
+#      - LOG_SQL_DSN=clickhouse://default:123456@clickhouse:9000/new_api_logs # OPTIONAL: Use ClickHouse for logs only; also uncomment clickhouse in depends_on and the clickhouse service below
+#      - LOG_SQL_CLICKHOUSE_TTL_DAYS=0 # OPTIONAL: ClickHouse log retention days. Unset or 0 disables automatic deletion; set to e.g. 30 to keep 30 days
+      - REDIS_CONN_STRING=redis://:123456@redis:6379 # ⚠️ IMPORTANT: Change the password in production!
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
+      - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
+    networks:
+      - new-api-network
+
+networks:
+  new-api-network:
+    driver: bridge
+    name: new-api-network    
