@@ -1,38 +1,37 @@
 ---
 name: audit-upstream-sync
-description: Use when a Git branch has been synchronized or merged from an upstream branch and the user asks for a recent update summary, frontend/backend change intent, a saved HEAD baseline, next-sync comparison, or exclusion of not-yet-synced remote commits.
+description: Use when a Git branch has received one or more two-parent merges from a configured upstream branch and the user asks for a recent update summary, frontend/backend change intent, saved sync baselines, next-sync comparison, or exclusion of pending remote commits.
 ---
 
 # Audit Upstream Sync
 
-## Overview
+## Core Contract
 
-Anchor the audit to Git ancestry, not commit dates. Preserve both the local sync result and the upstream commit actually merged so the next audit can separate local branch effects from pure upstream changes.
-
-## Range Contract
+Use Git ancestry, not author dates. Save the local result and merged upstream commit.
 
 | Question | Range |
 |---|---|
-| What changed in the local branch during merge `M`? | `M^1..M` |
-| What upstream content was newly accepted? | `<old-upstream>..M^2` |
-| What is still pending remotely? | `<saved-upstream>..<remote-ref>`; exclude from the completed report |
+| Effect of sync merge `M` | `M^1..M` |
+| Effect of outer carrier `C`, when nested | `C^1..C` |
+| Newly accepted upstream content | `<old-upstream>..M^2` |
+| Still pending remotely | `<saved-upstream>..<source-ref>` |
 
-Use `git log --first-parent` for the main change table. Put PR-internal and older side-branch commits from the full ancestry range in an appendix.
+Use upstream `--first-parent` for the main table; put side-branch commits in an appendix.
 
 ## Workflow
 
-1. Capture the branch, tracking ref, current HEAD, worktree status, remotes, and audit timestamp.
-2. Search `docs/sync-history/` for the newest `saved_head` and `saved_synced_upstream` anchors.
-3. Validate saved anchors with `git merge-base --is-ancestor`. If history was rewritten, reconstruct the range from reflog before continuing.
-4. Identify new first-parent synchronization merges after `saved_head`. For each two-parent merge `M`, record `M^1` as the pre-merge local head and `M^2` as the new upstream anchor.
-5. Compare `M^1..M` with `<old-upstream>..M^2`. If their stable patch IDs differ, inspect conflict resolutions or local adaptations explicitly.
-6. Group the net diff into `web/default`, `web/classic`, backend, and shared/config/operations. Read the relevant code and commit messages; distinguish functional changes from mechanical migrations.
-7. Keep remote-tracking commits not reachable from the saved local HEAD in a clearly labeled “待下次同步” section.
-8. Write `docs/sync-history/YYYY-MM-DD-<branch>.md` and save the new anchors.
+1. Capture branch, tracking ref, HEAD, status, remotes, and timestamp; fetch the source ref.
+2. Read the newest `saved_head` and `saved_synced_upstream` under `docs/sync-history/`.
+3. Run `scripts/find-sync-merges.ps1`. It searches every merge newly reachable from HEAD, including syncs nested behind an outer reconciliation merge.
+4. Exclude source-history merges. Accept exactly-two-parent external merges whose second parent is on the source first-parent line and advances the upstream anchor.
+5. The script compares sync, upstream, and outer-carrier patch IDs. Explain every mismatch as conflict resolution, local adaptation, or additional carrier content.
+6. Analyze backend, `web/default`, `web/classic`, and shared/operations changes. Separate behavior changes, reversions, and mechanical migrations.
+7. Keep commits beyond the saved upstream anchor in “待下次同步”; never mix them into completed results.
+8. Write a new dated report and save the new local/upstream anchors.
 
-If the sync was fast-forward, rebase, squash, or cherry-pick, use reflog pre/post OIDs for the local tree range and record the observed source tip. Do not invent a merge second parent.
+For fast-forward, rebase, squash, or cherry-pick synchronization, stop this merge workflow and reconstruct the range from reflog. Never invent `M^2`.
 
-## Required Record Fields
+## Required Record
 
 ```yaml
 generated_at:
@@ -46,33 +45,46 @@ saved_head:
 saved_synced_upstream:
 upstream_tracking_snapshot:
 upstream_tracking_snapshot_fetched_at:
-scope: only changes already present in saved_head
+scope:
 ```
-
-The report must include totals, sync batches, frontend analysis, backend analysis, cross-layer intent, risks/validation, excluded pending changes, and next-sync commands.
 
 ## Next Sync
 
 ```powershell
-$OldHead = '<saved_head>'
-$OldUpstream = '<saved_synced_upstream>'
+$SourceRemote = 'upstream'
+$SourceBranch = 'main'
+$SourceRef = "$SourceRemote/$SourceBranch"
+git fetch --prune $SourceRemote $SourceBranch
+if ($LASTEXITCODE -ne 0) { throw "git fetch failed: $SourceRef" }
 
-git merge-base --is-ancestor $OldHead HEAD
-git log --first-parent --merges --reverse --format='%H|%P|%cI|%s' "$OldHead..HEAD"
+$Batches = @(
+  & .\.agents\skills\audit-upstream-sync\scripts\find-sync-merges.ps1 `
+    -OldHead '<saved_head>' `
+    -OldUpstream '<saved_synced_upstream>' `
+    -SourceRef $SourceRef `
+    -Verbose
+)
 
-$Merge = '<new sync merge>'
-$PreMergeHead = git rev-parse "$Merge^1"
-$NewUpstream = git rev-parse "$Merge^2"
-git diff --stat $PreMergeHead $Merge
-git log --first-parent --reverse --format='%H|%cI|%s' "$OldUpstream..$NewUpstream"
-git diff --stat "$OldUpstream..$NewUpstream"
+foreach ($Batch in $Batches) {
+  git diff --stat $Batch.PreMergeHead $Batch.Merge
+  git diff --name-status $Batch.PreMergeHead $Batch.Merge
+  git log --first-parent --reverse --format='%H|%cI|%s' `
+    "$($Batch.UpstreamFrom)..$($Batch.UpstreamTo)"
+}
+
+$Batches |
+  Format-Table Merge, IntegrationMerge, SyncPatchMatches, IntegrationPatchMatches
 ```
+
+Save current `HEAD` and the last batch's `UpstreamTo`; if no batch exists, keep the previous upstream anchor.
 
 ## Common Mistakes
 
-- Do not use `git log --since ... --all` as the report range; it mixes unrelated refs and misses older commits first introduced by a recent merge.
-- Do not use the current remote tip as the completed report upper bound.
-- Do not save only the local HEAD; also save the merged upstream anchor.
-- Do not describe hundreds of import or style substitutions as independent features.
-- Do not include uncommitted worktree files in the committed-tree audit.
-- Do not claim a remote-tracking ref is live-current unless it was refreshed and the fetch time was recorded.
+- Using `--since ... --all`, which mixes refs and misses older newly introduced commits.
+- Searching only local first-parent or `--ancestry-path`; a sync can sit on side history forked before `saved_head`.
+- Accepting any ancestor of the source ref instead of requiring source first-parent membership.
+- Accepting a merge already inside source history, such as “merge main into feature”.
+- Treating octopus, upstream PR, feature, or outer reconciliation merges as sync batches.
+- Treating Git exit codes greater than 1 as a normal “false” result.
+- Saving only local HEAD, using the remote tip as completed, or including uncommitted files.
+- Claiming a remote-tracking ref is live-current without a successful fetch timestamp.
