@@ -1,4 +1,0 @@
-interface:
-  display_name: "Audit Upstream Sync"
-  short_description: "Audit synced frontend and backend changes"
-  default_prompt: "Use $audit-upstream-sync to summarize the latest upstream sync and save anchors for the next audit."
