@@ -247,27 +247,6 @@ For commercial licensing, please contact support@quantumnous.com
     background-image: radial-gradient(var(--tw-gradient-stops));
   }
 
-  /* Glass morphism effects - matching Launch UI template */
-  .glass-1 {
-    @apply border-border from-card/80 to-card/40 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/5 dark:to-card/0 border bg-linear-to-b;
-  }
-
-  .glass-2 {
-    @apply border-border from-card/100 to-card/80 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/10 dark:to-card/5 border bg-linear-to-b;
-  }
-
-  .glass-3 {
-    @apply border-border from-card/30 to-card/20 dark:border-border/10 dark:border-t-border/20 dark:border-b-border/5 dark:from-primary/5 dark:to-primary/2 border bg-linear-to-b;
-  }
-
-  .glass-4 {
-    @apply border-border border-b-input/90 from-card/60 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/10 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
-  }
-
-  .glass-5 {
-    @apply border-border border-b-input from-card/100 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/15 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
-  }
-
   /* Fade effects - matching Launch UI template */
   .fade-x {
     mask-image: linear-gradient(
@@ -404,8 +383,7 @@ For commercial licensing, please contact support@quantumnous.com
   .animate-appear,
   .animate-appear-zoom,
   .animate-scroll-up,
-  .animate-scroll-down,
-  [data-slot='table'] tbody tr {
+  .animate-scroll-down {
     animation: none !important;
     opacity: 1;
     transform: none;
@@ -509,25 +487,10 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-/* Micro-interactions — Vercel-style subtle hover/active feedback */
+/* 微交互。卡片不再做 hover 抬升与投影——灰画布上的白卡片已经靠明度差
+ * 建立了层次，再加位移和阴影就是两套分层语言打架。
+ * 表格也不再做入场 stagger：列表是查阅用的，逐行飘入会让人等它演完。 */
 @media (prefers-reduced-motion: no-preference) {
-  [data-slot='card'] {
-    transition:
-      transform 150ms ease,
-      box-shadow 150ms ease;
-  }
-
-  @media (min-width: 641px) {
-    [data-slot='card']:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
-    }
-
-    .dark [data-slot='card']:hover {
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
-    }
-  }
-
   button:not(:disabled):active,
   [role='button']:not(:disabled):active {
     transform: scale(0.98);
@@ -535,52 +498,6 @@ For commercial licensing, please contact support@quantumnous.com
 
   [data-slot='table'] tr {
     transition: background-color 120ms ease;
-  }
-
-  /* Table row stagger-in animation */
-  [data-slot='table'] tbody tr {
-    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
-  }
-  [data-slot='table'] tbody tr:nth-child(2) {
-    animation-delay: 25ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(3) {
-    animation-delay: 50ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(4) {
-    animation-delay: 75ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(5) {
-    animation-delay: 100ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(6) {
-    animation-delay: 125ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(7) {
-    animation-delay: 150ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(8) {
-    animation-delay: 175ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(9) {
-    animation-delay: 200ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(10) {
-    animation-delay: 225ms;
-  }
-  [data-slot='table'] tbody tr:nth-child(n + 11) {
-    animation-delay: 250ms;
-  }
-}
-
-@keyframes tableRowEnter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -606,25 +523,6 @@ For commercial licensing, please contact support@quantumnous.com
  * element (no filter: blur) and backdrop-filter is reserved for large
  * shell-level cards — never list rows. */
 
-/* Static environment-light layer. Apply to a page shell (the non-scrolling
- * wrapper): content scrolls over the glow while glass cards blur it. */
-.ambient-glow {
-  position: relative;
-  isolation: isolate;
-}
-.ambient-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    radial-gradient(40rem 28rem at 14% -6%, var(--ambient-1), transparent 60%),
-    radial-gradient(34rem 24rem at 86% 8%, var(--ambient-2), transparent 62%),
-    radial-gradient(38rem 26rem at 50% 108%, var(--ambient-3), transparent 64%);
-  background-repeat: no-repeat;
-}
-
 /* Frosted shell card: translucent surface, hairline border, 1px top inner
  * highlight. Sets background-COLOR only, so gradient utilities (bg-linear /
  * bg-gradient-to-*) still compose on top as brand tints. */
@@ -642,19 +540,6 @@ For commercial licensing, please contact support@quantumnous.com
     inset 0 1px 0 0 var(--glass-highlight),
     0 8px 24px -16px rgb(0 0 0 / 0.5);
 }
-/* Keep the inner highlight through the generic card hover-lift rule
- * ([data-slot='card']:hover above would otherwise replace box-shadow). */
-[data-slot='card'].glass-card:hover {
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-highlight),
-    0 10px 28px -14px rgb(0 0 0 / 0.2);
-}
-.dark [data-slot='card'].glass-card:hover {
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-highlight),
-    0 10px 28px -14px rgb(0 0 0 / 0.55);
-}
-
 /* App header glass: stronger blur + saturation, hairline bottom edge. */
 .glass-header {
   background-color: color-mix(in srgb, var(--background) 62%, transparent);

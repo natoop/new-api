@@ -33,12 +33,17 @@ export function ThemeSwitch() {
   const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
 
-  /* Update theme-color meta tag
-   * when theme is updated */
+  /* 同步浏览器 UI 的 theme-color。
+   * 从 --background 实时读取而不是写死色值：主题 token 一改这里就跟着走，
+   * 否则每次调画布色都要记得回来同步这两个 hex（上一版的 #020817 就是这么过期的）。 */
   useEffect(() => {
-    const themeColor = theme === 'dark' ? '#020817' : '#fff'
     const metaThemeColor = document.querySelector("meta[name='theme-color']")
-    if (metaThemeColor) metaThemeColor.setAttribute('content', themeColor)
+    if (!metaThemeColor) return
+    const background = window
+      .getComputedStyle(document.documentElement)
+      .getPropertyValue('--background')
+      .trim()
+    if (background) metaThemeColor.setAttribute('content', background)
   }, [theme])
 
   return (

@@ -219,7 +219,7 @@ export function Dashboard() {
     ) : null
 
   return (
-    <SectionPageLayout ambient>
+    <SectionPageLayout>
       <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
