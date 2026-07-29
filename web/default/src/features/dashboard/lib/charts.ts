@@ -46,18 +46,66 @@ const THEME_CHART_COLOR_VARIABLES = [
   '--chart-5',
 ] as const
 
-function getThemeChartColors(themeKey?: string): string[] {
-  if (typeof document === 'undefined') return []
-  void themeKey
+/**
+ * Literal light-mode values of `--chart-1..5` from `src/styles/theme.css`.
+ *
+ * Only used when the CSS variables cannot be read at all (SSR / before styles
+ * are applied). Kept here so every fallback in this module comes from the same
+ * source as the live tokens instead of an orphan palette — if theme.css `:root`
+ * changes, update these too.
+ */
+export const THEME_CHART_COLOR_FALLBACKS: string[] = [
+  'oklch(0.58 0.16 248)', // --chart-1, azure brand anchor
+  'oklch(0.58 0.17 255)', // --chart-2 -> --accent-blue
+  'oklch(0.6 0.15 155)', // --chart-3 -> --accent-green
+  'oklch(0.7 0.14 78)', // --chart-4 -> --accent-amber
+  'oklch(0.62 0.18 25)', // --chart-5 -> --accent-coral
+]
+
+/** Literal light-mode `--foreground`, fallback for the same reason as above. */
+const THEME_FOREGROUND_FALLBACK = 'oklch(0.2316 0.0038 286.1)'
+
+/**
+ * Resolve a theme CSS custom property to a concrete colour string.
+ *
+ * VChart renders to canvas, which cannot resolve `var(--x)` — but
+ * `getComputedStyle` can, so tokens reach the canvas as literal values.
+ */
+export function readThemeColorVar(name: string, fallback = ''): string {
+  if (typeof document === 'undefined') return fallback
 
   const bodyStyle = window.getComputedStyle(document.body)
   const rootStyle = window.getComputedStyle(document.documentElement)
 
-  return THEME_CHART_COLOR_VARIABLES.map((name) => {
-    return (
+  return (
+    (
       bodyStyle.getPropertyValue(name) || rootStyle.getPropertyValue(name)
-    ).trim()
-  }).filter(Boolean)
+    ).trim() || fallback
+  )
+}
+
+/**
+ * The active theme's `--chart-1..5`, resolved to concrete colours.
+ *
+ * `themeKey` is not read — it exists so callers can key their memo/`useMemo` on
+ * the current theme and force a re-read after the `.dark` class flips.
+ */
+export function getThemeChartColors(themeKey?: string): string[] {
+  void themeKey
+  return THEME_CHART_COLOR_VARIABLES.map((name) =>
+    readThemeColorVar(name)
+  ).filter(Boolean)
+}
+
+/**
+ * Outline colour for hover / selected chart marks.
+ *
+ * Uses `--foreground` rather than `--border`: on the dark canvas `--border` is
+ * `oklch(1 0 0 / 8%)`, which is invisible as a 1px highlight.
+ */
+function getChartOutlineColor(themeKey?: string): string {
+  void themeKey
+  return readThemeColorVar('--foreground', THEME_FOREGROUND_FALLBACK)
 }
 
 function getVChartDefaultColors(domainLength: number, themeKey?: string) {
@@ -105,6 +153,7 @@ export function processChartData(
 ): ProcessedChartData {
   const tt: TFunction = t ?? ((x) => x)
   const otherLabel = tt('Other')
+  const outlineColor = getChartOutlineColor(themeKey)
 
   const formatInt = (value: number) =>
     Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
@@ -298,7 +347,11 @@ export function processChartData(
   )
   const otherColor = modelColorRange[modelColorDomain.indexOf(otherLabel)]
   const otherTooltipColor =
-    typeof otherColor === 'string' ? otherColor : '#FF8A00'
+    typeof otherColor === 'string'
+      ? otherColor
+      : // --chart-4 (amber): the "Other" bucket keeps a warm swatch, but sourced
+        // from the token palette rather than a one-off hex.
+        THEME_CHART_COLOR_FALLBACKS[3]
   const modelColor = {
     type: 'ordinal',
     domain: modelColorDomain,
@@ -496,8 +549,8 @@ export function processChartData(
         style:
           chartCornerRadius == null ? {} : { cornerRadius: chartCornerRadius },
         state: {
-          hover: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
-          selected: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+          hover: { outerRadius: 0.85, stroke: outlineColor, lineWidth: 1 },
+          selected: { outerRadius: 0.85, stroke: outlineColor, lineWidth: 1 },
         },
       },
       title: {
@@ -532,7 +585,7 @@ export function processChartData(
       color: modelColor,
       bar: {
         state: {
-          hover: { stroke: '#000', lineWidth: 1 },
+          hover: { stroke: outlineColor, lineWidth: 1 },
         },
       },
       tooltip: {
@@ -699,7 +752,7 @@ export function processChartData(
       },
       bar: {
         state: {
-          hover: { stroke: '#000', lineWidth: 1 },
+          hover: { stroke: outlineColor, lineWidth: 1 },
         },
       },
       tooltip: {
@@ -721,19 +774,6 @@ export function processChartData(
   }
 }
 
-const USER_COLOR_FALLBACKS = [
-  '#5B8FF9',
-  '#5AD8A6',
-  '#F6BD16',
-  '#E8684A',
-  '#6DC8EC',
-  '#9270CA',
-  '#FF9D4D',
-  '#269A99',
-  '#FF99C3',
-  '#5D7092',
-]
-
 export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
@@ -744,14 +784,14 @@ export function processUserChartData(
   const tt: TFunction = t ?? ((x) => x)
   const { config } = getCurrencyDisplay()
   const quotaPerUnit = config.quotaPerUnit
+  const outlineColor = getChartOutlineColor(themeKey)
   const themeUserColors = getThemeChartColors(themeKey)
-  const userColorRange =
-    themeUserColors.length > 0
-      ? Array.from(
-          { length: Math.max(limit, themeUserColors.length) },
-          (_, index) => themeUserColors[index % themeUserColors.length]
-        )
-      : USER_COLOR_FALLBACKS
+  const userColorBase =
+    themeUserColors.length > 0 ? themeUserColors : THEME_CHART_COLOR_FALLBACKS
+  const userColorRange = Array.from(
+    { length: Math.max(limit, userColorBase.length) },
+    (_, index) => userColorBase[index % userColorBase.length]
+  )
 
   const formatVal = (raw: number) => renderQuotaCompat(raw, 2)
 
@@ -869,7 +909,7 @@ export function processUserChartData(
       },
       legends: { visible: false },
       bar: {
-        state: { hover: { stroke: '#000', lineWidth: 1 } },
+        state: { hover: { stroke: outlineColor, lineWidth: 1 } },
       },
       label: {
         visible: true,

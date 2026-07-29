@@ -22,6 +22,11 @@ import { PieChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+import {
+  getThemeChartColors,
+  readThemeColorVar,
+  THEME_CHART_COLOR_FALLBACKS,
+} from '@/features/dashboard/lib/charts'
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
@@ -34,10 +39,10 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   all: 'Token share by model author since launch',
 }
 
-/** Stable colour palette for vendors, used in both the share chart and the
- * legend dots. Falls back to a neutral palette for unknown vendors so that
- * future additions still render. */
-const VENDOR_COLOURS: Record<string, string> = {
+/** Vendors whose colour is their own trademarked identity. These are the only
+ * hard-coded hexes left here — they deliberately do NOT follow the theme,
+ * because "OpenAI green" is recognisable data, not decoration. */
+const VENDOR_BRAND_COLOURS: Record<string, string> = {
   OpenAI: '#10a37f',
   Anthropic: '#d97757',
   Google: '#4285f4',
@@ -45,42 +50,35 @@ const VENDOR_COLOURS: Record<string, string> = {
   Alibaba: '#ff9900',
   xAI: '#1f2937',
   Meta: '#1877f2',
-  Moonshot: '#ec4899',
-  Zhipu: '#06b6d4',
   Mistral: '#ff7000',
-  ByteDance: '#3b82f6',
-  Tencent: '#22c55e',
-  MiniMax: '#a855f7',
-  Cohere: '#fb923c',
-  Baidu: '#ef4444',
-  Others: '#94a3b8',
 }
 
-const FALLBACK_PALETTE = [
-  '#0ea5e9',
-  '#22c55e',
-  '#a855f7',
-  '#f97316',
-  '#14b8a6',
-  '#eab308',
-  '#ec4899',
-  '#84cc16',
-  '#6366f1',
-  '#10b981',
-  '#f43f5e',
-  '#0891b2',
-  '#94a3b8',
-]
+/** The catch-all bucket, rendered in the neutral text token rather than a
+ * palette hue so it visibly reads as "not a vendor". */
+const OTHERS_VENDOR = 'Others'
 
-function buildVendorColourMap(names: string[]): Record<string, string> {
+/** Literal light-mode `--muted-foreground` from `src/styles/theme.css`; used
+ * only when the CSS variables cannot be read (SSR / before styles apply). */
+const MUTED_FOREGROUND_FALLBACK = 'oklch(0.6217 0.0074 286.18)'
+
+/** Every other vendor draws from the theme's `--chart-*` ramp in list order,
+ * so colours follow light/dark and any theme preset. The ramp has 5 slots and
+ * wraps, matching how the dashboard charts assign series colours. */
+function buildVendorColourMap(
+  names: string[],
+  palette: string[],
+  neutral: string
+): Record<string, string> {
   const result: Record<string, string> = {}
-  let fallbackIdx = 0
+  let paletteIdx = 0
   for (const name of names) {
-    if (VENDOR_COLOURS[name]) {
-      result[name] = VENDOR_COLOURS[name]
+    if (VENDOR_BRAND_COLOURS[name]) {
+      result[name] = VENDOR_BRAND_COLOURS[name]
+    } else if (name === OTHERS_VENDOR) {
+      result[name] = neutral
     } else {
-      result[name] = FALLBACK_PALETTE[fallbackIdx % FALLBACK_PALETTE.length]
-      fallbackIdx += 1
+      result[name] = palette[paletteIdx % palette.length]
+      paletteIdx += 1
     }
   }
   return result
@@ -111,10 +109,23 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       ? 'rgba(255, 255, 255, 0.12)'
       : 'rgba(15, 23, 42, 0.12)'
 
-  const colourMap = useMemo(
-    () => buildVendorColourMap(props.history.vendors.map((v) => v.name)),
-    [props.history]
-  )
+  // Resolve the theme tokens only once `themeReady` is true — by then the
+  // `.dark` class is on the document, so getComputedStyle returns the right
+  // mode's values for the canvas renderer.
+  const neutralColour = themeReady
+    ? readThemeColorVar('--muted-foreground', MUTED_FOREGROUND_FALLBACK)
+    : MUTED_FOREGROUND_FALLBACK
+
+  const colourMap = useMemo(() => {
+    const themeColours = themeReady ? getThemeChartColors(resolvedTheme) : []
+    const palette =
+      themeColours.length > 0 ? themeColours : THEME_CHART_COLOR_FALLBACKS
+    return buildVendorColourMap(
+      props.history.vendors.map((v) => v.name),
+      palette,
+      neutralColour
+    )
+  }, [props.history, resolvedTheme, themeReady, neutralColour])
 
   const orderedPoints = useMemo(() => {
     const order = new Map(
@@ -259,9 +270,17 @@ export function MarketShareSection(props: MarketShareSectionProps) {
           </div>
         ) : (
           <div className='grid grid-cols-1 gap-x-8 px-5 pt-1 pb-4 md:grid-cols-2'>
-            <VendorList rows={left} colourMap={colourMap} />
+            <VendorList
+              rows={left}
+              colourMap={colourMap}
+              fallbackColour={neutralColour}
+            />
             {right.length > 0 && (
-              <VendorList rows={right} colourMap={colourMap} />
+              <VendorList
+                rows={right}
+                colourMap={colourMap}
+                fallbackColour={neutralColour}
+              />
             )}
           </div>
         )}
@@ -273,6 +292,7 @@ export function MarketShareSection(props: MarketShareSectionProps) {
 function VendorList(props: {
   rows: VendorRanking[]
   colourMap: Record<string, string>
+  fallbackColour: string
 }) {
   return (
     <ul>
@@ -285,7 +305,8 @@ function VendorList(props: {
             aria-hidden
             className='size-2.5 shrink-0 rounded-full'
             style={{
-              backgroundColor: props.colourMap[vendor.vendor] ?? '#94a3b8',
+              backgroundColor:
+                props.colourMap[vendor.vendor] ?? props.fallbackColour,
             }}
           />
           <VendorLink

@@ -18,18 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
-
-// Brand series colours sampled from the GS logomark (azure / fresh-green),
-// resolved to concrete hex because the canvas renderer cannot read CSS vars.
-const SERIES = {
-  light: { blue: '#1786e0', green: '#46b23a' },
-  dark: { blue: '#4aa8f0', green: '#6cc95a' },
-}
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  getThemeChartColors,
+  THEME_CHART_COLOR_FALLBACKS,
+} from '@/features/dashboard/lib/charts'
 
 export type OpsSeriesTone = 'blue' | 'green'
+
+// The canvas renderer cannot resolve `var(--x)` itself, but getComputedStyle
+// can — `getThemeChartColors()` hands VChart the theme tokens already resolved
+// to concrete colours, so the series follow light/dark and any theme preset.
+// Tone -> slot in the `--chart-1..5` ramp: azure anchor and the green accent.
+const TONE_CHART_SLOT: Record<OpsSeriesTone, number> = {
+  blue: 0, // --chart-1
+  green: 2, // --chart-3
+}
 
 export interface OpsChartDatum {
   label: string
@@ -49,7 +55,14 @@ export function OpsTimeSeriesChart(props: OpsTimeSeriesChartProps) {
   const { resolvedTheme, themeReady } = useChartTheme()
   const tone = props.tone ?? 'blue'
   const height = props.height ?? 220
-  const color = SERIES[resolvedTheme === 'dark' ? 'dark' : 'light'][tone]
+
+  // Read the tokens only once `themeReady` is true — by then the `.dark` class
+  // is on the document, so getComputedStyle returns the right mode's values.
+  const color = useMemo(() => {
+    const palette = themeReady ? getThemeChartColors(resolvedTheme) : []
+    const source = palette.length > 0 ? palette : THEME_CHART_COLOR_FALLBACKS
+    return source[TONE_CHART_SLOT[tone] % source.length]
+  }, [resolvedTheme, themeReady, tone])
 
   const spec = useMemo(() => {
     const values = props.data.map((d) => ({ label: d.label, value: d.value }))
