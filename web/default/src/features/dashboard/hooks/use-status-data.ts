@@ -57,17 +57,35 @@ export function useFAQ() {
   return useStatusData<FAQItem>('faq_enabled', 'faq')
 }
 
+/** 后端把这些内容字段当空串/空数组下发，取一个安全的长度。 */
+function hasEntries(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0
+}
+
 /**
  * Get dashboard content panel visibility
+ *
+ * 开关是"缺省为开"（`!== false`），而内容字段在后端默认为空——
+ * 于是全新部署的概览页会恒定挂着几张空面板。这里要求开关开**且**确实有内容，
+ * 已经配置过内容的部署不受影响。
+ *
+ * uptimeKuma 是例外：它在 status 里没有对应的内容字段，
+ * 数据来自系统设置的 uptime_kuma_groups，只能由面板自己判断。
  */
 export function useDashboardContentVisibility() {
   const { status } = useStatus()
   const hasStatus = Boolean(status)
 
   return {
-    apiInfo: hasStatus && status?.api_info_enabled !== false,
-    announcements: hasStatus && status?.announcements_enabled !== false,
-    faq: hasStatus && status?.faq_enabled !== false,
+    apiInfo:
+      hasStatus &&
+      status?.api_info_enabled !== false &&
+      hasEntries(status?.api_info),
+    announcements:
+      hasStatus &&
+      status?.announcements_enabled !== false &&
+      hasEntries(status?.announcements),
+    faq: hasStatus && status?.faq_enabled !== false && hasEntries(status?.faq),
     uptimeKuma: hasStatus && status?.uptime_kuma_enabled !== false,
   }
 }
