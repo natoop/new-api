@@ -106,7 +106,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 :root {
-  --radius: 0.75rem;
+  /* 10px。苹果的圆角比 Material 系克制，12px 在小控件上会显得圆钝。
+   * 派生轴 --radius-sm..4xl 是纯 calc 倍数，自动跟随。
+   * 注意本项目 rounded-lg 就是 --radius 本身，不是 Tailwind 默认的 8px。 */
+  --radius: 0.625rem;
   --app-header-height: 3rem;
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
@@ -115,50 +118,43 @@ For commercial licensing, please contact support@quantumnous.com
    * in theme-presets.css. Default mirrors `--font-sans` so behavior is
    * identical when no font preference is set. */
   --font-body: var(--font-sans);
-  /* GoSwitch brand gradient — azure → fresh-green, sampled from the GS
-   * logomark (#0190EF → #66C74B). Reserved for the logomark, auth hero and
-   * rare hero CTAs; everyday surfaces stay neutral and only --primary
-   * carries the brand. */
-  --brand-gradient: linear-gradient(
-    135deg,
-    oklch(0.58 0.17 248) 0%,
-    oklch(0.72 0.186 139) 100%
-  );
-  /* Neutral gray canvas with a whisper of cool tint; pure-white cards
-   * "float" on it with 1px borders + xs shadows instead of heavy elevation. */
-  --background: oklch(0.988 0.0015 270);
-  --foreground: oklch(0.165 0.006 270);
+  /* macOS-系统设置式画布：浅灰底(#F5F5F7) + 纯白卡片，靠明度差分层。
+   * 这是本套主题唯一的结构性视觉判断——白底白卡只能靠描边分层，
+   * 灰底白卡才有苹果那种"内容浮在画布上"的层次。
+   * --sidebar 必须与 --background 同色：默认布局是 inset，
+   * body 背景走的是 --sidebar 而不是 --background（见 index.css 的 body 规则），
+   * 只改 --background 画布不会变灰。 */
+  --background: oklch(0.9707 0.0027 286.35);
+  --foreground: oklch(0.2316 0.0038 286.1);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.165 0.006 270);
+  --card-foreground: oklch(0.2316 0.0038 286.1);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.165 0.006 270);
-  /* Single brand primary: azure blue sampled from the GS logomark
-   * (≈ #0190EF family), deepened for white-text legibility on buttons. */
-  --primary: oklch(0.55 0.18 248);
-  --primary-foreground: oklch(0.985 0.002 248);
-  --secondary: oklch(0.955 0.006 248);
-  --secondary-foreground: oklch(0.24 0.03 248);
-  --muted: oklch(0.963 0.003 270);
-  --muted-foreground: oklch(0.49 0.012 250);
-  --accent: oklch(0.945 0.009 248);
-  --accent-foreground: oklch(0.24 0.03 248);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.596 0.145 163.225);
-  --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.681 0.162 75.834);
+  --popover-foreground: oklch(0.2316 0.0038 286.1);
+  /* Apple Blue #0071E3 */
+  --primary: oklch(0.5629 0.1933 256.16);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9406 0.0027 286.35);
+  --secondary-foreground: oklch(0.2316 0.0038 286.1);
+  --muted: oklch(0.9406 0.0027 286.35);
+  --muted-foreground: oklch(0.6217 0.0074 286.18);
+  --accent: oklch(0.9569 0.0183 250.59);
+  --accent-foreground: oklch(0.3629 0.1533 256.16);
+  --destructive: oklch(0.6542 0.2321 28.66);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.7303 0.1944 147.44);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.7824 0.1711 67.22);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.588 0.158 241.966);
-  --info-foreground: oklch(0.985 0 0);
-  --neutral: oklch(0.708 0 0);
-  --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(0.922 0.004 270);
-  --input: oklch(0.912 0.005 270);
-  --ring: oklch(0.6 0.15 248);
-  /* Google-spirit accent quartet — blue / green / amber / coral tuned in
-   * OKLCH to sit comfortably next to the azure brand primary. Used for
-   * stat-card icon chips, benefit icons, status dots and the chart axis;
-   * the brand CTA itself stays on --primary / --brand-gradient. */
+  --info: oklch(0.5629 0.1933 256.16);
+  --info-foreground: oklch(1 0 0);
+  --neutral: oklch(0.6217 0.0074 286.18);
+  --neutral-foreground: oklch(1 0 0);
+  --border: oklch(0.8652 0.0068 286.26);
+  --input: oklch(0.8312 0.0069 286.25);
+  --ring: oklch(0.5629 0.1933 256.16);
+  /* 四色强调档 — 被 stat-card 图标片、权益图标、状态点和图表轴消费
+   * （--chart-2..5 直接别名到这四个），改动会连锁影响 8 个业务文件，
+   * 本轮不动。CTA 本身走 --primary。 */
   --accent-blue: oklch(0.58 0.17 255);
   --accent-green: oklch(0.6 0.15 155);
   --accent-amber: oklch(0.7 0.14 78);
@@ -170,67 +166,65 @@ For commercial licensing, please contact support@quantumnous.com
   --glass-surface: color-mix(in srgb, var(--card) 72%, transparent);
   --glass-border: color-mix(in srgb, var(--border) 90%, transparent);
   --glass-highlight: oklch(1 0 0 / 0.7);
-  /* Ambient backdrop blobs (indigo / violet / cyan) painted by the
-   * `.ambient-glow` helper — low-alpha radial washes that give "air" to
-   * flat white canvases. Dark mode dials alpha further down. */
-  --ambient-1: color-mix(in oklch, var(--primary) 14%, transparent);
-  --ambient-2: oklch(0.72 0.17 145 / 0.1);
-  --ambient-3: oklch(0.72 0.12 220 / 0.1);
+  /* Hero 光晕基色。抽成 token 是为了让散落在首页/定价/排行榜的
+   * radial-gradient 跟随主题，而不是各自写死 oklch。
+   * 饱和度压到 0.10-0.12：苹果的氛围光是"察觉不到但少了会觉得平"，
+   * 不是彩色泛光。 */
+  --glow-primary: oklch(0.72 0.12 256 / 0.5);
+  --glow-accent: oklch(0.72 0.1 220 / 0.42);
+  --glow-tertiary: oklch(0.74 0.09 280 / 0.35);
   /* Chart palette: azure brand anchor + the Google-spirit accents. */
   --chart-1: oklch(0.58 0.16 248);
   --chart-2: var(--accent-blue);
   --chart-3: var(--accent-green);
   --chart-4: var(--accent-amber);
   --chart-5: var(--accent-coral);
-  --sidebar: oklch(0.974 0.003 272);
-  --sidebar-foreground: oklch(0.27 0.01 270);
-  --sidebar-primary: oklch(0.55 0.18 248);
-  --sidebar-primary-foreground: oklch(0.985 0.002 248);
+  /* 与 --background 同色：inset 布局下这就是整块画布的颜色。 */
+  --sidebar: oklch(0.9707 0.0027 286.35);
+  --sidebar-foreground: oklch(0.2316 0.0038 286.1);
+  --sidebar-primary: oklch(0.5629 0.1933 256.16);
+  --sidebar-primary-foreground: oklch(1 0 0);
   /* Active nav item: soft azure wash + deep azure label. */
-  --sidebar-accent: oklch(0.94 0.022 248);
-  --sidebar-accent-foreground: oklch(0.42 0.13 248);
-  --sidebar-border: oklch(0.922 0.004 270);
-  --sidebar-ring: oklch(0.6 0.15 248);
-  --skeleton-base: oklch(0.963 0.003 270);
-  --skeleton-highlight: oklch(0.985 0.0015 270);
+  --sidebar-accent: oklch(0.9569 0.0183 250.59);
+  --sidebar-accent-foreground: oklch(0.3629 0.1533 256.16);
+  --sidebar-border: oklch(0.8652 0.0068 286.26);
+  --sidebar-ring: oklch(0.5629 0.1933 256.16);
+  --skeleton-base: oklch(0.9406 0.0027 286.35);
+  --skeleton-highlight: oklch(0.9707 0.0027 286.35);
 }
 
 .dark {
-  /* Near-black charcoal (≈ #0c0c0f family, never pure black) with gently
-   * raised cards and deliberately low-contrast hairline borders. */
-  --brand-gradient: linear-gradient(
-    135deg,
-    oklch(0.64 0.16 248) 0%,
-    oklch(0.76 0.17 139) 100%
-  );
-  --background: oklch(0.155 0.005 280);
-  --foreground: oklch(0.96 0.003 280);
-  --card: oklch(0.205 0.006 280);
-  --card-foreground: oklch(0.96 0.003 280);
-  --popover: oklch(0.228 0.006 280);
-  --popover-foreground: oklch(0.96 0.003 280);
-  /* Brand azure, lifted for dark-surface legibility. */
-  --primary: oklch(0.68 0.15 248);
-  --primary-foreground: oklch(0.985 0.002 248);
-  --secondary: oklch(0.26 0.008 280);
-  --secondary-foreground: oklch(0.96 0.003 280);
-  --muted: oklch(0.236 0.006 280);
-  --muted-foreground: oklch(0.73 0.01 280);
-  --accent: oklch(0.296 0.012 280);
-  --accent-foreground: oklch(0.985 0.002 280);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.696 0.17 162.48);
+  /* macOS 深色：画布 #1C1C1E、卡片 #2C2C2E，同样靠明度差分层。
+   * 苹果深色不用纯黑，也不靠描边——卡片比画布亮一档就够了。 */
+  --background: oklch(0.2273 0.0038 286.09);
+  --foreground: oklch(0.9707 0.0027 286.35);
+  --card: oklch(0.2939 0.0036 286.18);
+  --card-foreground: oklch(0.9707 0.0027 286.35);
+  --popover: oklch(0.2939 0.0036 286.18);
+  --popover-foreground: oklch(0.9707 0.0027 286.35);
+  /* Apple Blue 深色态 #0A84FF */
+  --primary: oklch(0.6243 0.2056 255.49);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.3492 0.0034 286.22);
+  --secondary-foreground: oklch(0.9707 0.0027 286.35);
+  --muted: oklch(0.3492 0.0034 286.22);
+  /* #98989D on #2C2C2E ≈ 4.6:1，刚过 WCAG AA */
+  --muted-foreground: oklch(0.6812 0.0073 286.21);
+  --accent: oklch(0.2599 0.0604 251.32);
+  --accent-foreground: oklch(0.9707 0.0027 286.35);
+  --destructive: oklch(0.6633 0.2236 28.29);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.7556 0.2082 146.98);
   --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.769 0.188 70.08);
+  --warning: oklch(0.7824 0.1711 67.22);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.68 0.17 237.323);
-  --info-foreground: oklch(0.145 0 0);
-  --neutral: oklch(0.76 0 0);
+  --info: oklch(0.6243 0.2056 255.49);
+  --info-foreground: oklch(1 0 0);
+  --neutral: oklch(0.6812 0.0073 286.21);
   --neutral-foreground: oklch(0.145 0 0);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.65 0.13 248);
+  --ring: oklch(0.6243 0.2056 255.49);
   /* Accent quartet lifted for dark-surface legibility. */
   --accent-blue: oklch(0.68 0.15 255);
   --accent-green: oklch(0.7 0.14 155);
@@ -241,24 +235,25 @@ For commercial licensing, please contact support@quantumnous.com
   --glass-surface: color-mix(in srgb, var(--card) 60%, transparent);
   --glass-border: oklch(1 0 0 / 0.12);
   --glass-highlight: oklch(1 0 0 / 0.09);
-  /* Ambient blobs sit much quieter on dark canvases. */
-  --ambient-1: color-mix(in oklch, var(--primary) 10%, transparent);
-  --ambient-2: oklch(0.72 0.16 145 / 0.07);
-  --ambient-3: oklch(0.75 0.11 220 / 0.06);
+  /* 深色下光晕再降一档，避免在暗画布上糊成一团亮斑。 */
+  --glow-primary: oklch(0.62 0.13 256 / 0.28);
+  --glow-accent: oklch(0.62 0.11 220 / 0.22);
+  --glow-tertiary: oklch(0.64 0.1 280 / 0.18);
   --chart-1: oklch(0.68 0.15 248);
   --chart-2: var(--accent-blue);
   --chart-3: var(--accent-green);
   --chart-4: var(--accent-amber);
   --chart-5: var(--accent-coral);
-  --sidebar: oklch(0.128 0.004 280);
-  --sidebar-foreground: oklch(0.93 0.004 280);
-  --sidebar-primary: oklch(0.68 0.15 248);
-  --sidebar-primary-foreground: oklch(0.985 0.002 248);
+  /* 与 --background 同色，理由同浅色块。 */
+  --sidebar: oklch(0.2273 0.0038 286.09);
+  --sidebar-foreground: oklch(0.9707 0.0027 286.35);
+  --sidebar-primary: oklch(0.6243 0.2056 255.49);
+  --sidebar-primary-foreground: oklch(1 0 0);
   /* Active nav item: muted azure wash + near-white label. */
-  --sidebar-accent: oklch(0.3 0.05 248);
-  --sidebar-accent-foreground: oklch(0.94 0.02 248);
+  --sidebar-accent: oklch(0.2599 0.0604 251.32);
+  --sidebar-accent-foreground: oklch(0.9707 0.0027 286.35);
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.65 0.13 248);
-  --skeleton-base: oklch(0.26 0.006 280);
-  --skeleton-highlight: oklch(0.36 0.006 280);
+  --sidebar-ring: oklch(0.6243 0.2056 255.49);
+  --skeleton-base: oklch(0.3492 0.0034 286.22);
+  --skeleton-highlight: oklch(0.3939 0.0036 286.18);
 }
