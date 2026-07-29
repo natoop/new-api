@@ -56,8 +56,8 @@ export function Cooperation() {
           className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
           style={{
             background: [
-              'radial-gradient(ellipse 55% 45% at 25% 15%, oklch(0.72 0.18 250 / 75%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 45% 40% at 80% 20%, oklch(0.72 0.16 155 / 45%) 0%, transparent 70%)',
+              'radial-gradient(ellipse 55% 45% at 25% 15%, color-mix(in oklch, var(--glow-primary) 75%, transparent) 0%, transparent 70%)',
+              'radial-gradient(ellipse 45% 40% at 80% 20%, color-mix(in oklch, var(--glow-tertiary) 45%, transparent) 0%, transparent 70%)',
             ].join(', '),
           }}
         />

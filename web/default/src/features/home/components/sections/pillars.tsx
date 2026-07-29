@@ -89,9 +89,9 @@ export function Pillars() {
         className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
         style={{
           background: [
-            'radial-gradient(ellipse 50% 45% at 50% 20%, oklch(0.72 0.18 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 20% 75%, oklch(0.72 0.16 155 / 45%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 80% 70%, oklch(0.78 0.14 75 / 40%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 45% at 50% 20%, color-mix(in oklch, var(--glow-primary) 70%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 20% 75%, color-mix(in oklch, var(--glow-tertiary) 45%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 80% 70%, color-mix(in oklch, var(--glow-tertiary) 40%, transparent) 0%, transparent 70%)',
           ].join(', '),
         }}
       />

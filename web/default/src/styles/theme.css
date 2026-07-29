@@ -166,13 +166,15 @@ For commercial licensing, please contact support@quantumnous.com
   --glass-surface: color-mix(in srgb, var(--card) 72%, transparent);
   --glass-border: color-mix(in srgb, var(--border) 90%, transparent);
   --glass-highlight: oklch(1 0 0 / 0.7);
-  /* Hero 光晕基色。抽成 token 是为了让散落在首页/定价/排行榜的
+  /* Hero 光晕基色。抽成 token 是为了让散落在首页/定价/排行榜/合作页的
    * radial-gradient 跟随主题，而不是各自写死 oklch。
-   * 饱和度压到 0.10-0.12：苹果的氛围光是"察觉不到但少了会觉得平"，
+   * 不带 alpha：各处强度差异靠调用点的 color-mix 百分比保留，
+   * 否则 20 条渐变会被压成同一个亮度，插画背景和 hero 主视觉就分不出主次。
+   * 饱和度压到 0.09-0.12：苹果的氛围光是"察觉不到但少了会觉得平"，
    * 不是彩色泛光。 */
-  --glow-primary: oklch(0.72 0.12 256 / 0.5);
-  --glow-accent: oklch(0.72 0.1 220 / 0.42);
-  --glow-tertiary: oklch(0.74 0.09 280 / 0.35);
+  --glow-primary: oklch(0.72 0.12 256);
+  --glow-accent: oklch(0.72 0.1 220);
+  --glow-tertiary: oklch(0.74 0.09 280);
   /* Chart palette: azure brand anchor + the Google-spirit accents. */
   --chart-1: oklch(0.58 0.16 248);
   --chart-2: var(--accent-blue);
@@ -235,10 +237,11 @@ For commercial licensing, please contact support@quantumnous.com
   --glass-surface: color-mix(in srgb, var(--card) 60%, transparent);
   --glass-border: oklch(1 0 0 / 0.12);
   --glass-highlight: oklch(1 0 0 / 0.09);
-  /* 深色下光晕再降一档，避免在暗画布上糊成一团亮斑。 */
-  --glow-primary: oklch(0.62 0.13 256 / 0.28);
-  --glow-accent: oklch(0.62 0.11 220 / 0.22);
-  --glow-tertiary: oklch(0.64 0.1 280 / 0.18);
+  /* 深色下光晕降一档明度，避免在暗画布上糊成一团亮斑。
+   * 整体强度由各调用点外层的 dark:opacity-* 再压一次。 */
+  --glow-primary: oklch(0.62 0.13 256);
+  --glow-accent: oklch(0.62 0.11 220);
+  --glow-tertiary: oklch(0.64 0.1 280);
   --chart-1: oklch(0.68 0.15 248);
   --chart-2: var(--accent-blue);
   --chart-3: var(--accent-green);

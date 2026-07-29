@@ -65,8 +65,8 @@ export function ModelBrands() {
         className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
         style={{
           background: [
-            'radial-gradient(ellipse 45% 45% at 25% 30%, oklch(0.7 0.15 250 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 75% 70%, oklch(0.65 0.12 200 / 45%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 45% 45% at 25% 30%, color-mix(in oklch, var(--glow-primary) 60%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 75% 70%, color-mix(in oklch, var(--glow-accent) 45%, transparent) 0%, transparent 70%)',
           ].join(', '),
         }}
       />

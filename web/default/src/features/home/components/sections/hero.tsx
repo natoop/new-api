@@ -162,9 +162,9 @@ export function Hero(props: HeroProps) {
         className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
         style={{
           background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.72 0.16 155 / 40%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 60% 50% at 20% 20%, color-mix(in oklch, var(--glow-primary) 80%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 40% at 80% 15%, color-mix(in oklch, var(--glow-accent) 60%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 35% at 40% 80%, color-mix(in oklch, var(--glow-tertiary) 40%, transparent) 0%, transparent 70%)',
           ].join(', '),
         }}
       />

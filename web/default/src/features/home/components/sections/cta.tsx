@@ -42,8 +42,8 @@ export function CTA(props: CTAProps) {
         className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
         style={{
           background: [
-            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 50% at 30% 50%, color-mix(in oklch, var(--glow-primary) 70%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 70% 40%, color-mix(in oklch, var(--glow-accent) 50%, transparent) 0%, transparent 70%)',
           ].join(', '),
         }}
       />
