@@ -17,11 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
-import { ArrowRight, Megaphone, ShieldCheck, Activity, Zap } from 'lucide-react'
+import { Megaphone, ShieldCheck, Activity, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { useAnnouncementStore } from '@/stores/announcement-store'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -80,7 +77,9 @@ function shortHash(input: string): string {
 
 function buildFingerprint(notice: string, items: AnnouncementItem[]): string {
   const announcementPart = items
-    .map((a) => `${a.type || ''}|${(a.content || '').trim()}|${a.publishDate || ''}`)
+    .map(
+      (a) => `${a.type || ''}|${(a.content || '').trim()}|${a.publishDate || ''}`
+    )
     .join('::')
   const combined = `${notice.trim()}##${announcementPart}`
   return combined === '##' ? BRAND_FINGERPRINT : combined
@@ -88,43 +87,35 @@ function buildFingerprint(notice: string, items: AnnouncementItem[]): string {
 
 export function WelcomeAnnouncement() {
   const { t } = useTranslation()
-  const { auth } = useAuthStore()
-  const isAuthenticated = !!auth.user
   const notifications = useNotifications()
 
-  // The entry popup IS the system announcement: it surfaces whatever an admin
-  // edits in either Notice (System Notice) or the Announcements list, so the
-  // two are one and the same thing. Falls back to a branded welcome when empty.
+  // The entry popup reuses the platform's own announcement system: it surfaces
+  // whatever an admin edits in System Notice or the Announcements list (the same
+  // data the header bell shows), rendered as a timeline. Falls back to a branded
+  // welcome only when nothing is published. No native components are modified.
   const notice = (notifications.notice || '').trim()
-  const announcements = notifications.announcementsEnabled
-    ? (notifications.announcements as AnnouncementItem[]).slice(0, 3)
-    : []
+  const announcements = (
+    notifications.announcements as AnnouncementItem[]
+  ).slice(0, 3)
   const hasContent = notice.length > 0 || announcements.length > 0
 
   const dismissKey =
     STORAGE_PREFIX + shortHash(buildFingerprint(notice, announcements))
-  const open = useAnnouncementStore((s) => s.open)
-  const manual = useAnnouncementStore((s) => s.manual)
-  const setOpen = useAnnouncementStore((s) => s.setOpen)
+  const [open, setOpen] = useState(false)
   const [dontShowAgain, setDontShowAgain] = useState(false)
-
-  const routerState = useRouterState()
-  const pathname = routerState.location.pathname
-  const isHome = pathname === '/'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!isHome) return // 只在首页自动弹；其它公开页不自动弹
     if (notifications.loading) return
     if (window.localStorage.getItem(dismissKey)) return
 
     const timeoutId = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS)
     return () => window.clearTimeout(timeoutId)
-  }, [isHome, notifications.loading, dismissKey, setOpen])
+  }, [notifications.loading, dismissKey])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
-    if (!next && !manual && dontShowAgain && typeof window !== 'undefined') {
+    if (!next && dontShowAgain && typeof window !== 'undefined') {
       window.localStorage.setItem(dismissKey, '1')
     }
   }
@@ -152,28 +143,18 @@ export function WelcomeAnnouncement() {
       title={title}
       description={description}
       footer={
-        <div className='flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-          <label className='text-muted-foreground flex cursor-pointer items-center gap-2 text-sm select-none'>
+        <label className='text-muted-foreground flex w-full cursor-pointer items-center justify-between gap-2 text-sm select-none'>
+          <span className='flex items-center gap-2'>
             <Checkbox
               checked={dontShowAgain}
               onCheckedChange={(checked) => setDontShowAgain(checked === true)}
             />
             {t('Do not show again')}
-          </label>
-          <div className='flex items-center gap-2'>
-            <Button variant='outline' onClick={() => handleOpenChange(false)}>
-              {t('Got it')}
-            </Button>
-            <Button
-              className='group'
-              onClick={() => handleOpenChange(false)}
-              render={<Link to={isAuthenticated ? '/dashboard' : '/sign-up'} />}
-            >
-              {isAuthenticated ? t('Go to Dashboard') : t('Get Started')}
-              <ArrowRight className='ml-1 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-            </Button>
-          </div>
-        </div>
+          </span>
+          <Button variant='outline' onClick={() => handleOpenChange(false)}>
+            {t('Got it')}
+          </Button>
+        </label>
       }
     >
       {hasContent ? (
@@ -189,39 +170,46 @@ export function WelcomeAnnouncement() {
             </div>
           ) : null}
 
-          {announcements.map((item, idx) => {
-            const date = item.publishDate
-              ? formatDateTimeObject(new Date(item.publishDate))
-              : ''
-            return (
-              <div
-                key={idx}
-                className='border-border/40 bg-muted/20 flex items-start gap-3 rounded-xl border p-3.5'
-              >
-                <span
-                  className={cn(
-                    'mt-1.5 inline-block size-2 shrink-0 rounded-full',
-                    getAnnouncementColorClass(item.type)
-                  )}
-                />
-                <div className='min-w-0 flex-1'>
-                  <div className='text-sm leading-[1.65]'>
-                    <Markdown>{item.content || ''}</Markdown>
-                  </div>
-                  {item.extra ? (
-                    <div className='text-muted-foreground mt-1 text-xs'>
-                      <Markdown>{item.extra}</Markdown>
+          {announcements.length > 0 ? (
+            <ol className='space-y-4 pl-1'>
+              {announcements.map((item, idx) => {
+                const date = item.publishDate
+                  ? formatDateTimeObject(new Date(item.publishDate))
+                  : ''
+                const isLast = idx === announcements.length - 1
+                return (
+                  <li key={idx} className='flex gap-3'>
+                    <div className='flex flex-col items-center'>
+                      <span
+                        className={cn(
+                          'ring-background mt-1 size-2.5 shrink-0 rounded-full ring-4',
+                          getAnnouncementColorClass(item.type)
+                        )}
+                      />
+                      {!isLast ? (
+                        <span className='bg-border/60 mt-1 w-px flex-1' />
+                      ) : null}
                     </div>
-                  ) : null}
-                  {date ? (
-                    <div className='text-muted-foreground/70 mt-1.5 text-[11px] tracking-[0.01em]'>
-                      {date}
+                    <div className='min-w-0 flex-1 pb-1'>
+                      <div className='text-sm leading-[1.65]'>
+                        <Markdown>{item.content || ''}</Markdown>
+                      </div>
+                      {item.extra ? (
+                        <div className='text-muted-foreground mt-1 text-xs'>
+                          <Markdown>{item.extra}</Markdown>
+                        </div>
+                      ) : null}
+                      {date ? (
+                        <div className='text-muted-foreground/70 mt-1.5 text-[11px] tracking-[0.01em]'>
+                          {date}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
         </div>
       ) : (
         <div className='space-y-3'>

@@ -31,6 +31,7 @@ import {
   Pillars,
   Stats,
 } from './components'
+import { WelcomeAnnouncement } from './components/welcome-announcement'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -71,6 +72,7 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false}>
+      <WelcomeAnnouncement />
       <Hero isAuthenticated={isAuthenticated} />
       <LiveStatusBar />
       <Pillars />
