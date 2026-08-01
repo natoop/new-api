@@ -345,6 +345,13 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/upstream_updates/detect", controller.DetectChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect_all", controller.DetectAllChannelUpstreamModelUpdates)
 		}
+		channelPinRoute := apiRouter.Group("/channel-pin")
+		channelPinRoute.Use(middleware.AdminAuth())
+		{
+			channelPinRoute.POST("", controller.SetUserChannelPin)
+			channelPinRoute.DELETE("/:user_id", controller.ClearUserChannelPin)
+			channelPinRoute.GET("", controller.ListUserChannelPins)
+		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		{
