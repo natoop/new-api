@@ -168,18 +168,33 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 }
 
 // Subscription order (payment -> webhook -> wallet credit)
+//
+// idx_sub_order_user_plan_status covers the purchase-cap count exactly. That
+// count runs as SELECT ... FOR UPDATE inside the purchase transaction, and under
+// MySQL REPEATABLE READ a locking read holds next-key locks on every row the
+// scan touches — non-matching rows included. On the plain user_id index that
+// meant "every order this user owns", so a webhook that already held one of the
+// buyer's pending orders and a balance purchase that already held the buyer's
+// users row waited on each other (the two paths take orders/users in opposite
+// order). Matching all three predicates from one index shrinks the locked range
+// to the buyer's successful orders of that one plan, which no other path holds.
 type SubscriptionOrder struct {
 	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
+	UserId int     `json:"user_id" gorm:"index;index:idx_sub_order_user_plan_status,priority:1"`
+	PlanId int     `json:"plan_id" gorm:"index;index:idx_sub_order_user_plan_status,priority:2"`
 	Money  float64 `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	Status          string `json:"status"`
-	CreateTime      int64  `json:"create_time"`
-	CompleteTime    int64  `json:"complete_time"`
+	// The index tag is also what makes the column indexable on MySQL: an
+	// untagged string maps to longtext, which MySQL refuses to index without a
+	// prefix length, and a prefix length is not valid PostgreSQL syntax. GORM's
+	// MySQL dialector sizes an indexed, unsized string at varchar(191); the
+	// PostgreSQL and SQLite dialectors ignore the tag and keep text.
+	Status       string `json:"status" gorm:"index:idx_sub_order_user_plan_status,priority:3"`
+	CreateTime   int64  `json:"create_time"`
+	CompleteTime int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 
@@ -341,6 +356,11 @@ func CountPlanPurchases(userId int, planId int) (int64, error) {
 // snapshot per statement and the SQLite dialector drops the clause, so neither is
 // affected. tx == nil is the controller pre-check, which stays a plain read on
 // purpose: it is best-effort and must not lock rows outside a transaction.
+//
+// The predicate deliberately matches idx_sub_order_user_plan_status column for
+// column: that is what keeps the locking read's range down to the buyer's
+// successful orders of this plan instead of every order the buyer owns. Widening
+// or reordering it re-opens the deadlock described on SubscriptionOrder.
 func countPlanPurchasesTx(tx *gorm.DB, userId int, planId int) (int64, error) {
 	if userId <= 0 || planId <= 0 {
 		return 0, errors.New("invalid userId or planId")

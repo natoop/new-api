@@ -8,8 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 // ---------------------------------------------------------------------------
@@ -233,6 +235,124 @@ func TestCountPlanPurchases_PrecheckStaysNonLocking(t *testing.T) {
 	// 不能在事务外把订单行锁住
 	_, lockClause := captureCountPlanPurchases(t, DB, nil)
 	assert.Nil(t, lockClause)
+}
+
+// ---------------------------------------------------------------------------
+// 限购索引 —— 加锁读的锁范围靠它收窄
+//
+// 加锁读会把扫到的行全部锁住（MySQL RR 下不匹配的行也不放锁），所以「扫多少行」
+// 直接决定死锁面：走 user_id 单列索引时锁的是该买家的全部订单，回调链路手里
+// 攥着的那张 pending 单也在里面，与 users 行锁形成反向环。只有三列逐个等值匹配
+// 到同一个索引，区间才收到「该买家该档位的成功单」。
+// 下面两条分别锁住：索引列序（逻辑）与索引真的被 AutoMigrate 建了出来（落库）。
+// ---------------------------------------------------------------------------
+
+// purchaseCapIndexColumns 必须与 countPlanPurchasesTx 的 WHERE 列序逐列一致。
+var purchaseCapIndexColumns = []string{"user_id", "plan_id", "status"}
+
+// lookupPurchaseCapIndex 从 SubscriptionOrder 的 GORM 声明里取出覆盖限购 COUNT
+// 的索引。按列序找而不是按名字找：名字换了不影响锁行为，列序变了才影响。
+func lookupPurchaseCapIndex(t *testing.T, db *gorm.DB) schema.Index {
+	t.Helper()
+	stmt := &gorm.Statement{DB: db}
+	require.NoError(t, stmt.Parse(&SubscriptionOrder{}))
+	for _, index := range stmt.Schema.ParseIndexes() {
+		columns := make([]string, 0, len(index.Fields))
+		for _, field := range index.Fields {
+			columns = append(columns, field.DBName)
+		}
+		if strings.Join(columns, ",") == strings.Join(purchaseCapIndexColumns, ",") {
+			return index
+		}
+	}
+	t.Fatalf("SubscriptionOrder 没有声明 (%s) 复合索引，限购加锁读会退回 user_id 区间锁",
+		strings.Join(purchaseCapIndexColumns, ", "))
+	return schema.Index{}
+}
+
+// renderSubscriptionOrderDDL 用 DryRun 连接（不连库）渲染建表语句，拿到 GORM
+// 实际会发给该数据库的 DDL。
+func renderSubscriptionOrderDDL(t *testing.T, dialector gorm.Dialector) []string {
+	t.Helper()
+	db, err := gorm.Open(dialector, &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+	require.NoError(t, err)
+
+	var statements []string
+	require.NoError(t, db.Callback().Raw().Before("gorm:raw").
+		Register("test:capture_subscription_order_ddl", func(d *gorm.DB) {
+			statements = append(statements, d.Statement.SQL.String())
+		}))
+	require.NoError(t, db.Migrator().CreateTable(&SubscriptionOrder{}))
+	return statements
+}
+
+// squashSQL 抹掉引号与空白，让三库的引号风格（“ / ""）和排版差异不进入断言。
+func squashSQL(sql string) string {
+	return strings.NewReplacer("`", "", `"`, "", " ", "", "\n", "", "\t", "").Replace(sql)
+}
+
+func TestSubscriptionOrderPurchaseCapIndex_IsCreatedByAutoMigrate(t *testing.T) {
+	index := lookupPurchaseCapIndex(t, DB)
+
+	for _, field := range index.Fields {
+		// 前缀长度只有 MySQL 认，PG 会在 col(n) 处语法报错，三库共用一份声明就不能带
+		assert.Zero(t, field.Length, "限购索引不能带前缀长度，PostgreSQL 不支持 col(n)")
+	}
+	// TestMain 已经对 SubscriptionOrder 跑过 AutoMigrate，这里查的是真实建出来的库
+	assert.True(t, DB.Migrator().HasIndex(&SubscriptionOrder{}, index.Name),
+		"AutoMigrate 之后 %s 必须存在，否则加锁读仍然走 user_id 区间", index.Name)
+}
+
+func TestSubscriptionOrderPurchaseCapIndex_RendersOnMySQLAndPostgres(t *testing.T) {
+	index := lookupPurchaseCapIndex(t, DB)
+
+	cases := []struct {
+		name         string
+		dialector    gorm.Dialector
+		assertStatus func(t *testing.T, ddl string)
+	}{
+		{
+			name: "mysql",
+			dialector: mysql.New(mysql.Config{
+				DSN:                       "gorm:gorm@tcp(127.0.0.1:3306)/gorm?parseTime=true",
+				SkipInitializeWithVersion: true,
+			}),
+			assertStatus: func(t *testing.T, ddl string) {
+				// MySQL 拒绝给 longtext 建无前缀索引，而前缀长度又不是合法 PG 语法，
+				// 所以 status 必须落成有界 varchar，索引才建得出来
+				assert.NotContains(t, ddl, "statuslongtext")
+				assert.Contains(t, ddl, "statusvarchar(")
+			},
+		},
+		{
+			name: "postgres",
+			dialector: postgres.New(postgres.Config{
+				DSN: "host=127.0.0.1 user=gorm password=gorm dbname=gorm port=5432",
+			}),
+			assertStatus: func(t *testing.T, ddl string) {
+				// PG 的 text 本来就能进 btree 索引，列不必跟着 MySQL 一起动
+				assert.Contains(t, ddl, "statustext")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			statements := renderSubscriptionOrderDDL(t, tc.dialector)
+
+			var indexStatement string
+			for _, statement := range statements {
+				if strings.Contains(statement, index.Name) {
+					indexStatement = squashSQL(statement)
+					break
+				}
+			}
+			require.NotEmpty(t, indexStatement, "%s 的建表 DDL 里没有 %s", tc.name, index.Name)
+			assert.Contains(t, indexStatement, "("+strings.Join(purchaseCapIndexColumns, ",")+")")
+
+			tc.assertStatus(t, squashSQL(strings.Join(statements, ";")))
+		})
+	}
 }
 
 func TestCountPlanPurchasesTx_RendersForUpdateOnMySQL(t *testing.T) {
