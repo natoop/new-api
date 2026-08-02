@@ -40,6 +40,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  RechargePlanRecord,
+  RechargePlanPayRequest,
 } from './types'
 
 // ============================================================================
@@ -259,5 +261,28 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * List the enabled recharge tiers.
+ * Endpoint is the legacy subscription-plan route, kept as-is; the payload it
+ * serves is now read as recharge tiers.
+ */
+export async function getRechargePlans(): Promise<
+  ApiResponse<RechargePlanRecord[]>
+> {
+  const res = await api.get('/api/subscription/plans')
+  return res.data
+}
+
+/**
+ * Buy a recharge tier with the wallet balance: spends `price_amount` worth of
+ * quota and credits `total_amount` back, i.e. a discounted balance exchange.
+ */
+export async function payRechargePlanWithBalance(
+  request: RechargePlanPayRequest
+): Promise<ApiResponse> {
+  const res = await api.post('/api/subscription/balance/pay', request)
   return res.data
 }

@@ -17,13 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import {
-  CheckCircle2,
-  Crown,
-  ExternalLink,
-  Gift,
-  Loader2,
-} from 'lucide-react'
+import { CheckCircle2, Coins, ExternalLink, Gift, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -42,7 +36,7 @@ interface RedemptionSectionProps {
   enabled?: boolean
   /** Optional external link to obtain redemption codes */
   topupLink?: string
-  /** Called after a successful redemption (refresh user/subscriptions) */
+  /** Called after a successful redemption (refresh wallet balance) */
   onRedeemed?: (outcome: RedeemOutcome) => void | Promise<void>
 }
 
@@ -106,18 +100,23 @@ export function RedemptionSection({
       {outcome && (
         <div className='border-primary/20 bg-primary/5 flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm'>
           {outcome.type === 'plan' ? (
-            <Crown className='text-primary h-4 w-4 shrink-0' />
+            <Coins className='text-primary h-4 w-4 shrink-0' />
           ) : (
             <CheckCircle2 className='text-primary h-4 w-4 shrink-0' />
           )}
           <span className='min-w-0 font-medium'>
-            {outcome.type === 'plan'
-              ? t('Plan “{{title}}” activated', {
+            {outcome.type === 'plan' && outcome.quota > 0
+              ? t('Recharge tier “{{title}}” credited +{{amount}}', {
                   title: outcome.planTitle || '',
-                })
-              : t('Balance credited +{{amount}}', {
                   amount: formatQuota(outcome.quota),
-                })}
+                })
+              : outcome.type === 'plan'
+                ? t('Recharge tier “{{title}}” credited to your balance', {
+                    title: outcome.planTitle || '',
+                  })
+                : t('Balance credited +{{amount}}', {
+                    amount: formatQuota(outcome.quota),
+                  })}
           </span>
         </div>
       )}

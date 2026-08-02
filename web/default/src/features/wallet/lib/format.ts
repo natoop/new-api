@@ -36,7 +36,7 @@ export function formatCreemPrice(
 }
 
 /**
- * Format a subscription plan amount in the plan's own currency.
+ * Format a recharge tier amount in the tier's own currency.
  * CNY → ¥, USD → $; other codes fall back to "CODE amount".
  */
 export function formatPlanAmount(

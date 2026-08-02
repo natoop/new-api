@@ -27,9 +27,14 @@ import type { RedeemResultData } from '../types'
 // ============================================================================
 
 /**
- * Normalized redemption outcome. The backend now returns
+ * Normalized redemption outcome. The backend returns
  * { quota, type: "balance" | "plan", plan_id, plan_title }; legacy plain-int
  * responses are normalized to a balance outcome for safety.
+ *
+ * The `plan` type only comes from agent inventory codes, which now credit the
+ * recharge tier's quota straight to the wallet instead of activating a
+ * subscription. That branch carries both the tier title and the quota that
+ * actually landed in the wallet.
  */
 export interface RedeemOutcome {
   type: 'balance' | 'plan'

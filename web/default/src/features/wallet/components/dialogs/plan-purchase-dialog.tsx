@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { CalendarClock, Crown, Loader2, Package } from 'lucide-react'
+import { Coins, Loader2, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
@@ -29,20 +29,15 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
-import { paySubscriptionBalance } from '@/features/subscriptions/api'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
-import type { PlanRecord } from '@/features/subscriptions/types'
+import { payRechargePlanWithBalance } from '../../api'
 import { formatPlanAmount } from '../../lib'
-import type { TopupInfo } from '../../types'
+import type { RechargePlanRecord } from '../../types'
 
 interface PlanPurchaseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  planRecord: PlanRecord | null
-  topupInfo: TopupInfo | null
+  planRecord: RechargePlanRecord | null
   userQuota?: number
-  purchaseLimit?: number
-  purchaseCount?: number
   onPurchaseSuccess?: () => void | Promise<void>
   onGoTopup?: () => void
 }
@@ -57,7 +52,7 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
   if (!plan) return null
 
   const originalAmount = Number(plan.price_amount || 0)
-  const totalAmount = Number(plan.total_amount || 0)
+  const creditedQuota = Number(plan.total_amount || 0)
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
       ? currency.quotaPerUnit
@@ -65,28 +60,19 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
   const balanceCost = Math.max(0, Math.ceil(originalAmount * quotaPerUnit))
   const userQuota = Math.max(0, Number(props.userQuota || 0))
   const insufficientBalance = userQuota < balanceCost
-  const limitReached =
-    (props.purchaseLimit || 0) > 0 &&
-    (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
-
-  const resetState = () => {
-    setPaying(false)
-  }
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) resetState()
+    if (!open) setPaying(false)
     props.onOpenChange(open)
   }
 
   const handlePayBalance = async () => {
-    if (paying || insufficientBalance || limitReached) return
+    if (paying || insufficientBalance) return
     setPaying(true)
     try {
-      const res = await paySubscriptionBalance({
-        plan_id: plan.id,
-      })
+      const res = await payRechargePlanWithBalance({ plan_id: plan.id })
       if (res.success) {
-        toast.success(t('Subscription purchased successfully'))
+        toast.success(t('Recharge credited successfully'))
         void props.onPurchaseSuccess?.()
         handleOpenChange(false)
       } else {
@@ -109,8 +95,8 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
       onOpenChange={handleOpenChange}
       title={
         <>
-          <Crown className='h-5 w-5' />
-          {t('Purchase Subscription')}
+          <Coins className='h-5 w-5' />
+          {t('Confirm Recharge')}
         </>
       }
       contentClassName='glass-card max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'
@@ -122,7 +108,7 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
         <div className='bg-muted/50 space-y-2.5 rounded-xl border p-3 sm:space-y-3 sm:p-4'>
           <div className='flex justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Plan Name')}
+              {t('Recharge Tier')}
             </span>
             <span className='max-w-[200px] truncate text-sm font-medium'>
               {plan.title}
@@ -130,28 +116,11 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
           </div>
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Validity Period')}
-            </span>
-            <span className='flex items-center gap-1 text-sm'>
-              <CalendarClock className='h-3.5 w-3.5' />
-              {formatDuration(plan, t)}
-            </span>
-          </div>
-          {formatResetPeriod(plan, t) !== t('No Reset') && (
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground text-sm'>
-                {t('Reset Period')}
-              </span>
-              <span className='text-sm'>{formatResetPeriod(plan, t)}</span>
-            </div>
-          )}
-          <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Total Quota')}
+              {t('Credited Quota')}
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
-              {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
+              {formatQuota(creditedQuota)}
             </span>
           </div>
           {plan.upgrade_group && (
@@ -165,22 +134,11 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>
-            <span className='flex items-baseline gap-2'>
-              <span className='text-primary text-lg font-bold'>
-                {formatPlanAmount(originalAmount, plan.currency)}
-              </span>
+            <span className='text-primary text-lg font-bold'>
+              {formatPlanAmount(originalAmount, plan.currency)}
             </span>
           </div>
         </div>
-
-        {limitReached && (
-          <Alert variant='destructive'>
-            <AlertDescription>
-              {t('Purchase limit reached')} ({props.purchaseCount}/
-              {props.purchaseLimit})
-            </AlertDescription>
-          </Alert>
-        )}
 
         <div className='flex flex-col gap-2 rounded-xl border p-3'>
           <div className='flex items-center justify-between gap-3'>
@@ -220,7 +178,7 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
           )}
           <Button
             onClick={handlePayBalance}
-            disabled={paying || insufficientBalance || limitReached}
+            disabled={paying || insufficientBalance}
           >
             {paying && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {t('Pay with Balance')}

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Crown, Receipt, WalletCards } from 'lucide-react'
+import { Coins, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -61,8 +61,8 @@ export function WalletTabs({
             {t('Pay as you go')}
           </TabsTrigger>
           <TabsTrigger value='plans' className='gap-1.5 px-3'>
-            <Crown className='h-3.5 w-3.5' />
-            {t('Buy Plans')}
+            <Coins className='h-3.5 w-3.5' />
+            {t('Recharge Tiers')}
           </TabsTrigger>
         </TabsList>
         {onOpenBilling && (
@@ -80,7 +80,6 @@ export function WalletTabs({
 
       <TabsContent value='plans'>
         <PurchasePlansTab
-          topupInfo={topupInfo}
           userQuota={userQuota}
           onPurchaseSuccess={onPurchaseSuccess}
           onGoTopup={onGoTopup}

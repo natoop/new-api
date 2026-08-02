@@ -24,7 +24,6 @@ import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { AgentBanner } from './components/agent-banner'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
-import { MySubscriptionCard } from './components/my-subscription-card'
 import { RedemptionCard } from './components/redemption-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { WalletTabs } from './components/wallet-tabs'
@@ -42,7 +41,6 @@ export function Wallet(props: WalletProps) {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [walletTab, setWalletTab] = useState<'topup' | 'plans'>('topup')
-  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0)
 
   const { topupInfo } = useTopupInfo()
   const {
@@ -88,13 +86,7 @@ export function Wallet(props: WalletProps) {
     return success
   }
 
-  const handlePurchaseSuccess = async () => {
-    await fetchUser()
-    setSubscriptionRefreshKey((key) => key + 1)
-  }
-
   const goTopupTab = () => setWalletTab('topup')
-  const goPlansTab = () => setWalletTab('plans')
 
   return (
     <>
@@ -113,7 +105,7 @@ export function Wallet(props: WalletProps) {
                   }
                   topupInfo={topupInfo}
                   userQuota={user?.quota}
-                  onPurchaseSuccess={handlePurchaseSuccess}
+                  onPurchaseSuccess={fetchUser}
                   onRedeemed={fetchUser}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   onGoTopup={goTopupTab}
@@ -122,19 +114,11 @@ export function Wallet(props: WalletProps) {
                 <RedemptionCard
                   enabled={topupInfo?.enable_redemption !== false}
                   topupLink={topupInfo?.topup_link}
-                  onRedeemed={async () => {
-                    await fetchUser()
-                    setSubscriptionRefreshKey((key) => key + 1)
-                  }}
+                  onRedeemed={fetchUser}
                 />
               </div>
 
               <div className='min-w-0 space-y-4'>
-                <MySubscriptionCard
-                  refreshKey={subscriptionRefreshKey}
-                  onGoPlans={goPlansTab}
-                />
-
                 <AgentBanner />
 
                 <AffiliateRewardsCard

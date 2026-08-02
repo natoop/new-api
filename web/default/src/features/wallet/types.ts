@@ -327,3 +327,29 @@ export interface BillingHistoryResponse {
 export interface CompleteOrderRequest {
   trade_no: string
 }
+
+/**
+ * Recharge tier, served by the (unchanged) subscription plan endpoints.
+ * Buying a tier credits `total_amount` quota straight into the wallet
+ * balance — tiers never expire and never reset.
+ */
+export interface RechargePlan {
+  id: number
+  title: string
+  subtitle?: string
+  /** Price in `currency` units. */
+  price_amount: number
+  currency: string
+  /** Quota credited to the wallet on purchase. */
+  total_amount: number
+  upgrade_group?: string
+}
+
+export interface RechargePlanRecord {
+  plan: RechargePlan
+}
+
+/** POST /api/subscription/balance/pay request body. */
+export interface RechargePlanPayRequest {
+  plan_id: number
+}
