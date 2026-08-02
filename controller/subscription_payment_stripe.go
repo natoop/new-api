@@ -55,6 +55,9 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if !ensurePlanPurchasable(c, userId, plan) {
+		return
+	}
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -63,18 +66,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	if user == nil {
 		common.ApiErrorMsg(c, "用户不存在")
 		return
-	}
-
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
 	}
 
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))

@@ -34,9 +34,11 @@ type DistributionInventoryRefundResult struct {
 }
 
 type DistributionInventoryRedeemResult struct {
-	Matched   bool
-	PlanId    int
-	PlanTitle string
+	Matched bool
+	PlanId  int
+	// CreditedQuota 是本次兑换真正落进钱包的额度，供接口把到账金额透出给用户。
+	CreditedQuota int64
+	PlanTitle     string
 }
 
 // 库存操作失败原因，供 controller 映射多语言提示
@@ -759,6 +761,7 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 	now := time.Now().Unix()
 	result := &DistributionInventoryRedeemResult{}
 	var upgradeGroup string
+	var creditedQuota int64
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		var inventory model.DistributionInventory
 		err := distributionLock(tx).Where("inventory_no = ?", code).First(&inventory).Error
@@ -805,7 +808,8 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 		var agentUser model.User
 		_ = tx.Select("id, username, display_name, email").Where("id = ?", agent.UserId).First(&agentUser).Error
 
-		if _, err := model.CreateUserSubscriptionFromPlanTx(tx, userID, &plan, "inventory"); err != nil {
+		creditedQuota, err = model.CreditPlanQuotaTx(tx, userID, &plan)
+		if err != nil {
 			return err
 		}
 		tradeNo := fmt.Sprintf("SUBINVUSR%dNO%s%d", userID, common.GetRandomString(6), time.Now().UnixNano())
@@ -883,6 +887,7 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 		}
 		result.PlanId = plan.Id
 		result.PlanTitle = plan.Title
+		result.CreditedQuota = creditedQuota
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
 		return nil
 	})
@@ -895,7 +900,13 @@ func RedeemDistributionInventoryCode(userID int, code string) (*DistributionInve
 	if upgradeGroup != "" {
 		_ = model.UpdateUserGroupCache(userID, upgradeGroup)
 	}
-	model.RecordLog(userID, model.LogTypeTopup, fmt.Sprintf("通过代理库存码开通套餐 %s，库存码 %s", result.PlanTitle, code))
+	if creditedQuota > 0 {
+		// 额度在事务内直接写进 users.quota，缓存必须丢弃后重新回源
+		if err := model.InvalidateUserCache(userID); err != nil {
+			common.SysLog("failed to invalidate user cache after inventory redeem: " + err.Error())
+		}
+	}
+	model.RecordLog(userID, model.LogTypeTopup, fmt.Sprintf("通过代理库存码兑换档位 %s，库存码 %s，到账额度 %d", result.PlanTitle, code, creditedQuota))
 	model.FireSubscriptionPaidHook(userID)
 	return result, nil
 }

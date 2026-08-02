@@ -79,15 +79,24 @@ func resolveTokenKey(ctx context.Context, tokenId int, taskID string) string {
 	return token.Key
 }
 
-// taskIsSubscription 判断任务是否通过订阅计费。
-func taskIsSubscription(task *model.Task) bool {
-	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
+// billingSourceSubscription 是已下线的订阅额度池标识。只有下线部署窗口内仍在途的
+// 历史任务（视频 / MJ 可跑数小时）会带着它，新任务恒为 BillingSourceWallet。
+const billingSourceSubscription = "subscription"
+
+// taskIsLegacySubscription 判断任务是否从已下线的订阅额度池预扣。
+// 这类任务的钱包从未被扣过款，任何钱包调整都会凭空增减额度。
+func taskIsLegacySubscription(task *model.Task) bool {
+	return task.PrivateData.BillingSource == billingSourceSubscription
 }
 
-// taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
+// taskAdjustFunding 调整任务的钱包额度，delta > 0 表示扣费，delta < 0 表示退还。
+// 历史订阅任务只读跳过：退款会把从未扣过的额度白送进钱包，结算会拿钱包补订阅池的差额，
+// 两者都对不上账，所以只留告警日志供人工核对。
 func taskAdjustFunding(task *model.Task, delta int) error {
-	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+	if taskIsLegacySubscription(task) {
+		common.SysLog(fmt.Sprintf(
+			"历史订阅计费任务跳过钱包调整 task=%s user=%d delta=%d", task.TaskID, task.UserId, delta))
+		return nil
 	}
 	if delta > 0 {
 		return model.DecreaseUserQuota(task.UserId, delta, false)

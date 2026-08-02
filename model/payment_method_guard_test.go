@@ -73,13 +73,6 @@ func getTopUpStatusForPaymentGuardTest(t *testing.T, tradeNo string) string {
 	return topUp.Status
 }
 
-func countUserSubscriptionsForPaymentGuardTest(t *testing.T, userID int) int64 {
-	t.Helper()
-	var count int64
-	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ?", userID).Count(&count).Error)
-	return count
-}
-
 func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	t.Helper()
 	var user User
@@ -152,7 +145,7 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 	order := GetSubscriptionOrderByTradeNo("sub-guard-order")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusPending, order.Status)
-	assert.Zero(t, countUserSubscriptionsForPaymentGuardTest(t, 202))
+	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 202))
 
 	topUp := GetTopUpByTradeNo("sub-guard-order")
 	assert.Nil(t, topUp)

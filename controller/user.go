@@ -1227,11 +1227,12 @@ func TopUp(c *gin.Context) {
 		return
 	}
 	if inventoryResult != nil && inventoryResult.Matched {
+		// 库存码同样是给钱包加额度，所以报的是到账额度而不是"套餐已开通"。
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
-			"message": "兑换成功，套餐已开通",
+			"message": "兑换成功，额度已到账",
 			"data": gin.H{
-				"quota":      0,
+				"quota":      inventoryResult.CreditedQuota,
 				"type":       "plan",
 				"plan_id":    inventoryResult.PlanId,
 				"plan_title": inventoryResult.PlanTitle,

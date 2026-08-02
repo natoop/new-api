@@ -34,7 +34,7 @@
 | 类型 | 语义 | 行为 |
 |---|---|---|
 | balance（默认） | 原始兑换码 | 兑余额，旧码零迁移完全兼容（空 type 视同 balance） |
-| plan | 库存码 | 直接开通订阅套餐（事务内走 CreateUserSubscriptionFromPlanTx） |
+| plan | 库存码 | 直接把档位额度记入钱包（事务内走 `CreditPlanQuotaTx` 直接给钱包加额度） |
 | promo | 促销码 | 不可直接兑换；购买套餐时输码按 discount_bps 万分比折价，支持次数上限（原子消耗） |
 
 - 折价唯一收口 `ApplyPromoDiscount`（decimal 分位精度）；余额购买事务内严格消耗，Epay/Stripe/虎皮椒回调时消耗；Stripe 经确定性复用 Coupon（`promo-bps-<bps>`）实现

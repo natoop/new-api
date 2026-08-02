@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -19,13 +20,47 @@ type SubscriptionPlanDTO struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
-type BillingPreferenceRequest struct {
-	BillingPreference string `json:"billing_preference"`
-}
-
 type SubscriptionBalancePayRequest struct {
 	PlanId    int    `json:"plan_id"`
 	PromoCode string `json:"promo_code"` // compatibility only; ordinary redemption codes are not promo discounts
+}
+
+// subscriptionRetiredMsg explains why the per-user subscription endpoints no
+// longer act on anything: quota lives in the wallet, there is no pool to manage.
+const subscriptionRetiredMsg = "订阅额度池已下线，额度统一记入用户钱包余额"
+
+// ensurePlanPurchasable rejects the request when the buyer already reached the
+// plan's per-user purchase cap. Every payment entry point must call it before
+// creating a pending order: the cap is enforced again inside the credit
+// transaction, and without this pre-check the buyer would pay a gateway for an
+// order the callback can only ever reject.
+func ensurePlanPurchasable(c *gin.Context, userId int, plan *model.SubscriptionPlan) bool {
+	if plan == nil || plan.MaxPurchasePerUser <= 0 {
+		return true
+	}
+	count, err := model.CountPlanPurchases(userId, plan.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if count >= int64(plan.MaxPurchasePerUser) {
+		common.ApiErrorMsg(c, model.ErrPlanPurchaseCapReached.Error())
+		return false
+	}
+	return true
+}
+
+// respondSubscriptionRetired answers a route that is kept for client
+// compatibility but has no implementation left after the pool was retired.
+func respondSubscriptionRetired(c *gin.Context, hint string) {
+	msg := subscriptionRetiredMsg
+	if hint != "" {
+		msg = msg + "，" + hint
+	}
+	c.JSON(http.StatusGone, gin.H{
+		"success": false,
+		"message": msg,
+	})
 }
 
 // ---- User APIs ----
@@ -51,54 +86,33 @@ func GetSubscriptionPlans(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+// GetSubscriptionSelf reports the caller's wallet balance. The subscription
+// quota pool is retired, so both subscription lists are always empty; they stay
+// in the payload so existing clients keep rendering instead of mapping over nil.
 func GetSubscriptionSelf(c *gin.Context) {
-	userId := c.GetInt("id")
-	settingMap, _ := model.GetUserSetting(userId, false)
-	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
-
-	// Get all subscriptions (including expired)
-	allSubscriptions, err := model.GetAllUserSubscriptions(userId)
+	quota, err := model.GetUserQuota(c.GetInt("id"), false)
 	if err != nil {
-		allSubscriptions = []model.SubscriptionSummary{}
+		common.ApiError(c, err)
+		return
 	}
-
-	// Get active subscriptions for backward compatibility
-	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId)
-	if err != nil {
-		activeSubscriptions = []model.SubscriptionSummary{}
-	}
-
 	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"billing_preference": service.BillingSourceWallet,
+		"quota":              quota,
+		"subscriptions":      []any{},
+		"all_subscriptions":  []any{},
 	})
 }
 
+// UpdateSubscriptionPreference is kept for client compatibility only. Billing
+// runs on the wallet exclusively, so there is no subscription/wallet choice left
+// to persist and the request is accepted without touching user settings.
 func UpdateSubscriptionPreference(c *gin.Context) {
-	userId := c.GetInt("id")
-	var req BillingPreferenceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
-	}
-	pref := common.NormalizeBillingPreference(req.BillingPreference)
-
-	user, err := model.GetUserById(userId, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	current := user.GetSetting()
-	current.BillingPreference = pref
-	user.SetSetting(current)
-	if err := user.Update(false); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+	common.ApiSuccess(c, gin.H{"billing_preference": service.BillingSourceWallet})
 }
 
+// SubscriptionRequestBalancePay buys a top-up tier with the wallet balance:
+// the plan price is deducted and the plan's quota is credited back, so the net
+// effect is a discounted balance exchange rather than a subscription grant.
 func SubscriptionRequestBalancePay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -191,11 +205,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
-	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
-	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
-		return
-	}
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
@@ -257,11 +266,6 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			common.ApiErrorMsg(c, "升级分组不存在")
 			return
 		}
-	}
-	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
-	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
-		return
 	}
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -334,6 +338,8 @@ type AdminBindSubscriptionRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+// AdminBindSubscription credits a plan's quota to a user's wallet balance
+// without payment. It is the only remaining admin grant path.
 func AdminBindSubscription(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -356,88 +362,31 @@ func AdminBindSubscription(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-// ---- Admin: user subscription management ----
+// ---- Admin: user subscription management (retired) ----
+//
+// The four routes below survive so the admin console keeps loading, but there
+// are no user subscriptions to manage any more. Listing answers with an empty
+// array; the three mutating routes answer 410 Gone.
 
+// AdminListUserSubscriptions always reports an empty list: a user's granted
+// quota now lives in the wallet balance, not in per-user subscription rows.
 func AdminListUserSubscriptions(c *gin.Context) {
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
-		return
-	}
-	subs, err := model.GetAllUserSubscriptions(userId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, subs)
+	common.ApiSuccess(c, []any{})
 }
 
-type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
-}
-
-// AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
+// AdminCreateUserSubscription is retired; granting quota to a user without
+// payment goes through POST /api/subscription/admin/bind.
 func AdminCreateUserSubscription(c *gin.Context) {
-	if !requirePaymentCompliance(c) {
-		return
-	}
-
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
-		return
-	}
-	var req AdminCreateUserSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
-		return
-	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	respondSubscriptionRetired(c, "请改用 POST /api/subscription/admin/bind 直接为用户加额度")
 }
 
-// AdminInvalidateUserSubscription cancels a user subscription immediately.
+// AdminInvalidateUserSubscription is retired; wallet quota is adjusted through
+// user quota management instead of cancelling a subscription.
 func AdminInvalidateUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
-		return
-	}
-	msg, err := model.AdminInvalidateUserSubscription(subId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	respondSubscriptionRetired(c, "请改用用户额度管理调整钱包余额")
 }
 
-// AdminDeleteUserSubscription hard-deletes a user subscription.
+// AdminDeleteUserSubscription is retired; see AdminInvalidateUserSubscription.
 func AdminDeleteUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
-		return
-	}
-	msg, err := model.AdminDeleteUserSubscription(subId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	respondSubscriptionRetired(c, "请改用用户额度管理调整钱包余额")
 }

@@ -160,7 +160,10 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
-		// Subscription billing (plans, purchase, admin management)
+		// Top-up tiers, kept under the historical /subscription prefix so existing
+		// clients keep working. Buying a tier credits the wallet balance; the
+		// subscription quota pool no longer exists. /self reports the wallet
+		// balance with empty subscription lists and /self/preference is a no-op.
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
 		{
@@ -196,7 +199,9 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.PATCH("/plans/:id", controller.AdminUpdateSubscriptionPlanStatus)
 			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
 
-			// User subscription management (admin)
+			// Retired user-subscription management: listing returns an empty
+			// array, the mutating routes return 410 Gone. Registered so the
+			// admin console keeps loading; use /bind to grant quota.
 			subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
 			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
 			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
