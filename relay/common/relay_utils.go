@@ -146,9 +146,16 @@ func validatePrompt(prompt string) *dto.TaskError {
 const MaxTaskDurationSeconds = 3600
 
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
+	if req.durationParseError {
+		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
+	}
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
-		seconds, _ = strconv.Atoi(req.Seconds)
+		parsed, err := strconv.Atoi(req.Seconds)
+		if err != nil {
+			return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
+		}
+		seconds = parsed
 	}
 	if seconds < 0 || seconds > MaxTaskDurationSeconds {
 		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
@@ -175,6 +182,8 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 	if durationStr := formData.Get("seconds"); durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
+		} else {
+			req.durationParseError = true
 		}
 	}
 
