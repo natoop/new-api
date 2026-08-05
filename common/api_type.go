@@ -81,6 +81,11 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeSub2API
 	case constant.ChannelTypeNewAPI:
 		apiType = constant.APITypeNewAPI
+	case constant.ChannelTypeZZDH:
+		// ZZDH uses the standard OpenAI relay for its chat/image-output
+		// models; video requests are dispatched through the task adaptor by
+		// endpoint path and channel type.
+		apiType = constant.APITypeOpenAI
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

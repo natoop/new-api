@@ -836,16 +836,17 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt             string                 `json:"prompt"`
+	Model              string                 `json:"model,omitempty"`
+	Mode               string                 `json:"mode,omitempty"`
+	Image              string                 `json:"image,omitempty"`
+	Images             []string               `json:"images,omitempty"`
+	Size               string                 `json:"size,omitempty"`
+	Duration           int                    `json:"duration,omitempty"`
+	Seconds            string                 `json:"seconds,omitempty"`
+	InputReference     string                 `json:"input_reference,omitempty"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
+	durationParseError bool
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -857,6 +858,7 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
+	t.durationParseError = false
 	type Alias TaskSubmitReq
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
@@ -879,7 +881,11 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
 				if v, err := strconv.Atoi(durationStr); err == nil {
 					t.Duration = v
+				} else {
+					t.durationParseError = true
 				}
+			} else {
+				t.durationParseError = true
 			}
 		}
 	}
