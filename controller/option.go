@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -105,6 +106,12 @@ func GetOptions(c *gin.Context) {
 		}
 	}
 	common.OptionMapRWMutex.Unlock()
+	if profiles, err := common.Marshal(asynctaskbilling.RegisteredProfiles()); err == nil {
+		options = append(options, &model.Option{
+			Key:   "AsyncTaskBillingProfiles",
+			Value: string(profiles),
+		})
+	}
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),

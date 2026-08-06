@@ -17,11 +17,13 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -116,7 +118,18 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if !ok {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q is not enabled", req.Model), "unsupported_model", http.StatusBadRequest)
 	}
-	if _, configured := ratio_setting.GetModelPrice(req.Model, false); !configured {
+	asyncTaskBilling := info.AsyncTaskBillingSnapshot != nil || billing_setting.GetBillingMode(req.Model) == billing_setting.BillingModeAsyncTaskExpr
+	if asyncTaskBilling {
+		if info.AsyncTaskBillingSnapshot == nil {
+			config, configured := billing_setting.GetAsyncTaskBilling(req.Model)
+			if !configured {
+				return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q requires async task billing terms", req.Model), "async_task_billing_required", http.StatusBadRequest)
+			}
+			if err := asynctaskbilling.ValidateConfigForRule(profile.AsyncTaskBillingRule(), config); err != nil {
+				return service.TaskErrorWrapperLocal(err, "async_task_billing_invalid", http.StatusBadRequest)
+			}
+		}
+	} else if _, configured := ratio_setting.GetModelPrice(req.Model, false); !configured {
 		if _, configured = ratio_setting.GetDefaultModelPriceMap()[req.Model]; !configured {
 			return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q requires a configured per-second model price", req.Model), "model_price_required", http.StatusBadRequest)
 		}
@@ -143,31 +156,51 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
+	if info != nil && (info.AsyncTaskBillingSnapshot != nil || billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeAsyncTaskExpr) {
+		return nil
+	}
+	_, metrics, err := a.EstimateAsyncTaskBilling(c, info)
 	if err != nil {
 		return nil
 	}
+	seconds := metrics[asynctaskbilling.OutputSeconds]
+	if referenceSeconds, ok := metrics[asynctaskbilling.ReferenceVideo]; ok {
+		seconds += referenceSeconds
+	}
+	return map[string]float64{"seconds": seconds}
+}
+
+// EstimateAsyncTaskBilling supplies bounded named metrics to the generic
+// calculator. Legacy callers keep the single historical seconds multiplier.
+func (a *TaskAdaptor) EstimateAsyncTaskBilling(c *gin.Context, _ *relaycommon.RelayInfo) (asynctaskbilling.Rule, map[string]float64, error) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return asynctaskbilling.Rule{}, nil, err
+	}
 	profile, ok := profileForModel(req.Model)
 	if !ok {
-		return nil
+		return asynctaskbilling.Rule{}, nil, fmt.Errorf("ZZDH model %q is not enabled", req.Model)
 	}
 	payload, err := buildRequestPayload(&req, profile)
 	if err != nil || payload.Duration <= 0 {
-		return nil
+		if err != nil {
+			return asynctaskbilling.Rule{}, nil, err
+		}
+		return asynctaskbilling.Rule{}, nil, fmt.Errorf("duration is required for async task billing")
 	}
-	seconds := float64(payload.Duration)
+	metrics := map[string]float64{asynctaskbilling.OutputSeconds: float64(payload.Duration)}
 	if profile.BillingRule == billingOutputPlusReferenceSecs {
 		referenceSeconds, ok := c.Get(zzdhReferenceKey)
 		if !ok {
-			return nil
+			return asynctaskbilling.Rule{}, nil, fmt.Errorf("reference video duration is required for async task billing")
 		}
 		value, ok := referenceSeconds.(float64)
 		if !ok || value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
-			return nil
+			return asynctaskbilling.Rule{}, nil, fmt.Errorf("reference video duration is outside the supported range")
 		}
-		seconds += value
+		metrics[asynctaskbilling.ReferenceVideo] = value
 	}
-	return map[string]float64{"seconds": seconds}
+	return profile.AsyncTaskBillingRule(), metrics, nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {

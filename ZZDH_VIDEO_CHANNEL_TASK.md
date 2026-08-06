@@ -185,32 +185,35 @@ Implemented files:
 - `relay/channel/task/zzdh/profile.go`: 47 confirmed video profiles (16 V1 Seedance, 31 V8 Kling/Happyhorse/Wan/Minimax H3).
 - `relay/channel/task/zzdh/adaptor.go`: V1/V8 request/query conversion, H3-specific validation, status/result extraction, authorization, and OpenAI-video conversion.
 - `relay/channel/task/zzdh/adaptor_test.go`: profile, protocol, reference-video billing, URL, polling, and response regression tests.
+- `pkg/asynctaskbilling/`: provider-neutral, profile-fixed async-task calculator with decimal quota conversion and a serializable frozen snapshot.
+- `setting/billing_setting/tiered_billing.go`: `async_task_expr` and `async_task_billing` option storage/validation; `controller/option.go` publishes sanitized profile metadata for the configuration UI.
+- `relay/async_task_billing.go`, `relay/relay_task.go`, `model/task.go`, and `service/task_billing.go`: submit-time reservation, retry reuse, persisted billing context, terminal-success no-debit guard, and refund/consume audit context.
 - `common/endpoint_type.go` and `common/api_type.go`: ZZDH endpoint/API classification; Qwen image names use ordinary OpenAI, all confirmed video names use OpenAI-video.
 - `relay/relay_task.go` and `service/task_polling.go`: preserve the original model in task polling so V1/V8 query paths remain stable.
+- `D:\code\goswtich\switcher\frontend\src\features\channels\constants.ts`: exposes persisted channel type 61 as `ZZDH Video` in the Switcher channel-creation selector.
+- `D:\code\goswtich\switcher\frontend\src\features\channels\lib\channel-utils.ts`: assigns type 61 the existing generic provider icon so the selector and channel table render it consistently.
 
 The current code intentionally does not implement generic V8 candidates, video upscaling, or other catalogue models without a verified contract. Minimax H3 is enabled only from its explicit V8 detail override, not from the conflicting catalogue `openai` tag. The four Qwen image-output models are not admitted to the task adaptor; their ordinary OpenAI endpoint is selected by channel/model endpoint classification and they reuse existing per-call model pricing. Do not enable an unverified catalogue model from its name alone.
 
 ## Accepted Pricing Architecture
 
-Prices belong in new-api model pricing configuration. Provider adaptors must not hardcode numeric price values.
+Prices belong in new-api model pricing configuration. Provider adaptors must not hardcode numeric price values. `async_task_expr` is active for models explicitly selected in `billing_setting.billing_mode`; all other models retain the legacy path.
 
 ```text
-final price = configured model base price
-            x profile-selected billable metric
+final quota = sum(profile metric x configured term price)
+            x quota_per_unit
             x group ratio
 ```
 
 Examples:
 
 ```text
-output seconds:                 base_price_per_second x requested_seconds x group_ratio
-reference video generation:     base_price_per_second x (output_seconds + reference_seconds) x group_ratio
-video upscaling:                base_price_per_second x ceil(input_seconds) x group_ratio
+output seconds:                 output_seconds x configured output price
+reference video generation:     output_seconds x output price + reference_seconds x reference price
+video upscaling (future):       input_video_seconds x configured input price
 ```
 
-The task profile declares the billing unit and bounded metric extractor. The current compatibility implementation uses the existing task pricing lifecycle: the ZZDH adaptor returns a bounded `seconds` OtherRatio, the configured model price is multiplied by that ratio and group ratio, and the existing task pre-consume/settle/refund/audit chain owns the ledger. A provider-neutral independent task calculator remains the migration point for future metrics or terminal-settlement semantics; it is not duplicated inside the provider adaptor.
-
-The existing `PriceData.OtherRatios` mechanism can apply bounded multipliers, but the current ZZDH adaptor embeds `BaseBilling` and adds none. It therefore does not yet implement the pricing architecture above.
+The task profile declares the fixed term list, metric bounds and rounding choices. `pkg/asynctaskbilling` receives only those named metrics and operator coefficients, validates the full rule, converts the result safely, and freezes the rule version, price terms, metrics, group ratio, quota-per-unit and reservation. The ZZDH adaptor supplies no numeric price. Existing `ModelPrice x seconds` behavior stays intact only when a model has not selected `async_task_expr`.
 
 ## Phase 1 Compatibility Settlement Policy
 
@@ -222,7 +225,7 @@ The initial ZZDH rollout will use the existing new-api task-compatible timing fo
 4. On accepted submission, settle the same amount immediately and persist it in the task billing context.
 5. If the asynchronous task reaches a terminal failure, refund the persisted task quota exactly once.
 
-This is a compatibility phase, not a claim that every provider's final upstream deduction has been reconciled. A model is eligible for this phase only when its billable metric is authoritative at submission (for example, requested output duration or pre-parsed input/reference duration). Do not add an unreserved positive delta after completion. The independent calculator and frozen billing snapshot remain the migration point for a later terminal-settlement mode that reserves the maximum and refunds the difference after actual completion metrics are known.
+This is a compatibility phase, not a claim that every provider's final upstream deduction has been reconciled. A model is eligible only when its billable metric is authoritative at submission. `PerCallBilling` is stored with the frozen snapshot so terminal success cannot add an unreserved positive delta. A later terminal-settlement mode may reserve a bounded maximum and refund a proven difference.
 
 The page/configuration contract remains data-driven: the frontend sets values for Profile-approved terms and rounding modes, while the provider-local Profile owns the formula structure and metric extraction. No numeric upstream price is hardcoded in the adaptor.
 
@@ -240,8 +243,8 @@ Adding a model must not automatically mean adding Go code.
 
 | Change | Required work |
 | --- | --- |
-| Price-only change | Update new-api model price configuration; no adaptor change |
-| New model matching an existing protocol, schema, validation set, and billing rule | Add model/profile configuration and price; run focused verification |
+| Price-only change | Update the active async term prices, or legacy `ModelPrice` only when the model remains in legacy mode; no adaptor change |
+| New model matching an existing protocol, schema, validation set, and billing rule | Add model/profile configuration, all required async term prices, then run focused verification |
 | New model with different request/query/status/result contract | Add or extend a provider-local profile family and converter |
 | New billing metric or settlement semantics | Extend the provider-neutral task calculator once, add tests, then configure affected models |
 
@@ -255,7 +258,7 @@ Do not modify `relaykit`, public video routers, generic task interfaces, databas
 
 ## Required Verification Before Production Enablement
 
-1. Configure a nonzero base price and an explicit profile/billing rule.
+1. Configure every required async term price and select `async_task_expr`, or deliberately retain a legacy `ModelPrice` model.
 2. Submit a valid task and poll to a terminal state.
 3. Confirm output URL, status normalization, and public task response.
 4. Submit an invalid request and verify rejection occurs before pre-consume.
@@ -268,8 +271,9 @@ Do not modify `relaykit`, public video routers, generic task interfaces, databas
 Current focused verification completed:
 
 ```text
-go test ./relay/channel/task/zzdh ./relay ./relay/common ./common ./constant
-go vet ./relay/channel/task/zzdh ./relay ./relay/common ./common ./constant
+go test ./pkg/asynctaskbilling ./relay/channel/task/zzdh ./relay ./setting/billing_setting
+go test ./service -run "TestSettle_PerCallBilling|Test.*Refund" -count=1
+go vet ./pkg/asynctaskbilling ./relay/channel/task/zzdh ./relay ./setting/billing_setting ./service
 git diff --check
 ```
 

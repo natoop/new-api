@@ -3,6 +3,9 @@ package zzdh
 import (
 	"sort"
 	"strings"
+
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 type protocol string
@@ -47,6 +50,12 @@ type modelProfile struct {
 }
 
 var modelProfiles = buildModelProfiles()
+
+func init() {
+	for name, profile := range modelProfiles {
+		asynctaskbilling.RegisterProfile(name, profile.AsyncTaskBillingRule())
+	}
+}
 
 func buildModelProfiles() map[string]modelProfile {
 	profiles := make(map[string]modelProfile, 47)
@@ -208,6 +217,29 @@ func buildModelProfiles() map[string]modelProfile {
 func profileForModel(name string) (modelProfile, bool) {
 	profile, ok := modelProfiles[name]
 	return profile, ok
+}
+
+// AsyncTaskBillingRule keeps approved metric admission with the validated
+// profile. Only numeric coefficients are configured outside provider code.
+func (profile modelProfile) AsyncTaskBillingRule() asynctaskbilling.Rule {
+	maxDuration := float64(relaycommon.MaxTaskDurationSeconds)
+	if profile.MaxDuration > 0 && profile.MaxDuration < relaycommon.MaxTaskDurationSeconds {
+		maxDuration = float64(profile.MaxDuration)
+	}
+	rule := asynctaskbilling.Rule{
+		Version: profile.PricingRuleVersion,
+		Terms: []asynctaskbilling.Term{
+			{Name: asynctaskbilling.OutputSeconds, MaxValue: maxDuration},
+		},
+		AllowedRounding: []string{asynctaskbilling.RoundingNone},
+	}
+	if profile.BillingRule == billingOutputPlusReferenceSecs {
+		rule.Terms = append(rule.Terms, asynctaskbilling.Term{
+			Name:     asynctaskbilling.ReferenceVideo,
+			MaxValue: float64(relaycommon.MaxTaskDurationSeconds),
+		})
+	}
+	return rule
 }
 
 func modelList() []string {

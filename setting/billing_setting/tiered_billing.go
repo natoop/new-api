@@ -2,29 +2,37 @@ package billing_setting
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/samber/lo"
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio         = "ratio"
+	BillingModeTieredExpr    = "tiered_expr"
+	BillingModeAsyncTaskExpr = asynctaskbilling.BillingMode
+	BillingModeField         = "billing_mode"
+	BillingExprField         = "billing_expr"
+	AsyncTaskBillingField    = "async_task_billing"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
-// DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+// DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
+// billing_setting.async_task_billing.
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode      map[string]string                  `json:"billing_mode"`
+	BillingExpr      map[string]string                  `json:"billing_expr"`
+	AsyncTaskBilling map[string]asynctaskbilling.Config `json:"async_task_billing"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode:      make(map[string]string),
+	BillingExpr:      make(map[string]string),
+	AsyncTaskBilling: make(map[string]asynctaskbilling.Config),
 }
 
 func init() {
@@ -55,15 +63,54 @@ func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
 }
 
+func GetAsyncTaskBilling(model string) (asynctaskbilling.Config, bool) {
+	config, ok := billingSetting.AsyncTaskBilling[model]
+	if !ok {
+		return asynctaskbilling.Config{}, false
+	}
+	config.Terms = lo.Assign(config.Terms)
+	return config, true
+}
+
+func GetAsyncTaskBillingCopy() map[string]asynctaskbilling.Config {
+	configs := make(map[string]asynctaskbilling.Config, len(billingSetting.AsyncTaskBilling))
+	for model, config := range billingSetting.AsyncTaskBilling {
+		config.Terms = lo.Assign(config.Terms)
+		configs[model] = config
+	}
+	return configs
+}
+
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 2)
+	extra := make(map[string]any, 3)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
 		extra[BillingExprField] = exprs
 	}
+	if configs := GetAsyncTaskBillingCopy(); len(configs) > 0 {
+		extra[AsyncTaskBillingField] = configs
+	}
 	return lo.Assign(base, extra)
+}
+
+// ValidateAsyncTaskBillingJSON checks generic configuration safety before an
+// option is stored. The provider profile validates allowed terms at submit.
+func ValidateAsyncTaskBillingJSON(value string) error {
+	configs := make(map[string]asynctaskbilling.Config)
+	if err := common.UnmarshalJsonStr(value, &configs); err != nil {
+		return fmt.Errorf("invalid async task billing JSON: %w", err)
+	}
+	for model, config := range configs {
+		if strings.TrimSpace(model) == "" {
+			return fmt.Errorf("async task billing model name is required")
+		}
+		if err := asynctaskbilling.ValidateConfig(config); err != nil {
+			return fmt.Errorf("async task billing for %s: %w", model, err)
+		}
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------

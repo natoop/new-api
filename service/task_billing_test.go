@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
@@ -763,6 +764,31 @@ func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.Task
 // ===========================================================================
 // PerCallBilling tests — settleTaskBillingOnComplete
 // ===========================================================================
+
+func TestTaskBillingOtherIncludesAsyncSnapshot(t *testing.T) {
+	task := &model.Task{
+		PrivateData: model.TaskPrivateData{
+			BillingContext: &model.TaskBillingContext{
+				AsyncTaskBilling: &asynctaskbilling.Snapshot{
+					BillingMode:    asynctaskbilling.BillingMode,
+					ConfigVersion:  1,
+					FormulaVersion: "zzdh-output-v1",
+					Terms:          map[string]string{"output_seconds": "0.12"},
+					Metrics:        map[string]string{"output_seconds": "5"},
+					Rounding:       asynctaskbilling.RoundingNone,
+					ReservedQuota:  300000,
+				},
+			},
+		},
+	}
+
+	other := taskBillingOther(task)
+	assert.Equal(t, asynctaskbilling.BillingMode, other["billing_mode"])
+	asyncOther, ok := other["async_task_billing"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "zzdh-output-v1", asyncOther["formula_version"])
+	assert.Equal(t, 300000, asyncOther["reserved_quota"])
+}
 
 func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	truncate(t)

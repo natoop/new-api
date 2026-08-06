@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/gin-gonic/gin"
@@ -178,6 +179,22 @@ func TestSeedanceV1PayloadKeepsMetadataAndReferenceVideoBilling(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 	ratio := adaptor.EstimateBilling(c, &relaycommon.RelayInfo{OriginModelName: profile.Name})
 	require.Equal(t, 8.5, ratio["seconds"])
+}
+
+func TestEstimateAsyncTaskBillingUsesNamedReferenceMetric(t *testing.T) {
+	profile, ok := profileForModel("doubao-seedance-2-0-fast-video-480p")
+	require.True(t, ok)
+
+	req := relaycommon.TaskSubmitReq{Model: profile.Name, Prompt: "continue", Duration: 6}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", req)
+	c.Set(zzdhReferenceKey, float64(2.5))
+
+	rule, metrics, err := (&TaskAdaptor{}).EstimateAsyncTaskBilling(c, &relaycommon.RelayInfo{})
+	require.NoError(t, err)
+	require.Equal(t, "seedance-v1-output-plus-reference-seconds-v1", rule.Version)
+	require.Equal(t, 6.0, metrics[asynctaskbilling.OutputSeconds])
+	require.Equal(t, 2.5, metrics[asynctaskbilling.ReferenceVideo])
 }
 
 func TestBuildRequestURLUsesModelProtocol(t *testing.T) {

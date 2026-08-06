@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -39,7 +40,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other := make(map[string]interface{})
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
-	other["model_price"] = info.PriceData.ModelPrice
+	if info.AsyncTaskBillingSnapshot == nil {
+		other["model_price"] = info.PriceData.ModelPrice
+	} else {
+		attachAsyncTaskBillingOther(other, info.AsyncTaskBillingSnapshot)
+	}
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
@@ -122,7 +127,11 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 func taskBillingOther(task *model.Task) map[string]interface{} {
 	other := make(map[string]interface{})
 	if bc := task.PrivateData.BillingContext; bc != nil {
-		other["model_price"] = bc.ModelPrice
+		if bc.AsyncTaskBilling == nil {
+			other["model_price"] = bc.ModelPrice
+		} else {
+			attachAsyncTaskBillingOther(other, bc.AsyncTaskBilling)
+		}
 		if bc.ModelRatio > 0 {
 			other["model_ratio"] = bc.ModelRatio
 		}
@@ -139,6 +148,27 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
 	return other
+}
+
+// attachAsyncTaskBillingOther is shared by submit and terminal task logs.
+// Snapshot contents are normalized request metrics and operator prices only.
+func attachAsyncTaskBillingOther(other map[string]interface{}, snapshot *asynctaskbilling.Snapshot) {
+	if other == nil || snapshot == nil {
+		return
+	}
+	other["billing_mode"] = snapshot.BillingMode
+	other["async_task_billing"] = map[string]interface{}{
+		"config_version":  snapshot.ConfigVersion,
+		"formula_version": snapshot.FormulaVersion,
+		"terms":           snapshot.Terms,
+		"metrics":         snapshot.Metrics,
+		"rounding":        snapshot.Rounding,
+		"expression":      snapshot.Expression,
+		"group_ratio":     snapshot.GroupRatio,
+		"quota_per_unit":  snapshot.QuotaPerUnit,
+		"reserved_quota":  snapshot.ReservedQuota,
+	}
+	attachQuotaSaturationToOther(other, snapshot.QuotaSaturation)
 }
 
 func taskBillingContextPriceData(bc *model.TaskBillingContext) *types.PriceData {
