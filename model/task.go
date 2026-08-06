@@ -18,7 +18,10 @@ type TaskStatus string
 func (t TaskStatus) ToVideoStatus() string {
 	var status string
 	switch t {
-	case TaskStatusQueued, TaskStatusSubmitted:
+	case TaskStatusNotStart, TaskStatusQueued, TaskStatusSubmitted:
+		// A task is inserted after the upstream submission succeeds, before the
+		// first polling pass can persist the provider's queued state. Expose that
+		// initial local state as queued in video responses instead of unknown.
 		status = dto.VideoStatusQueued
 	case TaskStatusInProgress:
 		status = dto.VideoStatusInProgress

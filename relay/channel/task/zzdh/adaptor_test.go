@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -290,4 +292,24 @@ func TestParseTaskResultRequiresKnownStatus(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 	_, err := adaptor.ParseTaskResult([]byte(`{"id":"task_1"}`))
 	require.Error(t, err)
+}
+
+func TestConvertToOpenAIVideoPreservesModelAndInitialQueuedState(t *testing.T) {
+	task := &model.Task{
+		TaskID:   "task_zzdh_1",
+		Status:   model.TaskStatusNotStart,
+		Progress: "0%",
+		Properties: model.Properties{
+			OriginModelName: "doubao-seedance-2-480p",
+		},
+	}
+
+	body, err := (&TaskAdaptor{}).ConvertToOpenAIVideo(task)
+	require.NoError(t, err)
+	var response relaydto.OpenAIVideo
+	require.NoError(t, common.Unmarshal(body, &response))
+	require.Equal(t, task.TaskID, response.ID)
+	require.Equal(t, task.TaskID, response.TaskID)
+	require.Equal(t, task.Properties.OriginModelName, response.Model)
+	require.Equal(t, relaydto.VideoStatusQueued, response.Status)
 }

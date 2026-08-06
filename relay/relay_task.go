@@ -390,7 +390,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
+	isOpenAIVideoAPI := isOpenAIVideoAPIRequest(c.Request.URL.Path)
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
@@ -427,6 +427,15 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// isOpenAIVideoAPIRequest identifies both public video task query routes.
+// The legacy-compatible generation route is singular (/v1/video/generations),
+// while the OpenAI-compatible route is plural (/v1/videos). Both return the
+// same OpenAI video task shape and must use the adaptor converter.
+func isOpenAIVideoAPIRequest(path string) bool {
+	return strings.HasPrefix(path, "/v1/video/generations/") ||
+		strings.HasPrefix(path, "/v1/videos/")
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。

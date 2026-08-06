@@ -205,13 +205,13 @@ Implemented files:
 - `common/endpoint_type.go`: ZZDH video names use `openai-video`; the four Qwen image names use ordinary `openai`.
 - `relay/relay_adaptor.go`: ZZDH task adaptor registration.
 - `relay/channel/task/zzdh/profile.go`: 59 confirmed video profiles (16 V1 Seedance, 43 V8 Kling/Happyhorse/Wan/Vidu/Minimax H3).
-- `relay/channel/task/zzdh/adaptor.go`: V1/V8 request/query conversion, H3-specific validation, status/result extraction, authorization, and OpenAI-video conversion.
+- `relay/channel/task/zzdh/adaptor.go`: V1/V8 request/query conversion, H3-specific validation, status/result extraction, authorization, and OpenAI-video conversion. Query responses preserve the public model/task ID and map the post-submit pre-polling state to `queued`; the upstream ID remains internal to polling.
 - `relay/channel/task/zzdh/adaptor_test.go`: profile, protocol, reference-video billing, URL, polling, and response regression tests.
 - `pkg/asynctaskbilling/`: provider-neutral, profile-fixed async-task calculator with decimal quota conversion and a serializable frozen snapshot.
 - `setting/billing_setting/tiered_billing.go`: `async_task_expr` and `async_task_billing` option storage/validation; `controller/option.go` publishes sanitized profile metadata for the configuration UI.
 - `relay/async_task_billing.go`, `relay/relay_task.go`, `model/task.go`, and `service/task_billing.go`: submit-time reservation, retry reuse, persisted billing context, terminal-success no-debit guard, and refund/consume audit context.
 - `common/endpoint_type.go` and `common/api_type.go`: ZZDH endpoint/API classification; Qwen image names use ordinary OpenAI, all confirmed video names use OpenAI-video.
-- `relay/relay_task.go` and `service/task_polling.go`: preserve the original model in task polling so V1/V8 query paths remain stable.
+- `relay/relay_task.go` and `service/task_polling.go`: preserve the original model in task polling so V1/V8 query paths remain stable; both public video query route variants use the OpenAI-video response converter.
 - `D:\code\goswtich\switcher\frontend\src\features\channels\constants.ts`: exposes persisted channel type 61 as `ZZDH Video` in the Switcher channel-creation selector.
 - `D:\code\goswtich\switcher\frontend\src\features\channels\lib\channel-utils.ts`: assigns type 61 the existing generic provider icon so the selector and channel table render it consistently.
 

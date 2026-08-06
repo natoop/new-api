@@ -357,6 +357,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	video := relaydto.NewOpenAIVideo()
 	video.ID = task.TaskID
+	video.TaskID = task.TaskID
+	video.Model = task.Properties.OriginModelName
 	video.Status = task.Status.ToVideoStatus()
 	video.SetProgressStr(task.Progress)
 	video.CreatedAt = task.CreatedAt
