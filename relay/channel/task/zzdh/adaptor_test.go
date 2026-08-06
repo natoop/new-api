@@ -16,7 +16,7 @@ import (
 
 func TestModelProfilesExposeAllConfirmedVideoModels(t *testing.T) {
 	models := modelList()
-	require.Len(t, models, 47)
+	require.Len(t, models, 59)
 	protocolCounts := map[protocol]int{}
 	for _, name := range models {
 		profile, ok := profileForModel(name)
@@ -25,9 +25,36 @@ func TestModelProfilesExposeAllConfirmedVideoModels(t *testing.T) {
 		require.NotEmpty(t, profile.PricingRuleVersion)
 	}
 	require.Equal(t, 16, protocolCounts[protocolV1])
-	require.Equal(t, 31, protocolCounts[protocolV8])
+	require.Equal(t, 43, protocolCounts[protocolV8])
 	_, ok := profileForModel("qwen-image-2.0")
 	require.False(t, ok)
+}
+
+func TestViduQ3UsesDocumentedV8TextToVideoContract(t *testing.T) {
+	profile, ok := profileForModel("vidu-q3-pro-720p")
+	require.True(t, ok)
+	require.Equal(t, protocolV8, profile.Protocol)
+	require.Equal(t, billingOutputSeconds, profile.BillingRule)
+	require.True(t, profile.RejectsReference)
+
+	payload, err := buildRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:    profile.Name,
+		Prompt:   "a corgi runs on a beach",
+		Duration: 5,
+		Metadata: map[string]interface{}{"resolution": "720P"},
+	}, profile)
+	require.NoError(t, err)
+	require.Equal(t, "720P", payload.Resolution)
+	require.NoError(t, validateRequestPayload(payload, profile))
+
+	payload, err = buildRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:    profile.Name,
+		Prompt:   "a corgi runs on a beach",
+		Duration: 5,
+		Image:    "https://example.com/reference.jpg",
+	}, profile)
+	require.NoError(t, err)
+	require.Error(t, validateRequestPayload(payload, profile))
 }
 
 func TestBuildRequestPayloadEnforcesReferenceVariantRules(t *testing.T) {

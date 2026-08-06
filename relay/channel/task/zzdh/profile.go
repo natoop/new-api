@@ -58,7 +58,7 @@ func init() {
 }
 
 func buildModelProfiles() map[string]modelProfile {
-	profiles := make(map[string]modelProfile, 47)
+	profiles := make(map[string]modelProfile, 59)
 	add := func(profile modelProfile, names ...string) {
 		for _, name := range names {
 			profile.Name = name
@@ -186,6 +186,24 @@ func buildModelProfiles() map[string]modelProfile {
 			profile.RejectsReference = true
 		}
 		profiles[name] = profile
+	}
+
+	for _, name := range []string{
+		"vidu-q3-pro-540p", "vidu-q3-pro-540p-offpeak",
+		"vidu-q3-pro-720p", "vidu-q3-pro-720p-offpeak",
+		"vidu-q3-pro-1080p", "vidu-q3-pro-1080p-offpeak",
+		"vidu-q3-turbo-540p", "vidu-q3-turbo-540p-offpeak",
+		"vidu-q3-turbo-720p", "vidu-q3-turbo-720p-offpeak",
+		"vidu-q3-turbo-1080p", "vidu-q3-turbo-1080p-offpeak",
+	} {
+		profiles[name] = modelProfile{
+			Name:               name,
+			Protocol:           protocolV8,
+			Family:             "vidu_q3_v8",
+			RejectsReference:   true,
+			BillingRule:        billingOutputSeconds,
+			PricingRuleVersion: "vidu-q3-v8-seconds-v1",
+		}
 	}
 
 	for _, name := range []string{

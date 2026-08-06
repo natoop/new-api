@@ -1,5 +1,5 @@
 const openAPIPath = 'ZZDH_VIDEO_API_APIFOX.openapi.yaml';
-const detailSnapshotPath = process.argv[2] || 'ZZDH_TARGET_MODEL_DETAILS_20260806.json';
+const detailSnapshotPath = process.argv[2] || 'ZZDH_TARGET_MODEL_DETAILS_20260806-vidu.json';
 const outputPath = 'ZZDH_VIDEO_API_APIFOX.postman_collection.json';
 
 const submitURL = '{{base_url}}/v1/video/generations';
@@ -34,6 +34,7 @@ const folders = [
   { name: '可灵 Kling', matches: (model) => model.startsWith('kling-') },
   { name: 'Happyhorse', matches: (model) => model.startsWith('happyhorse-') },
   { name: 'Wan', matches: (model) => model.startsWith('wan') },
+  { name: 'Vidu', matches: (model) => model.startsWith('vidu-q3-') },
   { name: 'Minimax H3', matches: (model) => model.startsWith('zzdh-Minimax-h3-') },
 ];
 
@@ -478,6 +479,41 @@ function h3Examples(model) {
   ];
 }
 
+function viduDescription(entry) {
+  const model = entry.model_name;
+  const offpeak = model.endsWith('-offpeak');
+  return markdown([
+    `# ${model}`,
+    sourceEvidence(entry),
+    publicRouteNote(),
+    '## 原始文档明确参数',
+    table([
+      ['`model`', 'string', '是', `固定为 \`${model}\`。`],
+      ['`prompt`', 'string', '是', '视频生成提示词。'],
+      ['`resolution`', 'string', '否', '原始示例使用 `720P`；页面未给出完整枚举或是否按模型后缀锁定的参数表。公共接口通过 `metadata.resolution` 传给上游。'],
+      ['`duration`', 'integer', '否', '原始示例使用 `5` 秒；当前本地适配器默认 `5`，通用校验范围为 `1~3600`。原始页面未声明更窄范围。'],
+    ]),
+    '## 不要自行添加的参数',
+    '- 该模型详情页没有声明 `images`、`image`、`input_reference`、`reference_images`、`reference_videos`、`reference_video` 或 `content`。本集合不提供这些参数。',
+    ...(offpeak ? ['- `offpeak` 页面额外警告：可能进入超长排队，失败风险更高。'] : []),
+    '## 计费',
+    '- 原始页面标签为“按秒计费/视频生成”。当前 ZZDH profile 把请求 `duration` 作为唯一的 `output_seconds` 计费指标。',
+    '- 默认模型价格模式：`费用 = 模型每秒价格 × duration × 分组倍率`。每个 Vidu 模型的每秒价格由管理员在 new-api 模型价格中配置，本集合不写死数值。',
+    '- 异步视频计费模式（`async_task_expr`）：仅可配置 `output_seconds` 项；提交前按本次 `duration` 预扣并冻结结算快照，异步任务失败时按已持久化额度退款。',
+    '- 没有配置模型价格，且没有有效的异步视频计费配置时，提交会返回 `model_price_required` 或 `async_task_billing_required`，不会按零价格执行。',
+  ]);
+}
+
+function viduExamples(model) {
+  const resolution = model.includes('540p') ? '540P' : model.includes('1080p') ? '1080P' : '720P';
+  return [createSubmitRequest('基础文生视频', {
+    model,
+    prompt: '一只柯基犬在海边奔跑，电影质感。',
+    duration: 5,
+    metadata: { resolution },
+  }, '按 Vidu 原始详情页最小参数整理；请根据上游实际支持情况调整 resolution。')];
+}
+
 function modelDefinition(entry) {
   const model = entry.model_name;
   if (model.startsWith('doubao-seedance-')) {
@@ -498,6 +534,9 @@ function modelDefinition(entry) {
   }
   if (model.startsWith('wan')) {
     return { description: sparseModelDescription(entry, 'wan'), items: sparseModelExamples(model, 'wan') };
+  }
+  if (model.startsWith('vidu-q3-')) {
+    return { description: viduDescription(entry), items: viduExamples(model) };
   }
   if (model.startsWith('zzdh-Minimax-h3-')) {
     return { description: h3Description(entry), items: h3Examples(model) };

@@ -5,7 +5,7 @@
 - Design accepted: 2026-08-04.
 - Phase 1 code added: 2026-08-06, uncommitted.
 - Documentation baseline refreshed: 2026-08-06.
-- User-confirmed implementation scope: 2026-08-06, 47 video-endpoint model names and 4 image-output model names.
+- User-confirmed implementation scope: 2026-08-06, 59 video-endpoint model names and 4 image-output model names. The 12 Vidu Q3 variants were added from a later same-day live detail recheck.
 - Task navigation and change history: `ZZDH_TASK_INDEX.md`.
 
 This document is the authoritative ZZDH task baseline. It defines what the provider documentation currently supports, what new-api implements now, and the scope that future work must preserve.
@@ -20,6 +20,7 @@ The live upstream model list is not itself runtime configuration. A model may be
 | Human adaptation matrix | 149 models | `ZZDH_MODEL_CATALOG_20260806.md` |
 | Catalogue tag `openai-video` | 86 models | Same catalogue snapshot |
 | Detail contracts captured | 52 models | `ZZDH_MODEL_DETAILS_20260806.json` |
+| Vidu follow-up detail snapshot | 59 models | `ZZDH_TARGET_MODEL_DETAILS_20260806-vidu.json` |
 
 Sources:
 
@@ -35,7 +36,7 @@ When sources conflict, resolve them in this order:
 3. Catalogue endpoint map.
 4. Tags and model name.
 
-The 2026-08-06 evidence has known conflicts: the global `openai-video` map says V1, generic model examples often say V8, Seedance/upscaling detail overrides explicitly say V1, and Minimax H3 details say V8 despite a catalogue tag of ordinary `openai`.
+The 2026-08-06 evidence has known conflicts: the global `openai-video` map says V1, generic model examples often say V8, Seedance/upscaling detail overrides explicitly say V1, and Minimax H3 details say V8 despite a catalogue tag of ordinary `openai`. The Vidu Q3 detail pages are generic V8 examples, but consistently declare the same V8 submit/query path and no reference-media fields.
 
 ## Complete Model Classification
 
@@ -49,7 +50,8 @@ All 149 models are listed individually in `ZZDH_MODEL_CATALOG_20260806.md`. The 
 | Explicit Kling V8 variants | 8 | Implemented target profiles |
 | `kling-v3-omni` | 1 | V8 path known; enabled in the user-confirmed target after focused profile verification |
 | Minimax H3 V8 variants | 4 | Detail override confirms V8 video task; enabled with H3-specific validation |
-| Generic video candidates | 35 | Happyhorse, Vidu, Wan video/edit, 字字 3D/world/subtitle models; generic documentation is insufficient; disabled |
+| Vidu Q3 V8 variants | 12 | All detail pages consistently declare a basic V8 async text-to-video contract; enabled without reference-media fields |
+| Generic video candidates | 23 | Remaining Happyhorse/Wan generic candidates and 字字 3D/world/subtitle models; generic documentation is insufficient; disabled |
 | `openai-video` metadata anomalies | 3 | Historical catalogue conflict; the three user-confirmed Wan names use the live V8 video contract |
 | Audio/music models | 15 | Separate audio/music adaptors, not video tasks |
 | Image-generation models | 12 | Separate image adaptor |
@@ -58,7 +60,7 @@ All 149 models are listed individually in `ZZDH_MODEL_CATALOG_20260806.md`. The 
 
 ## User-Confirmed Target Scope
 
-The implementation scope now has two independent adapter tracks: 47 video-endpoint models and 4 image-output models. The original five supplied names below were explicitly removed because they are not present in the current evidence snapshot:
+The implementation scope now has two independent adapter tracks: 59 video-endpoint models and 4 image-output models. The original five supplied names below were explicitly removed because they are not present in the current evidence snapshot:
 
 ```text
 doubao-seedance-2-video
@@ -133,6 +135,25 @@ wan2.7-t2v
 wan2.7-videoedit
 ```
 
+### Vidu Q3 V8 (12)
+
+All Vidu Q3 model detail pages expose the same asynchronous V8 text-to-video shape: `model`, `prompt`, `resolution`, and `duration`. They do not declare image/video/audio reference parameters. Public new-api requests set the documented upstream `resolution` through `metadata.resolution`; the profile rejects reference media instead of passing undocumented fields through. `-offpeak` models additionally warn that long queueing can lead to failure.
+
+```text
+vidu-q3-pro-540p
+vidu-q3-pro-540p-offpeak
+vidu-q3-pro-720p
+vidu-q3-pro-720p-offpeak
+vidu-q3-pro-1080p
+vidu-q3-pro-1080p-offpeak
+vidu-q3-turbo-540p
+vidu-q3-turbo-540p-offpeak
+vidu-q3-turbo-720p
+vidu-q3-turbo-720p-offpeak
+vidu-q3-turbo-1080p
+vidu-q3-turbo-1080p-offpeak
+```
+
 ### Minimax H3 V8 (4)
 
 The catalogue metadata labels these models as ordinary `openai`, but their explicit detail overrides define the authoritative asynchronous V8 contract. They use output-seconds billing and the H3-specific 5-15 second, fixed-24fps validation set.
@@ -169,8 +190,9 @@ The live recheck found no target model whose detail contract advertises both `op
 | `v8_kling_omni` | 9 confirmed Kling variants | `POST /v8/videos/generations` | `GET /v8/videos/generations/{task_id}` | top-level `resolution`, `aspect_ratio`, references, audio settings | output seconds; price configured per model | Implemented |
 | `v8_happyhorse` | 8 confirmed Happyhorse variants | Same V8 paths | Same V8 paths | profile-selected image/video references, resolution and prompt fields | requested output seconds | Implemented |
 | `v8_wan` | 10 confirmed Wan video-endpoint variants | Same V8 paths | Same V8 paths | profile-selected image/video references and prompt fields | requested output seconds | Implemented |
+| `v8_vidu_q3` | 12 `vidu-q3-*` variants | `POST /v8/videos/generations` | `GET /v8/videos/generations/{task_id}` | `model`, `prompt`, `resolution`, `duration`; no documented reference media | requested output seconds | Implemented |
 | `v8_minimax_h3` | 4 `zzdh-Minimax-h3-*` variants | `POST /v8/videos/generations` | `GET /v8/videos/generations/{task_id}` | 5-15 seconds, fixed 24fps, 480p/720p/1080p/2K, image/video/audio reference rules | requested output seconds | Implemented |
-| `v8_generic_candidate` | 35 generic video candidates | Do not infer from generated examples | Do not infer | Model-specific verification required | Do not infer | Disabled |
+| `v8_generic_candidate` | 23 remaining generic video candidates | Do not infer from generated examples | Do not infer | Model-specific verification required | Do not infer | Disabled |
 | `image_output_openai` | 4 confirmed Qwen image-output models | `POST /v1/chat/completions` | Ordinary OpenAI response | Existing OpenAI request conversion and response handling | Existing model-price per-call semantics; configure price in the model pricing page | Implemented through ordinary OpenAI adaptor |
 
 All video task families are asynchronous. Successful video results are obtained by polling to a terminal state; they are not synchronous streamed video responses. The image track is a separate image relay path and must not be routed through the video task adaptor.
@@ -182,7 +204,7 @@ Implemented files:
 - `constant/channel.go`: persisted `ChannelTypeZZDH = 61`, display name, default base URL.
 - `common/endpoint_type.go`: ZZDH video names use `openai-video`; the four Qwen image names use ordinary `openai`.
 - `relay/relay_adaptor.go`: ZZDH task adaptor registration.
-- `relay/channel/task/zzdh/profile.go`: 47 confirmed video profiles (16 V1 Seedance, 31 V8 Kling/Happyhorse/Wan/Minimax H3).
+- `relay/channel/task/zzdh/profile.go`: 59 confirmed video profiles (16 V1 Seedance, 43 V8 Kling/Happyhorse/Wan/Vidu/Minimax H3).
 - `relay/channel/task/zzdh/adaptor.go`: V1/V8 request/query conversion, H3-specific validation, status/result extraction, authorization, and OpenAI-video conversion.
 - `relay/channel/task/zzdh/adaptor_test.go`: profile, protocol, reference-video billing, URL, polling, and response regression tests.
 - `pkg/asynctaskbilling/`: provider-neutral, profile-fixed async-task calculator with decimal quota conversion and a serializable frozen snapshot.
@@ -193,7 +215,7 @@ Implemented files:
 - `D:\code\goswtich\switcher\frontend\src\features\channels\constants.ts`: exposes persisted channel type 61 as `ZZDH Video` in the Switcher channel-creation selector.
 - `D:\code\goswtich\switcher\frontend\src\features\channels\lib\channel-utils.ts`: assigns type 61 the existing generic provider icon so the selector and channel table render it consistently.
 
-The current code intentionally does not implement generic V8 candidates, video upscaling, or other catalogue models without a verified contract. Minimax H3 is enabled only from its explicit V8 detail override, not from the conflicting catalogue `openai` tag. The four Qwen image-output models are not admitted to the task adaptor; their ordinary OpenAI endpoint is selected by channel/model endpoint classification and they reuse existing per-call model pricing. Do not enable an unverified catalogue model from its name alone.
+The current code intentionally does not implement the remaining generic V8 candidates, video upscaling, or other catalogue models without a verified contract. Vidu Q3 is enabled only for its documented basic text-to-video contract and rejects reference media. Minimax H3 is enabled only from its explicit V8 detail override, not from the conflicting catalogue `openai` tag. The four Qwen image-output models are not admitted to the task adaptor; their ordinary OpenAI endpoint is selected by channel/model endpoint classification and they reuse existing per-call model pricing. Do not enable an unverified catalogue model from its name alone.
 
 ## Accepted Pricing Architecture
 

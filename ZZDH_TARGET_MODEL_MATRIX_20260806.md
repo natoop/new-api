@@ -12,7 +12,7 @@
 1. Use an explicit model-detail override before generic generated examples.
 2. Determine the adapter from the advertised endpoint contract, not from `image`, `t2i`, `i2v`, or `r2v` in the model name.
 3. An image reference accepted by a video model is an input capability, not an image-output model.
-4. A model is dual-track only when its detail contract explicitly advertises both endpoint types. None of the 51 target names did so in this verification.
+4. A model is dual-track only when its detail contract explicitly advertises both endpoint types. None of the 63 target names did so in this verification.
 
 ## Scope Summary
 
@@ -22,9 +22,10 @@
 | Kling video | 9 | `openai-video`, V8 | Asynchronous submit and poll |
 | Happyhorse video | 8 | `openai-video`, V8 | Asynchronous submit and poll |
 | Wan video endpoint | 10 | `openai-video`, V8 | Asynchronous submit and poll |
+| Vidu Q3 video | 12 | `openai-video`, V8 basic text-to-video contract | Asynchronous submit and poll |
 | Minimax H3 video | 4 | Detail override resolves catalogue `openai` tag to V8 async video | Asynchronous submit and poll |
 | Qwen image output | 4 | ordinary `openai`, `POST /v1/chat/completions` | Ordinary relay response; existing per-call model pricing; no video task poll |
-| **Total** | **51** | 47 video-endpoint names plus 4 image-output names | Two adapter tracks |
+| **Total** | **63** | 59 video-endpoint names plus 4 image-output names | Two adapter tracks |
 
 ## Video Models
 
@@ -105,6 +106,25 @@ wan2.7-t2v
 wan2.7-videoedit
 ```
 
+### Vidu Q3: V8 basic text-to-video (12)
+
+The follow-up live recheck captured all 12 Vidu Q3 details in `ZZDH_TARGET_MODEL_DETAILS_20260806-vidu.json`. Every page consistently advertises `POST /v8/videos/generations` and `GET /v8/videos/generations/{task_id}` with the minimal body fields `model`, `prompt`, `resolution`, and `duration`. No Vidu page declares image, video, audio, or other reference-media input fields. Runtime therefore rejects reference inputs instead of forwarding undocumented fields. The `-offpeak` variants warn that extended queueing may lead to failure.
+
+```text
+vidu-q3-pro-540p
+vidu-q3-pro-540p-offpeak
+vidu-q3-pro-720p
+vidu-q3-pro-720p-offpeak
+vidu-q3-pro-1080p
+vidu-q3-pro-1080p-offpeak
+vidu-q3-turbo-540p
+vidu-q3-turbo-540p-offpeak
+vidu-q3-turbo-720p
+vidu-q3-turbo-720p-offpeak
+vidu-q3-turbo-1080p
+vidu-q3-turbo-1080p-offpeak
+```
+
 ### Minimax H3: V8 async video (4)
 
 The catalogue metadata labels these models as `openai`, but the explicit detail override defines the authoritative V8 task contract. Runtime uses the override and applies H3-specific validation: 5-15 seconds, fixed 24 FPS, model-locked resolution, reference-role/count rules, and output-seconds billing.
@@ -144,4 +164,4 @@ wan2.6-t2v
 - Video names belong under the ZZDH asynchronous task adaptor and use the existing task lifecycle, billing reservation, polling, terminal CAS, and refund path.
 - Image-output names use the ordinary OpenAI endpoint/adaptor decision. They must not be admitted into the video task adaptor merely because the channel is `ChannelTypeZZDH`.
 - Same-family model additions should be profile/configuration data when protocol, request shape, result shape, and billing metrics match.
-- The current runtime implements all 47 confirmed video profiles; unlisted catalogue models remain disabled until their contract is verified and a matching profile exists.
+- The current runtime implements all 59 confirmed video profiles; unlisted catalogue models remain disabled until their contract is verified and a matching profile exists.
