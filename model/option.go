@@ -207,8 +207,11 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
-	if key == "billing_setting."+billing_setting.AsyncTaskBillingField {
-		return billing_setting.ValidateAsyncTaskBillingJSON(value)
+	if key == "billing_setting."+billing_setting.BillingModeField {
+		return billing_setting.ValidateBillingModeJSON(value)
+	}
+	if key == "billing_setting."+billing_setting.FixedMeteredBillingField {
+		return billing_setting.ValidateFixedMeteredBillingJSON(value)
 	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)

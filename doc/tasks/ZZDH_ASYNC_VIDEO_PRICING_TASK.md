@@ -5,7 +5,8 @@
 - Implementation status: implemented, uncommitted (2026-08-06).
 - Billing runtime: `D:\code\goswtich\new-api`.
 - Configuration UI only: `D:\code\goswtich\switcher\frontend`.
-- Read with: `ZZDH_TASK_INDEX.md` and `ZZDH_VIDEO_CHANNEL_TASK.md`.
+- Read with: `doc/DEVELOPMENT_TASK_INDEX.md`, then
+  `doc/tasks/ZZDH_TASK_INDEX.md` and `doc/tasks/ZZDH_VIDEO_CHANNEL_TASK.md`.
 
 This record defines the current `async_task_expr` contract. It replaces the
 earlier planned-only record. `ModelPrice x seconds` remains a historical

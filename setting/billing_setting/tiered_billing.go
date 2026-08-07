@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/samber/lo"
 )
@@ -14,25 +14,25 @@ import (
 const (
 	BillingModeRatio         = "ratio"
 	BillingModeTieredExpr    = "tiered_expr"
-	BillingModeAsyncTaskExpr = asynctaskbilling.BillingMode
+	BillingModeFixedMetered  = fixedmeteredbilling.BillingMode
 	BillingModeField         = "billing_mode"
 	BillingExprField         = "billing_expr"
-	AsyncTaskBillingField    = "async_task_billing"
+	FixedMeteredBillingField = "fixed_metered_billing"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
-// billing_setting.async_task_billing.
+// billing_setting.fixed_metered_billing.
 type BillingSetting struct {
-	BillingMode      map[string]string                  `json:"billing_mode"`
-	BillingExpr      map[string]string                  `json:"billing_expr"`
-	AsyncTaskBilling map[string]asynctaskbilling.Config `json:"async_task_billing"`
+	BillingMode         map[string]string                     `json:"billing_mode"`
+	BillingExpr         map[string]string                     `json:"billing_expr"`
+	FixedMeteredBilling map[string]fixedmeteredbilling.Config `json:"fixed_metered_billing"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode:      make(map[string]string),
-	BillingExpr:      make(map[string]string),
-	AsyncTaskBilling: make(map[string]asynctaskbilling.Config),
+	BillingMode:         make(map[string]string),
+	BillingExpr:         make(map[string]string),
+	FixedMeteredBilling: make(map[string]fixedmeteredbilling.Config),
 }
 
 func init() {
@@ -50,6 +50,35 @@ func GetBillingMode(model string) string {
 	return BillingModeRatio
 }
 
+func ValidateBillingModeJSON(value string) error {
+	modes := make(map[string]string)
+	if err := common.UnmarshalJsonStr(value, &modes); err != nil {
+		return fmt.Errorf("invalid billing mode JSON: %w", err)
+	}
+	for model, mode := range modes {
+		if strings.TrimSpace(model) == "" {
+			return fmt.Errorf("billing mode model name is required")
+		}
+		if !isSupportedBillingMode(mode) {
+			return fmt.Errorf("unsupported billing mode %q for %s", mode, model)
+		}
+	}
+	return nil
+}
+
+func IsSupportedBillingMode(mode string) bool {
+	return isSupportedBillingMode(mode)
+}
+
+func isSupportedBillingMode(mode string) bool {
+	switch mode {
+	case BillingModeRatio, BillingModeTieredExpr, BillingModeFixedMetered:
+		return true
+	default:
+		return false
+	}
+}
+
 func GetBillingExpr(model string) (string, bool) {
 	expr, ok := billingSetting.BillingExpr[model]
 	return expr, ok
@@ -63,22 +92,16 @@ func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
 }
 
-func GetAsyncTaskBilling(model string) (asynctaskbilling.Config, bool) {
-	config, ok := billingSetting.AsyncTaskBilling[model]
+func GetFixedMeteredBilling(model string) (fixedmeteredbilling.Config, bool) {
+	config, ok := billingSetting.FixedMeteredBilling[model]
 	if !ok {
-		return asynctaskbilling.Config{}, false
+		return fixedmeteredbilling.Config{}, false
 	}
-	config.Terms = lo.Assign(config.Terms)
 	return config, true
 }
 
-func GetAsyncTaskBillingCopy() map[string]asynctaskbilling.Config {
-	configs := make(map[string]asynctaskbilling.Config, len(billingSetting.AsyncTaskBilling))
-	for model, config := range billingSetting.AsyncTaskBilling {
-		config.Terms = lo.Assign(config.Terms)
-		configs[model] = config
-	}
-	return configs
+func GetFixedMeteredBillingCopy() map[string]fixedmeteredbilling.Config {
+	return lo.Assign(billingSetting.FixedMeteredBilling)
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
@@ -89,25 +112,23 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
 		extra[BillingExprField] = exprs
 	}
-	if configs := GetAsyncTaskBillingCopy(); len(configs) > 0 {
-		extra[AsyncTaskBillingField] = configs
+	if configs := GetFixedMeteredBillingCopy(); len(configs) > 0 {
+		extra[FixedMeteredBillingField] = configs
 	}
 	return lo.Assign(base, extra)
 }
 
-// ValidateAsyncTaskBillingJSON checks generic configuration safety before an
-// option is stored. The provider profile validates allowed terms at submit.
-func ValidateAsyncTaskBillingJSON(value string) error {
-	configs := make(map[string]asynctaskbilling.Config)
+func ValidateFixedMeteredBillingJSON(value string) error {
+	configs := make(map[string]fixedmeteredbilling.Config)
 	if err := common.UnmarshalJsonStr(value, &configs); err != nil {
-		return fmt.Errorf("invalid async task billing JSON: %w", err)
+		return fmt.Errorf("invalid fixed metered billing JSON: %w", err)
 	}
 	for model, config := range configs {
 		if strings.TrimSpace(model) == "" {
-			return fmt.Errorf("async task billing model name is required")
+			return fmt.Errorf("fixed metered billing model name is required")
 		}
-		if err := asynctaskbilling.ValidateConfig(config); err != nil {
-			return fmt.Errorf("async task billing for %s: %w", model, err)
+		if err := fixedmeteredbilling.ValidateConfig(config); err != nil {
+			return fmt.Errorf("fixed metered billing for %s: %w", model, err)
 		}
 	}
 	return nil

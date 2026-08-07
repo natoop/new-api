@@ -10,8 +10,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
@@ -169,9 +169,9 @@ type RelayInfo struct {
 	// and again before settlement. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
-	// AsyncTaskBillingSnapshot is frozen on the first task-submit attempt.
-	// Retries reuse it rather than rereading mutable operator configuration.
-	AsyncTaskBillingSnapshot *asynctaskbilling.Snapshot
+	// FixedMeteredBillingSnapshot is frozen before the request is dispatched.
+	// Task retries reuse it rather than rereading mutable operator configuration.
+	FixedMeteredBillingSnapshot *fixedmeteredbilling.Snapshot
 
 	Request dto.Request
 

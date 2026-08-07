@@ -11,7 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
@@ -765,29 +765,74 @@ func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.Task
 // PerCallBilling tests — settleTaskBillingOnComplete
 // ===========================================================================
 
-func TestTaskBillingOtherIncludesAsyncSnapshot(t *testing.T) {
+func TestTaskBillingOtherIncludesFixedMeteredSnapshot(t *testing.T) {
 	task := &model.Task{
 		PrivateData: model.TaskPrivateData{
 			BillingContext: &model.TaskBillingContext{
-				AsyncTaskBilling: &asynctaskbilling.Snapshot{
-					BillingMode:    asynctaskbilling.BillingMode,
-					ConfigVersion:  1,
-					FormulaVersion: "zzdh-output-v1",
-					Terms:          map[string]string{"output_seconds": "0.12"},
-					Metrics:        map[string]string{"output_seconds": "5"},
-					Rounding:       asynctaskbilling.RoundingNone,
-					ReservedQuota:  300000,
+				FixedMeteredBilling: &fixedmeteredbilling.Snapshot{
+					BillingMode:   fixedmeteredbilling.BillingMode,
+					ConfigVersion: fixedmeteredbilling.ConfigVersion,
+					UnitPrice:     "0.12",
+					UsageMode:     fixedmeteredbilling.UsageModeDurationSeconds,
+					Rounding:      fixedmeteredbilling.RoundingNone,
+					BillableUnits: "5",
+					ReservedQuota: 300000,
 				},
 			},
 		},
 	}
 
 	other := taskBillingOther(task)
-	assert.Equal(t, asynctaskbilling.BillingMode, other["billing_mode"])
-	asyncOther, ok := other["async_task_billing"].(map[string]interface{})
+	assert.Equal(t, fixedmeteredbilling.BillingMode, other["billing_mode"])
+	fixedOther, ok := other["fixed_metered_billing"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "zzdh-output-v1", asyncOther["formula_version"])
-	assert.Equal(t, 300000, asyncOther["reserved_quota"])
+	assert.Equal(t, "duration_seconds", fixedOther["usage_mode"])
+	assert.Equal(t, 300000, fixedOther["reserved_quota"])
+}
+
+func TestLogFixedMeteredTaskConsumptionWritesTerminalStandardLog(t *testing.T) {
+	truncate(t)
+	const userID, tokenID, channelID = 90, 90, 90
+	seedUser(t, userID, 10000)
+	seedToken(t, tokenID, userID, "sk-fixed-metered-log", 10000)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, 4000, tokenID, BillingSourceWallet, 0)
+	task.Action = "generate"
+	task.SubmitTime = 100
+	task.FinishTime = 108
+	task.PrivateData.LogContext = &model.TaskLogContext{
+		Username:          "test_user",
+		TokenName:         "test_token",
+		RequestID:         "req_fixed_metered",
+		UpstreamRequestID: "upstream_fixed_metered",
+		RequestPath:       "/v1/video/generations",
+		IP:                "127.0.0.1",
+	}
+	task.PrivateData.BillingContext.FixedMeteredBilling = &fixedmeteredbilling.Snapshot{
+		BillingMode:   fixedmeteredbilling.BillingMode,
+		ConfigVersion: fixedmeteredbilling.ConfigVersion,
+		UnitPrice:     "0.4",
+		UsageMode:     fixedmeteredbilling.UsageModeDurationSeconds,
+		Rounding:      fixedmeteredbilling.RoundingNone,
+		BillableUnits: "5",
+		ReservedQuota: 4000,
+	}
+
+	LogFixedMeteredTaskConsumption(context.Background(), task)
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+	assert.Equal(t, 4000, log.Quota)
+	assert.Equal(t, "req_fixed_metered", log.RequestId)
+	assert.Equal(t, "upstream_fixed_metered", log.UpstreamRequestId)
+	assert.Equal(t, "127.0.0.1", log.Ip)
+	assert.Equal(t, 8, log.UseTime)
+	other, err := common.StrToMap(log.Other)
+	require.NoError(t, err)
+	assert.Equal(t, task.TaskID, other["task_id"])
+	assert.Equal(t, "/v1/video/generations", other["request_path"])
 }
 
 func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
@@ -72,14 +72,21 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
-	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
-
-	groupRatioInfo := HandleGroupRatio(c, info)
-
+	billingMode := billing_setting.GetBillingMode(info.OriginModelName)
+	if !billing_setting.IsSupportedBillingMode(billingMode) {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s uses unsupported billing mode %q", info.OriginModelName, billingMode)
+	}
 	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+	if billingMode == billing_setting.BillingModeTieredExpr {
+		groupRatioInfo := HandleGroupRatio(c, info)
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
+	if billingMode == billing_setting.BillingModeFixedMetered {
+		return FixedMeteredPriceHelper(c, info, fixedmeteredbilling.Metrics{})
+	}
+
+	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	groupRatioInfo := HandleGroupRatio(c, info)
 
 	var preConsumedQuota int
 	var modelRatio float64
@@ -186,6 +193,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hosttypes.PriceData, error) {
+	billingMode := billing_setting.GetBillingMode(info.OriginModelName)
+	if !billing_setting.IsSupportedBillingMode(billingMode) {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s uses unsupported billing mode %q", info.OriginModelName, billingMode)
+	}
+	if billingMode == billing_setting.BillingModeFixedMetered {
+		return FixedMeteredPriceHelper(c, info, fixedmeteredbilling.Metrics{})
+	}
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
@@ -254,9 +268,13 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 }
 
 func HasModelBillingConfig(modelName string) bool {
-	if billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeAsyncTaskExpr {
-		config, ok := billing_setting.GetAsyncTaskBilling(modelName)
-		return ok && asynctaskbilling.ValidateConfig(config) == nil
+	billingMode := billing_setting.GetBillingMode(modelName)
+	if !billing_setting.IsSupportedBillingMode(billingMode) {
+		return false
+	}
+	if billingMode == billing_setting.BillingModeFixedMetered {
+		config, ok := billing_setting.GetFixedMeteredBilling(modelName)
+		return ok && fixedmeteredbilling.ValidateConfig(config) == nil
 	}
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true

@@ -6,11 +6,28 @@
 - Phase 1 code added: 2026-08-06, uncommitted.
 - Documentation baseline refreshed: 2026-08-06.
 - User-confirmed implementation scope: 2026-08-06, 59 video-endpoint model names and 4 image-output model names. The 12 Vidu Q3 variants were added from a later same-day live detail recheck.
-- Task navigation and change history: `ZZDH_TASK_INDEX.md`.
+- Task navigation and change history: `doc/DEVELOPMENT_TASK_INDEX.md`, then
+  `doc/tasks/ZZDH_TASK_INDEX.md`.
 
 This document is the authoritative ZZDH task baseline. It defines what the provider documentation currently supports, what new-api implements now, and the scope that future work must preserve.
 
 The live upstream model list is not itself runtime configuration. A model may be listed by ZZDH and still be disabled in new-api until its request contract, billing contract, and verification status are complete.
+
+## API Layer Boundary (Non-Negotiable)
+
+There are two different HTTP layers. They must never be described as one API
+or used interchangeably in code, operator documentation, or generated API
+collections.
+
+| Layer | Submit | Task query | Consumer |
+| --- | --- | --- | --- |
+| new-api public API | `POST /v1/video/generations` | `GET /v1/video/generations/{public_task_id}`; the compatible `GET /v1/videos/{public_task_id}` is also supported | API users, Apifox/Postman examples, and Switcher-facing documentation |
+| ZZDH upstream transport | Selected internally by the persisted original model profile: V1 or V8 | Selected internally by the same persisted original model profile, with `upstream_task_id` | `relay/channel/task/zzdh/` only |
+
+All client submissions therefore use the one public V1 route. The V8 paths in
+the protocol matrix below are **only** new-api-to-ZZDH forwarding paths for
+models whose upstream detail contracts require V8. They are not public
+new-api endpoints and must not be published as alternative client URLs.
 
 ## Evidence Baseline: 2026-08-06
 
@@ -180,9 +197,13 @@ The names `wan2.6-image`, `wan2.6-t2i`, and `wan2.7-image` contain image-oriente
 
 The live recheck found no target model whose detail contract advertises both `openai-video` and an image endpoint at the same time. The two tracks are currently separated by endpoint contract, not by whether a video model accepts image references.
 
-## Protocol and Adaptation Matrix
+## ZZDH Upstream Protocol and Adaptation Matrix
 
-| Profile family | Models | Submit | Query | Request shape | Billing metric | New-api status |
+The `Submit` and `Query` columns below are ZZDH upstream transport paths, not
+new-api public API paths. The public API boundary above takes precedence for
+all client-facing documentation and examples.
+
+| Profile family | Models | ZZDH upstream submit | ZZDH upstream query | Request shape | Billing metric | New-api status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `v1_generation_output_seconds` | 8 confirmed non-`-video` Seedance models | `POST /v1/video/generations` | `GET /v1/videos/{task_id}` | `model`, `prompt`, optional 1-2 `images`, `duration`, V1 `metadata` | requested output seconds | Implemented |
 | `v1_generation_reference_seconds` | 8 confirmed Seedance `-video` models | Same V1 paths | Same V1 paths | Requires public `metadata.reference_video`; multimodal content may be supplied in metadata | output seconds + validated reference-video seconds | Implemented |

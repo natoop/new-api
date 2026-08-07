@@ -594,6 +594,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	if shouldSettle {
 		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+		LogFixedMeteredTaskConsumption(ctx, task)
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)

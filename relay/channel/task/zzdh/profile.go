@@ -3,9 +3,6 @@ package zzdh
 import (
 	"sort"
 	"strings"
-
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 type protocol string
@@ -15,47 +12,33 @@ const (
 	protocolV8 protocol = "v8"
 )
 
-type billingRule string
-
-const (
-	billingOutputSeconds           billingRule = "output_seconds"
-	billingOutputPlusReferenceSecs billingRule = "output_plus_reference_seconds"
-)
-
 // modelProfile is the single source of truth for ZZDH video model capability.
-// Numeric prices deliberately do not live here: they remain model-price
-// configuration in new-api so operators can change them without a deploy.
+// It contains protocol and validation constraints only. Pricing configuration
+// is owned by the system-level billing mode, not a provider profile.
 type modelProfile struct {
-	Name               string
-	Protocol           protocol
-	Family             string
-	MinDuration        int
-	MaxDuration        int
-	FixedFPS           int
-	MaxReferenceImages int
-	MaxReferenceVideos int
-	MaxReferenceAudios int
-	AllowDataReference bool
-	RequiresReference  bool
-	RejectsReference   bool
-	RequiresImage      bool
-	RequiresVideo      bool
-	RejectsVideo       bool
-	RequiresAudio      bool
-	RejectsAudio       bool
-	DefaultResolution  string
-	ResolutionTier     string
-	BillingRule        billingRule
-	PricingRuleVersion string
+	Name                          string
+	Protocol                      protocol
+	Family                        string
+	MinDuration                   int
+	MaxDuration                   int
+	FixedFPS                      int
+	MaxReferenceImages            int
+	MaxReferenceVideos            int
+	MaxReferenceAudios            int
+	AllowDataReference            bool
+	RequiresReference             bool
+	RejectsReference              bool
+	RequiresImage                 bool
+	RequiresVideo                 bool
+	RejectsVideo                  bool
+	RequiresAudio                 bool
+	RejectsAudio                  bool
+	DefaultResolution             string
+	ResolutionTier                string
+	IncludeReferenceVideoDuration bool
 }
 
 var modelProfiles = buildModelProfiles()
-
-func init() {
-	for name, profile := range modelProfiles {
-		asynctaskbilling.RegisterProfile(name, profile.AsyncTaskBillingRule())
-	}
-}
 
 func buildModelProfiles() map[string]modelProfile {
 	profiles := make(map[string]modelProfile, 59)
@@ -67,19 +50,16 @@ func buildModelProfiles() map[string]modelProfile {
 	}
 	addSeedance := func(name string) {
 		profile := modelProfile{
-			Name:               name,
-			Protocol:           protocolV1,
-			Family:             "seedance_v1",
-			BillingRule:        billingOutputSeconds,
-			PricingRuleVersion: "seedance-v1-seconds-v1",
-			ResolutionTier:     resolutionTier(name),
+			Name:           name,
+			Protocol:       protocolV1,
+			Family:         "seedance_v1",
+			ResolutionTier: resolutionTier(name),
 		}
 		profile.DefaultResolution = profile.ResolutionTier
 		if strings.Contains(name, "-video-") {
 			profile.Family = "seedance_v1_reference"
 			profile.RequiresVideo = true
-			profile.BillingRule = billingOutputPlusReferenceSecs
-			profile.PricingRuleVersion = "seedance-v1-output-plus-reference-seconds-v1"
+			profile.IncludeReferenceVideoDuration = true
 		} else {
 			profile.RejectsVideo = true
 		}
@@ -109,38 +89,38 @@ func buildModelProfiles() map[string]modelProfile {
 
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "720p", DefaultResolution: "1280x720",
-		RejectsReference: true, RequiresAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RejectsReference: true, RequiresAudio: true,
 	}, "kling-3.0-omni-720p-noref-audio")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "720p", DefaultResolution: "1280x720",
-		RejectsReference: true, RejectsAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RejectsReference: true, RejectsAudio: true,
 	}, "kling-3.0-omni-720p-noref-mute")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "720p", DefaultResolution: "1280x720",
-		RequiresReference: true, RequiresAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RequiresReference: true, RequiresAudio: true,
 	}, "kling-3.0-omni-720p-ref-audio")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "720p", DefaultResolution: "1280x720",
-		RequiresReference: true, RejectsAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RequiresReference: true, RejectsAudio: true,
 	}, "kling-3.0-omni-720p-ref-mute")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "1080p", DefaultResolution: "1920x1080",
-		RejectsReference: true, RequiresAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RejectsReference: true, RequiresAudio: true,
 	}, "kling-3.0-omni-1080p-noref-audio")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "1080p", DefaultResolution: "1920x1080",
-		RejectsReference: true, RejectsAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RejectsReference: true, RejectsAudio: true,
 	}, "kling-3.0-omni-1080p-noref-mute")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "1080p", DefaultResolution: "1920x1080",
-		RequiresReference: true, RequiresAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RequiresReference: true, RequiresAudio: true,
 	}, "kling-3.0-omni-1080p-ref-audio")
 	add(modelProfile{
 		Protocol: protocolV8, Family: "kling_v8", ResolutionTier: "1080p", DefaultResolution: "1920x1080",
-		RequiresReference: true, RejectsAudio: true, BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		RequiresReference: true, RejectsAudio: true,
 	}, "kling-3.0-omni-1080p-ref-mute")
 	add(modelProfile{
-		Protocol: protocolV8, Family: "kling_v8", BillingRule: billingOutputSeconds, PricingRuleVersion: "kling-v3-omni-v1",
+		Protocol: protocolV8, Family: "kling_v8",
 	}, "kling-v3-omni")
 
 	for _, name := range []string{
@@ -152,8 +132,7 @@ func buildModelProfiles() map[string]modelProfile {
 		profile := modelProfile{
 			Name:     name,
 			Protocol: protocolV8, Family: "happyhorse_v8", ResolutionTier: resolutionTier(name),
-			DefaultResolution: resolutionDefault(resolutionTier(name)), BillingRule: billingOutputSeconds,
-			PricingRuleVersion: "happyhorse-v8-seconds-v1",
+			DefaultResolution: resolutionDefault(resolutionTier(name)),
 		}
 		switch {
 		case strings.Contains(name, "-i2v-") || strings.Contains(name, "-r2v-"):
@@ -173,8 +152,7 @@ func buildModelProfiles() map[string]modelProfile {
 	} {
 		profile := modelProfile{
 			Name:     name,
-			Protocol: protocolV8, Family: "wan_v8", BillingRule: billingOutputSeconds,
-			PricingRuleVersion: "wan-v8-seconds-v1",
+			Protocol: protocolV8, Family: "wan_v8",
 		}
 		switch {
 		case strings.Contains(name, "-i2v"):
@@ -197,12 +175,10 @@ func buildModelProfiles() map[string]modelProfile {
 		"vidu-q3-turbo-1080p", "vidu-q3-turbo-1080p-offpeak",
 	} {
 		profiles[name] = modelProfile{
-			Name:               name,
-			Protocol:           protocolV8,
-			Family:             "vidu_q3_v8",
-			RejectsReference:   true,
-			BillingRule:        billingOutputSeconds,
-			PricingRuleVersion: "vidu-q3-v8-seconds-v1",
+			Name:             name,
+			Protocol:         protocolV8,
+			Family:           "vidu_q3_v8",
+			RejectsReference: true,
 		}
 	}
 
@@ -225,8 +201,6 @@ func buildModelProfiles() map[string]modelProfile {
 			MaxReferenceVideos: 3,
 			MaxReferenceAudios: 3,
 			AllowDataReference: true,
-			BillingRule:        billingOutputSeconds,
-			PricingRuleVersion: "minimax-h3-v8-seconds-v1",
 		}
 	}
 	return profiles
@@ -235,29 +209,6 @@ func buildModelProfiles() map[string]modelProfile {
 func profileForModel(name string) (modelProfile, bool) {
 	profile, ok := modelProfiles[name]
 	return profile, ok
-}
-
-// AsyncTaskBillingRule keeps approved metric admission with the validated
-// profile. Only numeric coefficients are configured outside provider code.
-func (profile modelProfile) AsyncTaskBillingRule() asynctaskbilling.Rule {
-	maxDuration := float64(relaycommon.MaxTaskDurationSeconds)
-	if profile.MaxDuration > 0 && profile.MaxDuration < relaycommon.MaxTaskDurationSeconds {
-		maxDuration = float64(profile.MaxDuration)
-	}
-	rule := asynctaskbilling.Rule{
-		Version: profile.PricingRuleVersion,
-		Terms: []asynctaskbilling.Term{
-			{Name: asynctaskbilling.OutputSeconds, MaxValue: maxDuration},
-		},
-		AllowedRounding: []string{asynctaskbilling.RoundingNone},
-	}
-	if profile.BillingRule == billingOutputPlusReferenceSecs {
-		rule.Terms = append(rule.Terms, asynctaskbilling.Term{
-			Name:     asynctaskbilling.ReferenceVideo,
-			MaxValue: float64(relaycommon.MaxTaskDurationSeconds),
-		})
-	}
-	return rule
 }
 
 func modelList() []string {

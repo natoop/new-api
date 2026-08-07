@@ -8,7 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 )
@@ -113,18 +113,31 @@ type TaskPrivateData struct {
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
+	LogContext     *TaskLogContext     `json:"log_context,omitempty"`     // 提交时冻结的正式消费/退款日志上下文
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+}
+
+// TaskLogContext preserves the request fields that are otherwise only present
+// in Gin while an asynchronous task reaches its terminal state later.
+type TaskLogContext struct {
+	Username          string `json:"username,omitempty"`
+	TokenName         string `json:"token_name,omitempty"`
+	RequestID         string `json:"request_id,omitempty"`
+	UpstreamRequestID string `json:"upstream_request_id,omitempty"`
+	RequestPath       string `json:"request_path,omitempty"`
+	IP                string `json:"ip,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
 type TaskBillingContext struct {
-	ModelPrice       float64                    `json:"model_price,omitempty"`        // 模型单价
-	GroupRatio       float64                    `json:"group_ratio,omitempty"`        // 分组倍率
-	ModelRatio       float64                    `json:"model_ratio,omitempty"`        // 模型倍率
-	OtherRatios      map[string]float64         `json:"other_ratios,omitempty"`       // 附加倍率（时长、分辨率等）
-	OriginModelName  string                     `json:"origin_model_name,omitempty"`  // 模型名称，必须为OriginModelName
-	PerCallBilling   bool                       `json:"per_call_billing,omitempty"`   // 按次计费：跳过轮询阶段的差额结算
-	AsyncTaskBilling *asynctaskbilling.Snapshot `json:"async_task_billing,omitempty"` // 提交前冻结的异步任务计费快照
+	ModelPrice                float64                       `json:"model_price,omitempty"`           // 模型单价
+	GroupRatio                float64                       `json:"group_ratio,omitempty"`           // 分组倍率
+	ModelRatio                float64                       `json:"model_ratio,omitempty"`           // 模型倍率
+	OtherRatios               map[string]float64            `json:"other_ratios,omitempty"`          // 附加倍率（时长、分辨率等）
+	OriginModelName           string                        `json:"origin_model_name,omitempty"`     // 模型名称，必须为OriginModelName
+	PerCallBilling            bool                          `json:"per_call_billing,omitempty"`      // 按次计费：跳过轮询阶段的差额结算
+	FixedMeteredBilling       *fixedmeteredbilling.Snapshot `json:"fixed_metered_billing,omitempty"` // 提交前冻结的固定计量计费快照
+	LegacyAsyncTaskBillingRaw json.RawMessage               `json:"async_task_billing,omitempty"`    // 仅用于既有任务退款与审计兼容
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

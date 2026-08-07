@@ -177,14 +177,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		info.PublicTaskID = model.GenerateTaskID()
 	}
 
-	// 4. Price the task. Async task profiles opt in through a small local
-	// interface; all other providers retain the legacy ModelPrice flow.
+	// 4. Price the task. System-level fixed_metered models opt in through a
+	// small metric interface; all other providers retain the legacy flow.
 	info.OriginModelName = modelName
-	asyncTaskBilling, taskErr := prepareAsyncTaskBilling(c, info, adaptor)
+	fixedMeteredBilling, taskErr := prepareFixedMeteredBilling(c, info, adaptor)
 	if taskErr != nil {
 		return nil, taskErr
 	}
-	if !asyncTaskBilling {
+	if !fixedMeteredBilling {
 		priceData, err := helper.ModelPriceHelperPerCall(c, info)
 		if err != nil {
 			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
@@ -245,7 +245,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
 	finalQuota := info.PriceData.Quota
-	if !asyncTaskBilling {
+	if !fixedMeteredBilling {
 		if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 			if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
 				// 基于调整后的 ratios 重新计算 quota

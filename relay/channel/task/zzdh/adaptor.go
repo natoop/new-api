@@ -17,7 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -30,12 +30,13 @@ import (
 )
 
 const (
-	zzdhV1SubmitPath  = "/v1/video/generations"
-	zzdhV1QueryPath   = "/v1/videos/"
-	zzdhV8SubmitPath  = "/v8/videos/generations"
-	zzdhV8QueryPath   = "/v8/videos/generations/"
-	zzdhReferenceKey  = "zzdh_reference_video_seconds"
-	maxReferenceBytes = int64(64 * 1024 * 1024)
+	zzdhV1SubmitPath      = "/v1/video/generations"
+	zzdhV1QueryPath       = "/v1/videos/"
+	zzdhV8SubmitPath      = "/v8/videos/generations"
+	zzdhV8QueryPath       = "/v8/videos/generations/"
+	zzdhReferenceKey      = "zzdh_reference_video_seconds"
+	zzdhFixedUsageModeKey = "zzdh_fixed_metered_usage_mode"
+	maxReferenceBytes     = int64(64 * 1024 * 1024)
 )
 
 type referenceInput struct {
@@ -118,16 +119,19 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if !ok {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q is not enabled", req.Model), "unsupported_model", http.StatusBadRequest)
 	}
-	asyncTaskBilling := info.AsyncTaskBillingSnapshot != nil || billing_setting.GetBillingMode(req.Model) == billing_setting.BillingModeAsyncTaskExpr
-	if asyncTaskBilling {
-		if info.AsyncTaskBillingSnapshot == nil {
-			config, configured := billing_setting.GetAsyncTaskBilling(req.Model)
+	isFixedMetered := info != nil && (info.FixedMeteredBillingSnapshot != nil || billing_setting.GetBillingMode(req.Model) == billing_setting.BillingModeFixedMetered)
+	var fixedMeteredConfig fixedmeteredbilling.Config
+	if isFixedMetered {
+		if info.FixedMeteredBillingSnapshot == nil {
+			config, configured := billing_setting.GetFixedMeteredBilling(req.Model)
 			if !configured {
-				return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q requires async task billing terms", req.Model), "async_task_billing_required", http.StatusBadRequest)
+				return service.TaskErrorWrapperLocal(fmt.Errorf("ZZDH model %q requires fixed metered billing configuration", req.Model), "fixed_metered_billing_required", http.StatusBadRequest)
 			}
-			if err := asynctaskbilling.ValidateConfigForRule(profile.AsyncTaskBillingRule(), config); err != nil {
-				return service.TaskErrorWrapperLocal(err, "async_task_billing_invalid", http.StatusBadRequest)
+			if err := fixedmeteredbilling.ValidateConfig(config); err != nil {
+				return service.TaskErrorWrapperLocal(err, "fixed_metered_billing_invalid", http.StatusBadRequest)
 			}
+			fixedMeteredConfig = config
+			c.Set(zzdhFixedUsageModeKey, config.UsageMode)
 		}
 	} else if _, configured := ratio_setting.GetModelPrice(req.Model, false); !configured {
 		if _, configured = ratio_setting.GetDefaultModelPriceMap()[req.Model]; !configured {
@@ -142,9 +146,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err := validateRequestPayload(payload, profile); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
-	if profile.BillingRule == billingOutputPlusReferenceSecs {
-		referenceURL := firstReferenceVideoURL(payload)
-		seconds, err := parseReferenceVideoSeconds(c.Request.Context(), referenceURL)
+	if (isFixedMetered && fixedMeteredConfig.UsageMode == fixedmeteredbilling.UsageModeDurationWithRef) || (!isFixedMetered && profile.IncludeReferenceVideoDuration) {
+		seconds, err := referenceVideoSeconds(c.Request.Context(), payload)
 		if err != nil {
 			return service.TaskErrorWrapperLocal(err, "reference_video_duration_failed", http.StatusBadRequest)
 		}
@@ -156,51 +159,75 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	if info != nil && (info.AsyncTaskBillingSnapshot != nil || billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeAsyncTaskExpr) {
+	if info != nil && (info.FixedMeteredBillingSnapshot != nil || billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeFixedMetered) {
 		return nil
 	}
-	_, metrics, err := a.EstimateAsyncTaskBilling(c, info)
+	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	seconds := metrics[asynctaskbilling.OutputSeconds]
-	if referenceSeconds, ok := metrics[asynctaskbilling.ReferenceVideo]; ok {
-		seconds += referenceSeconds
+	profile, ok := profileForModel(req.Model)
+	if !ok {
+		return nil
+	}
+	payload, err := buildRequestPayload(&req, profile)
+	if err != nil || payload.Duration <= 0 {
+		return nil
+	}
+	seconds := float64(payload.Duration)
+	if profile.IncludeReferenceVideoDuration {
+		referenceSeconds, ok := c.Get(zzdhReferenceKey)
+		if !ok {
+			return nil
+		}
+		value, ok := referenceSeconds.(float64)
+		if !ok {
+			return nil
+		}
+		seconds += value
 	}
 	return map[string]float64{"seconds": seconds}
 }
 
-// EstimateAsyncTaskBilling supplies bounded named metrics to the generic
-// calculator. Legacy callers keep the single historical seconds multiplier.
-func (a *TaskAdaptor) EstimateAsyncTaskBilling(c *gin.Context, _ *relaycommon.RelayInfo) (asynctaskbilling.Rule, map[string]float64, error) {
+// EstimateFixedMeteredBilling supplies only provider-normalized, bounded
+// metrics. Price selection and arithmetic are owned by fixedmeteredbilling.
+func (a *TaskAdaptor) EstimateFixedMeteredBilling(c *gin.Context, info *relaycommon.RelayInfo) (fixedmeteredbilling.Metrics, error) {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
-		return asynctaskbilling.Rule{}, nil, err
+		return fixedmeteredbilling.Metrics{}, err
 	}
 	profile, ok := profileForModel(req.Model)
 	if !ok {
-		return asynctaskbilling.Rule{}, nil, fmt.Errorf("ZZDH model %q is not enabled", req.Model)
+		return fixedmeteredbilling.Metrics{}, fmt.Errorf("ZZDH model %q is not enabled", req.Model)
 	}
 	payload, err := buildRequestPayload(&req, profile)
 	if err != nil || payload.Duration <= 0 {
 		if err != nil {
-			return asynctaskbilling.Rule{}, nil, err
+			return fixedmeteredbilling.Metrics{}, err
 		}
-		return asynctaskbilling.Rule{}, nil, fmt.Errorf("duration is required for async task billing")
+		return fixedmeteredbilling.Metrics{}, fmt.Errorf("duration is required for fixed metered billing")
 	}
-	metrics := map[string]float64{asynctaskbilling.OutputSeconds: float64(payload.Duration)}
-	if profile.BillingRule == billingOutputPlusReferenceSecs {
+	usageMode, ok := c.Get(zzdhFixedUsageModeKey)
+	if !ok {
+		return fixedmeteredbilling.Metrics{}, fmt.Errorf("fixed metered billing usage mode is required")
+	}
+	usageModeValue, ok := usageMode.(string)
+	if !ok {
+		return fixedmeteredbilling.Metrics{}, fmt.Errorf("fixed metered billing usage mode is invalid")
+	}
+	metrics := fixedmeteredbilling.Metrics{OutputSeconds: float64(payload.Duration)}
+	if usageModeValue == fixedmeteredbilling.UsageModeDurationWithRef {
 		referenceSeconds, ok := c.Get(zzdhReferenceKey)
 		if !ok {
-			return asynctaskbilling.Rule{}, nil, fmt.Errorf("reference video duration is required for async task billing")
+			return fixedmeteredbilling.Metrics{}, fmt.Errorf("reference video duration is required for fixed metered billing")
 		}
 		value, ok := referenceSeconds.(float64)
-		if !ok || value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
-			return asynctaskbilling.Rule{}, nil, fmt.Errorf("reference video duration is outside the supported range")
+		if !ok || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+			return fixedmeteredbilling.Metrics{}, fmt.Errorf("reference video duration is outside the supported range")
 		}
-		metrics[asynctaskbilling.ReferenceVideo] = value
+		metrics.ReferenceVideoSeconds = value
 	}
-	return profile.AsyncTaskBillingRule(), metrics, nil
+	return metrics, nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -658,16 +685,38 @@ func validateMinimaxH3References(payload *requestPayload, profile modelProfile) 
 	return nil
 }
 
-func firstReferenceVideoURL(payload *requestPayload) string {
+func referenceVideoSeconds(ctx context.Context, payload *requestPayload) (float64, error) {
+	return sumReferenceVideoSeconds(payload, func(url string) (float64, error) {
+		return parseReferenceVideoSeconds(ctx, url)
+	})
+}
+
+// sumReferenceVideoSeconds keeps all billable reference-video durations in one
+// bounded metric. It is intentionally separate from downloading so the metric
+// rule remains deterministic and regression-testable.
+func sumReferenceVideoSeconds(payload *requestPayload, durationForURL func(string) (float64, error)) (float64, error) {
 	if payload == nil {
-		return ""
+		return 0, fmt.Errorf("reference video payload is required")
 	}
+	if durationForURL == nil {
+		return 0, fmt.Errorf("reference video duration reader is required")
+	}
+	var total float64
 	for _, input := range payload.ReferenceVideos {
-		if strings.TrimSpace(input.URL) != "" {
-			return strings.TrimSpace(input.URL)
+		url := strings.TrimSpace(input.URL)
+		if url == "" {
+			return 0, fmt.Errorf("reference video URL is required")
+		}
+		seconds, err := durationForURL(url)
+		if err != nil {
+			return 0, err
+		}
+		total += seconds
+		if total > relaycommon.MaxTaskDurationSeconds {
+			return 0, fmt.Errorf("total reference video duration is outside the supported range")
 		}
 	}
-	return ""
+	return total, nil
 }
 
 func parseReferenceVideoSeconds(ctx context.Context, rawURL string) (float64, error) {

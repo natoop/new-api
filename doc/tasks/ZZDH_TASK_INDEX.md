@@ -1,16 +1,42 @@
 # ZZDH Maintenance Index
 
+> Historical detail index. For repository-wide task navigation and the active
+> fixed-metered billing refactor, start at `doc/DEVELOPMENT_TASK_INDEX.md`.
+> `async_task_expr` entries below describe the former implementation and must
+> not be used as a new-configuration contract.
+
 ## Purpose
 
 This is the entry point for every follow-up ZZDH task. Read this file before changing ZZDH routing, model support, protocol conversion, billing, Switcher configuration, or the provider catalogue.
 
 It records the accepted boundary, evidence snapshots, implementation state, and the exact locations that own each concern. It exists to prevent a future task from rediscovering the design, duplicating an adaptor, or silently widening the scope.
 
+## Public API vs Upstream Transport
+
+This distinction is a confirmed maintenance boundary:
+
+- Clients always submit ZZDH video tasks to new-api through
+  `POST /v1/video/generations` and query through
+  `GET /v1/video/generations/{public_task_id}` (or the compatible
+  `/v1/videos/{public_task_id}` route).
+- V1/V8 in the ZZDH model/profile records mean only the internal forwarding
+  protocol from new-api to the ZZDH channel base URL. Seedance profiles use
+  the documented ZZDH V1 paths; the enabled Kling, Happyhorse, Wan, Vidu, and
+  Minimax H3 profiles use their documented ZZDH V8 paths.
+- Never expose, document, or add a public new-api `/v8/...` route for this
+  channel. The task table's public `task_id` and persisted
+  `upstream_task_id` keep the two layers separate during polling.
+
+When a protocol matrix uses `Submit` or `Query` without the word `public`, it
+describes the ZZDH upstream transport. Client examples must use the public
+V1 route above.
+
 ## Canonical Records
 
 | Record | Purpose | Refresh rule |
 | --- | --- | --- |
 | `ZZDH_VIDEO_CHANNEL_TASK.md` | Authoritative task baseline, protocol matrix, billing contract, model-admission rules, and change boundary | Update when behavior or the documented upstream contract changes |
+| `FIXED_METERED_BILLING_TASK.md` | Active system-level fixed-metered pricing plan, file inventory, retirement boundary, and release gates | Read before changing any active ZZDH or generic fixed-metered billing code |
 | `ZZDH_MODEL_CATALOG_20260806.md` | Human-readable classification of all 149 models in the 2026-08-06 upstream catalogue | Regenerate on catalogue refresh; do not edit classifications by hand |
 | `ZZDH_MODEL_CATALOG_20260806.json` | Raw response from `GET https://zizidonghua.com/api/api-docs/models` | Evidence snapshot; immutable after capture |
 | `ZZDH_MODEL_DETAILS_20260806.json` | Merged model-detail evidence for the 52 models whose details determine V1/V8, request shape, or billing | Evidence snapshot; immutable after capture |
@@ -127,6 +153,7 @@ The script sorts contract models by name before batching. A failed detail reques
 | 2026-08-06 | Vidu Q3 V8 basic contract admitted | Live recheck of all 12 `vidu-q3-*` detail pages: each consistently declares V8 submit/query with `model`, `prompt`, `resolution`, and `duration`, and no reference-media fields. Added a `vidu_q3_v8` output-seconds profile that rejects reference media; prices remain operator-configured. Captured a new immutable 59-model detail snapshot and regenerated the collection. Each Vidu Apifox model folder documents the `duration` / `output_seconds` metric, default model-price formula, async-task-expression term, failure refund, and missing-price rejection. | `go test ./relay/channel/task/zzdh`; generated import has 8 top-level folders, 59 model folders, 109 submission examples, and Vidu requests use only the public route |
 | 2026-08-06 | Provider-neutral independent task calculator | `pkg/asynctaskbilling` evaluates profile-fixed named terms, uses decimal quota conversion, freezes the billing context, and leaves token `tiered_expr` unchanged | Focused package, relay, ZZDH, task-refund, and vet checks pass |
 | 2026-08-06 | ZZDH task-query response parity fix | Both public query paths (`/v1/video/generations/{task_id}` and `/v1/videos/{task_id}`) now use the OpenAI-video converter. ZZDH responses preserve `model` and `task_id`; the pre-polling `NOT_START` task state is exposed as `queued` instead of `unknown`. | `go test ./relay/channel/task/zzdh ./relay`; route and converter regression tests added |
+| 2026-08-07 | Public-route and upstream-transport wording clarified | Recorded the non-negotiable separation between the single public V1 client route and model-selected internal ZZDH V1/V8 forwarding paths. | Documentation review against `router/video-router.go` and `relay/channel/task/zzdh/adaptor.go` |
 
 ## Repeated-Workflow Check
 

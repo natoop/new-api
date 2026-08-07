@@ -163,6 +163,24 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
 }
 
+func TestTaskPrivateDataScanRetainsLegacyAsyncBillingSnapshot(t *testing.T) {
+	var privateData TaskPrivateData
+	require.NoError(t, privateData.Scan([]byte(`{
+		"billing_context": {
+			"origin_model_name": "legacy-video",
+			"async_task_billing": {
+				"terms": {"output_seconds": 0.12},
+				"rounding": "none"
+			}
+		}
+	}`)))
+
+	require.NotNil(t, privateData.BillingContext)
+	assert.Equal(t, "legacy-video", privateData.BillingContext.OriginModelName)
+	assert.JSONEq(t, `{"terms":{"output_seconds":0.12},"rounding":"none"}`,
+		string(privateData.BillingContext.LegacyAsyncTaskBillingRaw))
+}
+
 // ---------------------------------------------------------------------------
 // UpdateWithStatus CAS — DB integration tests
 // ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 
@@ -24,7 +24,6 @@ func TestModelProfilesExposeAllConfirmedVideoModels(t *testing.T) {
 		profile, ok := profileForModel(name)
 		require.True(t, ok)
 		protocolCounts[profile.Protocol]++
-		require.NotEmpty(t, profile.PricingRuleVersion)
 	}
 	require.Equal(t, 16, protocolCounts[protocolV1])
 	require.Equal(t, 43, protocolCounts[protocolV8])
@@ -36,7 +35,6 @@ func TestViduQ3UsesDocumentedV8TextToVideoContract(t *testing.T) {
 	profile, ok := profileForModel("vidu-q3-pro-720p")
 	require.True(t, ok)
 	require.Equal(t, protocolV8, profile.Protocol)
-	require.Equal(t, billingOutputSeconds, profile.BillingRule)
 	require.True(t, profile.RejectsReference)
 
 	payload, err := buildRequestPayload(&relaycommon.TaskSubmitReq{
@@ -99,7 +97,6 @@ func TestMinimaxH3V8PayloadAndBillingRules(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, protocolV8, profile.Protocol)
 	require.Equal(t, "1080p", profile.ResolutionTier)
-	require.Equal(t, billingOutputSeconds, profile.BillingRule)
 
 	req := relaycommon.TaskSubmitReq{
 		Model:   profile.Name,
@@ -184,7 +181,7 @@ func TestSeedanceV1PayloadKeepsMetadataAndReferenceVideoBilling(t *testing.T) {
 	profile, ok := profileForModel("doubao-seedance-2-0-fast-video-480p")
 	require.True(t, ok)
 	require.Equal(t, protocolV1, profile.Protocol)
-	require.Equal(t, billingOutputPlusReferenceSecs, profile.BillingRule)
+	require.True(t, profile.IncludeReferenceVideoDuration)
 
 	req := relaycommon.TaskSubmitReq{
 		Model:   profile.Name,
@@ -210,7 +207,7 @@ func TestSeedanceV1PayloadKeepsMetadataAndReferenceVideoBilling(t *testing.T) {
 	require.Equal(t, 8.5, ratio["seconds"])
 }
 
-func TestEstimateAsyncTaskBillingUsesNamedReferenceMetric(t *testing.T) {
+func TestEstimateFixedMeteredBillingUsesReferenceVideoMetric(t *testing.T) {
 	profile, ok := profileForModel("doubao-seedance-2-0-fast-video-480p")
 	require.True(t, ok)
 
@@ -218,12 +215,30 @@ func TestEstimateAsyncTaskBillingUsesNamedReferenceMetric(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set("task_request", req)
 	c.Set(zzdhReferenceKey, float64(2.5))
+	c.Set(zzdhFixedUsageModeKey, fixedmeteredbilling.UsageModeDurationWithRef)
 
-	rule, metrics, err := (&TaskAdaptor{}).EstimateAsyncTaskBilling(c, &relaycommon.RelayInfo{})
+	metrics, err := (&TaskAdaptor{}).EstimateFixedMeteredBilling(c, &relaycommon.RelayInfo{})
 	require.NoError(t, err)
-	require.Equal(t, "seedance-v1-output-plus-reference-seconds-v1", rule.Version)
-	require.Equal(t, 6.0, metrics[asynctaskbilling.OutputSeconds])
-	require.Equal(t, 2.5, metrics[asynctaskbilling.ReferenceVideo])
+	require.Equal(t, 6.0, metrics.OutputSeconds)
+	require.Equal(t, 2.5, metrics.ReferenceVideoSeconds)
+}
+
+func TestSumReferenceVideoSecondsIncludesEveryVideo(t *testing.T) {
+	payload := &requestPayload{ReferenceVideos: []referenceInput{
+		{URL: "https://example.com/first.mp4"},
+		{URL: "https://example.com/second.mp4"},
+	}}
+	durations := map[string]float64{
+		"https://example.com/first.mp4":  2.25,
+		"https://example.com/second.mp4": 3.5,
+	}
+
+	seconds, err := sumReferenceVideoSeconds(payload, func(url string) (float64, error) {
+		return durations[url], nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 5.75, seconds)
 }
 
 func TestBuildRequestURLUsesModelProtocol(t *testing.T) {

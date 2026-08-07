@@ -9,7 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/asynctaskbilling"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -40,10 +40,10 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other := make(map[string]interface{})
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
-	if info.AsyncTaskBillingSnapshot == nil {
+	if info.FixedMeteredBillingSnapshot == nil {
 		other["model_price"] = info.PriceData.ModelPrice
 	} else {
-		attachAsyncTaskBillingOther(other, info.AsyncTaskBillingSnapshot)
+		attachFixedMeteredBillingOther(other, info.FixedMeteredBillingSnapshot)
 	}
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
@@ -127,10 +127,16 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 func taskBillingOther(task *model.Task) map[string]interface{} {
 	other := make(map[string]interface{})
 	if bc := task.PrivateData.BillingContext; bc != nil {
-		if bc.AsyncTaskBilling == nil {
-			other["model_price"] = bc.ModelPrice
+		if bc.FixedMeteredBilling != nil {
+			attachFixedMeteredBillingOther(other, bc.FixedMeteredBilling)
+		} else if len(bc.LegacyAsyncTaskBillingRaw) > 0 {
+			var legacySnapshot any
+			if err := common.Unmarshal(bc.LegacyAsyncTaskBillingRaw, &legacySnapshot); err == nil {
+				other["billing_mode"] = "async_task_expr"
+				other["async_task_billing"] = legacySnapshot
+			}
 		} else {
-			attachAsyncTaskBillingOther(other, bc.AsyncTaskBilling)
+			other["model_price"] = bc.ModelPrice
 		}
 		if bc.ModelRatio > 0 {
 			other["model_ratio"] = bc.ModelRatio
@@ -147,28 +153,99 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
+	other["is_task"] = true
+	if logContext := task.PrivateData.LogContext; logContext != nil && logContext.RequestPath != "" {
+		other["request_path"] = logContext.RequestPath
+	}
 	return other
 }
 
-// attachAsyncTaskBillingOther is shared by submit and terminal task logs.
-// Snapshot contents are normalized request metrics and operator prices only.
-func attachAsyncTaskBillingOther(other map[string]interface{}, snapshot *asynctaskbilling.Snapshot) {
+// attachFixedMeteredBillingOther is shared by task log paths. The snapshot is
+// frozen before upstream submission and therefore remains an audit fact after
+// operators later update the model's pricing configuration.
+func attachFixedMeteredBillingOther(other map[string]interface{}, snapshot *fixedmeteredbilling.Snapshot) {
 	if other == nil || snapshot == nil {
 		return
 	}
 	other["billing_mode"] = snapshot.BillingMode
-	other["async_task_billing"] = map[string]interface{}{
-		"config_version":  snapshot.ConfigVersion,
-		"formula_version": snapshot.FormulaVersion,
-		"terms":           snapshot.Terms,
-		"metrics":         snapshot.Metrics,
-		"rounding":        snapshot.Rounding,
-		"expression":      snapshot.Expression,
-		"group_ratio":     snapshot.GroupRatio,
-		"quota_per_unit":  snapshot.QuotaPerUnit,
-		"reserved_quota":  snapshot.ReservedQuota,
+	other["fixed_metered_billing"] = map[string]interface{}{
+		"config_version":          snapshot.ConfigVersion,
+		"unit_price":              snapshot.UnitPrice,
+		"usage_mode":              snapshot.UsageMode,
+		"rounding":                snapshot.Rounding,
+		"output_seconds":          snapshot.OutputSeconds,
+		"reference_video_seconds": snapshot.ReferenceVideoSeconds,
+		"billable_units":          snapshot.BillableUnits,
+		"group_ratio":             snapshot.GroupRatio,
+		"quota_per_unit":          snapshot.QuotaPerUnit,
+		"reserved_quota":          snapshot.ReservedQuota,
 	}
 	attachQuotaSaturationToOther(other, snapshot.QuotaSaturation)
+}
+
+func taskBillingLogParams(task *model.Task, logType int, content string, quota int, other map[string]interface{}) model.RecordTaskBillingLogParams {
+	params := model.RecordTaskBillingLogParams{
+		UserId:    task.UserId,
+		LogType:   logType,
+		Content:   content,
+		ChannelId: task.ChannelId,
+		ModelName: taskModelName(task),
+		Quota:     quota,
+		TokenId:   task.PrivateData.TokenId,
+		Group:     task.Group,
+		Other:     other,
+		NodeName:  task.PrivateData.NodeName,
+	}
+	if logContext := task.PrivateData.LogContext; logContext != nil {
+		params.Username = logContext.Username
+		params.TokenName = logContext.TokenName
+		params.RequestId = logContext.RequestID
+		params.UpstreamRequestId = logContext.UpstreamRequestID
+		params.RequestIP = logContext.IP
+	}
+	if task.FinishTime > task.SubmitTime {
+		params.UseTimeSeconds = int(task.FinishTime - task.SubmitTime)
+	}
+	return params
+}
+
+// LogFixedMeteredTaskConsumption writes the formal consume record only after
+// the task's terminal-success CAS succeeds. Its quota was already reserved at
+// submission; this function records the committed consumption and counters.
+func LogFixedMeteredTaskConsumption(ctx context.Context, task *model.Task) {
+	if task == nil || task.PrivateData.BillingContext == nil || task.PrivateData.BillingContext.FixedMeteredBilling == nil {
+		return
+	}
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	model.RecordTaskBillingLog(taskBillingLogParams(task, model.LogTypeConsume, fmt.Sprintf("操作 %s，固定计量计费", task.Action), task.Quota, other))
+	model.UpdateUserUsedQuotaAndRequestCount(task.UserId, task.Quota)
+	model.UpdateChannelUsedQuota(task.ChannelId, task.Quota)
+}
+
+// BuildTaskLogContext captures the request fields that must be retained until
+// an async task's later terminal log. IP follows the same user setting used by
+// the ordinary consume-log writer.
+func BuildTaskLogContext(c *gin.Context, info *relaycommon.RelayInfo, upstreamTaskID string) *model.TaskLogContext {
+	if c == nil || info == nil {
+		return nil
+	}
+	logContext := &model.TaskLogContext{
+		Username:          c.GetString("username"),
+		TokenName:         c.GetString("token_name"),
+		RequestID:         c.GetString(common.RequestIdKey),
+		UpstreamRequestID: c.GetString(common.UpstreamRequestIdKey),
+	}
+	if logContext.UpstreamRequestID == "" {
+		logContext.UpstreamRequestID = upstreamTaskID
+	}
+	if c.Request != nil && c.Request.URL != nil {
+		logContext.RequestPath = c.Request.URL.Path
+	}
+	if setting, err := model.GetUserSetting(info.UserId, false); err == nil && setting.RecordIpLog {
+		logContext.IP = c.ClientIP()
+	}
+	return logContext
 }
 
 func taskBillingContextPriceData(bc *model.TaskBillingContext) *types.PriceData {
@@ -212,17 +289,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
-	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   model.LogTypeRefund,
-		Content:   "",
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     quota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
-	})
+	model.RecordTaskBillingLog(taskBillingLogParams(task, model.LogTypeRefund, "", quota, other))
 
 	// 4. 资金退款完成后再清除持久化标记。
 	// 回写失败必须显式告警，避免漏掉潜在的重复退款风险。
@@ -290,18 +357,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	for _, clamp := range clamps {
 		attachQuotaSaturationToOther(other, clamp)
 	}
-	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   logType,
-		Content:   reason,
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     logQuota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
-		NodeName:  task.PrivateData.NodeName,
-	})
+	model.RecordTaskBillingLog(taskBillingLogParams(task, logType, reason, logQuota, other))
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。

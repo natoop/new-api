@@ -498,9 +498,9 @@ function viduDescription(entry) {
     ...(offpeak ? ['- `offpeak` 页面额外警告：可能进入超长排队，失败风险更高。'] : []),
     '## 计费',
     '- 原始页面标签为“按秒计费/视频生成”。当前 ZZDH profile 把请求 `duration` 作为唯一的 `output_seconds` 计费指标。',
-    '- 默认模型价格模式：`费用 = 模型每秒价格 × duration × 分组倍率`。每个 Vidu 模型的每秒价格由管理员在 new-api 模型价格中配置，本集合不写死数值。',
-    '- 异步视频计费模式（`async_task_expr`）：仅可配置 `output_seconds` 项；提交前按本次 `duration` 预扣并冻结结算快照，异步任务失败时按已持久化额度退款。',
-    '- 没有配置模型价格，且没有有效的异步视频计费配置时，提交会返回 `model_price_required` 或 `async_task_billing_required`，不会按零价格执行。',
+    '- 固定计量计费模式（`fixed_metered`）：价格、计量方式和取整规则都在同一模型配置中。可配置为输出秒数；异步任务提交前预扣，成功后写正式消费记录，失败按冻结额度退款。',
+    '- 模型选择 `fixed_metered` 后，缺少有效配置时提交返回 `fixed_metered_billing_required`，不会回退到模型价格、倍率或表达式。',
+    '- 未选择该模式的模型继续使用原有模型价格/倍率兼容路径。本集合不写死任何管理员价格。',
   ]);
 }
 

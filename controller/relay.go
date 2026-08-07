@@ -579,10 +579,13 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
-		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
-			common.SysError("settle task billing error: " + settleErr.Error())
+		fixedMeteredTask := relayInfo.FixedMeteredBillingSnapshot != nil
+		if !fixedMeteredTask {
+			if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
+				common.SysError("settle task billing error: " + settleErr.Error())
+			}
+			service.LogTaskConsumption(c, relayInfo)
 		}
-		service.LogTaskConsumption(c, relayInfo)
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
@@ -590,20 +593,27 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
+		task.PrivateData.LogContext = service.BuildTaskLogContext(c, relayInfo, result.UpstreamTaskID)
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:       relayInfo.PriceData.ModelPrice,
-			GroupRatio:       relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:       relayInfo.PriceData.ModelRatio,
-			OtherRatios:      relayInfo.PriceData.OtherRatios(),
-			OriginModelName:  relayInfo.OriginModelName,
-			PerCallBilling:   common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice || relayInfo.AsyncTaskBillingSnapshot != nil,
-			AsyncTaskBilling: relayInfo.AsyncTaskBillingSnapshot,
+			ModelPrice:          relayInfo.PriceData.ModelPrice,
+			GroupRatio:          relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:          relayInfo.PriceData.ModelRatio,
+			OtherRatios:         relayInfo.PriceData.OtherRatios(),
+			OriginModelName:     relayInfo.OriginModelName,
+			PerCallBilling:      common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice || relayInfo.FixedMeteredBillingSnapshot != nil,
+			FixedMeteredBilling: relayInfo.FixedMeteredBillingSnapshot,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
+			// Fixed-metered tasks intentionally defer their formal consume log
+			// until polling reaches a terminal success. Without a persisted task
+			// there is no poller to settle or refund that reservation.
+			if fixedMeteredTask && relayInfo.Billing != nil {
+				relayInfo.Billing.Refund(c)
+			}
 		}
 	}
 
