@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -117,6 +118,33 @@ func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[st
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode": string(modeBytes),
 		"billing_setting.billing_expr": string(exprBytes),
+	}))
+	model.InvalidatePricingCache()
+}
+
+func withFixedMeteredBillingConfig(t *testing.T, modes map[string]string, configs map[string]fixedmeteredbilling.Config) {
+	t.Helper()
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		if strings.HasPrefix(key, "billing_setting.") {
+			saved[key] = value
+		}
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		model.InvalidatePricingCache()
+	})
+
+	modeBytes, err := common.Marshal(modes)
+	require.NoError(t, err)
+	configBytes, err := common.Marshal(configs)
+	require.NoError(t, err)
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":          string(modeBytes),
+		"billing_setting.fixed_metered_billing": string(configBytes),
 	}))
 	model.InvalidatePricingCache()
 }
@@ -319,6 +347,55 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
+}
+
+func TestPricingIncludesConfiguredFixedMeteredBilling(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withFixedMeteredBillingConfig(t, map[string]string{
+		"zz-fixed-visible-model":        "fixed_metered",
+		"zz-fixed-missing-config-model": "fixed_metered",
+		"zz-fixed-invalid-config-model": "fixed_metered",
+	}, map[string]fixedmeteredbilling.Config{
+		"zz-fixed-visible-model": {
+			Version:   fixedmeteredbilling.ConfigVersion,
+			UnitPrice: 0.12,
+			UsageMode: fixedmeteredbilling.UsageModeDurationSeconds,
+			Rounding:  fixedmeteredbilling.RoundingNone,
+		},
+		"zz-fixed-invalid-config-model": {
+			Version:   fixedmeteredbilling.ConfigVersion,
+			UnitPrice: -0.1,
+			UsageMode: fixedmeteredbilling.UsageModeDurationSeconds,
+			Rounding:  fixedmeteredbilling.RoundingNone,
+		},
+	})
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-fixed-visible-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-fixed-missing-config-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-fixed-invalid-config-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	pricingByName := pricingByModelName(model.GetPricing())
+	visiblePricing, ok := pricingByName["zz-fixed-visible-model"]
+	require.True(t, ok)
+	require.Equal(t, fixedmeteredbilling.BillingMode, visiblePricing.BillingMode)
+	require.NotNil(t, visiblePricing.FixedMeteredUnitPrice)
+	require.InDelta(t, 0.12, *visiblePricing.FixedMeteredUnitPrice, 0.000001)
+	require.Equal(t, fixedmeteredbilling.UsageModeDurationSeconds, visiblePricing.FixedMeteredUsageMode)
+	require.Equal(t, fixedmeteredbilling.RoundingNone, visiblePricing.FixedMeteredRounding)
+
+	missingPricing, ok := pricingByName["zz-fixed-missing-config-model"]
+	require.True(t, ok)
+	require.Empty(t, missingPricing.BillingMode)
+	require.Nil(t, missingPricing.FixedMeteredUnitPrice)
+	require.Empty(t, missingPricing.FixedMeteredUsageMode)
+
+	invalidPricing, ok := pricingByName["zz-fixed-invalid-config-model"]
+	require.True(t, ok)
+	require.Empty(t, invalidPricing.BillingMode)
+	require.Nil(t, invalidPricing.FixedMeteredUnitPrice)
 }
 
 func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {

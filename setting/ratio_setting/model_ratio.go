@@ -22,6 +22,11 @@ const (
 // TODO: when a new api is enabled, check the pricing here
 // 1 === $0.002 / 1K tokens
 // 1 === ￥0.014 / 1k tokens
+// ModelRatio prices input tokens and is not a token-count conversion ratio.
+// Formula: input price (USD / 1M tokens) * QuotaPerUnit / 1_000_000.
+// With the default QuotaPerUnit of 500_000 ($1), this simplifies to input price / 2.
+// Example: qwen3.8-max costs $2 / 1M input tokens, so its ModelRatio is 2 / 2 = 1.
+// Output pricing is configured separately with CompletionRatio = output price / input price.
 
 var defaultModelRatio = map[string]float64{
 	//"midjourney":                50,

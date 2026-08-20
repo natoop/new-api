@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/fixedmeteredbilling"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -35,6 +36,9 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	FixedMeteredUnitPrice  *float64                `json:"fixed_metered_unit_price,omitempty"`
+	FixedMeteredUsageMode  string                  `json:"fixed_metered_usage_mode,omitempty"`
+	FixedMeteredRounding   string                  `json:"fixed_metered_rounding,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
@@ -400,10 +404,21 @@ func updatePricing() {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
+		switch billingMode := billing_setting.GetBillingMode(model); billingMode {
+		case billing_setting.BillingModeTieredExpr:
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		case billing_setting.BillingModeFixedMetered:
+			// The public pricing contract exposes the operator-owned unit price
+			// and metric so the frontend can display the same billing unit users
+			// will be charged for. Actual reservation/settlement stays in relay.
+			if config, ok := billing_setting.GetFixedMeteredBilling(model); ok && fixedmeteredbilling.ValidateConfig(config) == nil {
+				pricing.BillingMode = billingMode
+				pricing.FixedMeteredUnitPrice = &config.UnitPrice
+				pricing.FixedMeteredUsageMode = config.UsageMode
+				pricing.FixedMeteredRounding = config.Rounding
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

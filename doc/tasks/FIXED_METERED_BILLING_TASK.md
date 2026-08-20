@@ -236,6 +236,16 @@ change-history row before they are merged or deployed.
 | move | `ZZDH_ASYNC_VIDEO_PRICING_TASK.md`, `ZZDH_TASK_INDEX.md`, `ZZDH_VIDEO_CHANNEL_TASK.md` -> `doc/tasks/` | Consolidates historical and active task navigation under `doc/`; root duplicates are intentionally removed. | Links inspected |
 | modify | `doc/tasks/ZZDH_VIDEO_CHANNEL_TASK.md`, `doc/tasks/ZZDH_TASK_INDEX.md` | Records that `/v1/video/generations` is the only public ZZDH submission route; V1/V8 describe only internal ZZDH upstream forwarding selected by the persisted original model profile. | Documentation reviewed against current router and adaptor paths |
 
+### 2026-08-10 frontend billing-audit inventory addition
+
+| Operation | Path | Responsibility and rollback/revisit impact | Verification |
+| --- | --- | --- | --- |
+| modify | `D:\\code\\goswtich\\switcher\\frontend\\src\\features\\usage-logs\\types.ts` | Defines the persisted fixed-metered snapshot in the existing `logs.other` client contract; no backend schema or pricing behavior changes. | Typecheck passed |
+| add | `D:\\code\\goswtich\\switcher\\frontend\\src\\features\\usage-logs\\lib\\fixed-metered-billing.ts` | Interprets only standard consume/refund records with a fixed-metered snapshot as an immutable reservation-to-terminal lifecycle. Revisit here before adding a new fixed-metered terminal state. | Focused Bun tests passed |
+| add | `D:\\code\\goswtich\\switcher\\frontend\\src\\features\\usage-logs\\lib\\__tests__\\fixed-metered-billing.test.ts` | Guards successful consumption, failure refund, and non-fixed-log exclusion. | 3 focused tests passed |
+| modify | `D:\\code\\goswtich\\switcher\\frontend\\src\\features\\usage-logs\\components\\dialogs\\details-dialog.tsx` | Renders the frozen calculation terms, pre-consume/final or refund outcome, and public task ID. Ordinary legacy refund logs retain their prior display path. | Typecheck, changed-file lint, and build passed |
+| modify | `D:\\code\\goswtich\\switcher\\frontend\\src\\i18n\\locales\\{en,zh,zh-TW,fr,ja,ru,vi}.json` | Adds `Billable Units` and `Billing Formula` through the sanctioned locale script. | i18n sync: 0 missing / 0 extras |
+
 ## Retirement and Historical Compatibility
 
 - New requests must not admit `async_task_expr` or read
@@ -285,3 +295,4 @@ change-history row before they are merged or deployed.
 | 2026-08-07 | API collection | Re-generated the Postman collection from `ZZDH_TARGET_MODEL_DETAILS_20260806-vidu.json` after updating the generator's billing notes. | The collection contains 59 model folders and no longer contains `async_task_expr` or `async_task_billing`. |
 | 2026-08-07 | Verification limits | `go test ./... -run '^$'` could not compile the root package because `web/dist/index.html` is absent from this worktree. | All affected Go packages compiled; fixed-metered, settings, relay, ZZDH, and targeted service tests passed. Full frontend lint remains blocked by pre-existing violations in unrelated files; production build passed. |
 | 2026-08-07 | API-layer terminology | Clarified the single public ZZDH V1 route versus internal model-selected ZZDH V1/V8 forwarding in the protocol baseline and maintenance index. | Prevents client/API documentation from exposing an internal V8 forwarding path; no runtime code changed. |
+| 2026-08-10 | Fixed-metered log detail | Added Switcher rendering for the fixed-metered snapshot already persisted in `logs.other`: system price, billing unit, output/reference seconds, billable units, rounding, group ratio, quota-per-unit, formula, pre-consume, and final consume/refund result. | No backend ledger or task lifecycle behavior changed. The frontend only recognizes fixed-metered type-2 consume and type-6 refund records, so old refund logs retain their existing view. Focused Bun tests, typecheck, changed-file lint, i18n sync (0 missing/0 extras), `git diff --check`, and production build passed. Roll back by reverting the five listed Switcher source/test files plus the locale entries; existing stored logs remain unchanged. |

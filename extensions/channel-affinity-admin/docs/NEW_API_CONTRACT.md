@@ -6,7 +6,7 @@
 
 唯一核心接缝是 `router/api-router.go` 的 `channelaffinityadmin.Register(apiRouter)`。它将受 `middleware.AdminAuth()` 保护的管理路由注册到已有 `/api` 路由组。
 
-扩展直接使用 `common.RDB`，因此要求 new-api 已启用 Redis。没有 Redis、Channel Affinity 被关闭，或下述规则不存在/不匹配时，管理接口会失败，不会写出无法被选路读取的记录。
+扩展直接使用 `common.RDB`，因此要求 new-api 已启用 Redis。没有 Redis时所有管理接口都会失败；单用户读写还要求 Channel Affinity 开启且下述规则存在并匹配。按渠道清理允许在 Channel Affinity 暂时关闭时删除残留键。
 
 ## 管理员身份契约
 
@@ -63,3 +63,9 @@ ttl   = 3600 seconds
 因此这是“指定首选、失败可回退”的亲和，而非 B 的永久硬锁定。要让回退成功后仍永远保持 B，需要 new-api 增加规则级回写开关；不能在本扩展中隔离实现。
 
 同样，因规则按用户 ID 匹配，范围内未被管理员显式写入的请求成功后也会被 new-api 的既有逻辑自动学习为亲和记录。纯 Redis 扩展不能区分“管理员创建”与“自动学习”记录。
+
+## 按渠道清理契约
+
+`DELETE /api/extensions/channel-affinity/channel/:channel_id` 扫描 `new-api:channel_affinity:v1:*`，因此覆盖外部用户规则和其他 Channel Affinity 规则。每批键由 Redis Lua 脚本原子比较当前值，只有值仍等于目标渠道 ID 时才删除，避免并发改绑后误删。
+
+接口返回扫描数和实际删除数；目标渠道没有记录时仍返回成功，因此调用方可以安全重试。每次调用均写入 `new-api:channel_affinity_admin:v1:audit`，记录目标渠道、扫描数、删除数、管理员和请求 ID。

@@ -19,7 +19,18 @@ const (
 	RuleName  = "external-admin-user-channel-v1"
 
 	auditStream = "new-api:channel_affinity_admin:v1:audit"
+	scanCount   = 500
 )
+
+var deleteByChannelScript = redis.NewScript(`
+local deleted = 0
+for _, key in ipairs(KEYS) do
+    if redis.call("GET", key) == ARGV[1] then
+        deleted = deleted + redis.call("UNLINK", key)
+    end
+end
+return deleted
+`)
 
 type Binding struct {
 	UserID    int    `json:"user_id"`
@@ -39,6 +50,18 @@ type AuditEvent struct {
 	ActorID   int
 	RequestID string
 	RemoteIP  string
+}
+
+type ChannelClearAuditEvent struct {
+	ChannelID int
+	ActorID   int
+	RequestID string
+	RemoteIP  string
+}
+
+type ChannelClearResult struct {
+	Scanned int64 `json:"scanned"`
+	Deleted int64 `json:"deleted"`
 }
 
 func Upsert(ctx context.Context, binding Binding, event AuditEvent) (time.Duration, error) {
@@ -110,6 +133,51 @@ func Delete(ctx context.Context, binding Binding, event AuditEvent) (bool, error
 		return false, fmt.Errorf("delete affinity binding: %w", err)
 	}
 	return deleted > 0, nil
+}
+
+// DeleteByChannel removes every affinity entry that still points at channelID.
+// SCAN bounds key discovery, while the Lua comparison and delete are atomic per batch.
+func DeleteByChannel(ctx context.Context, channelID int, event ChannelClearAuditEvent) (ChannelClearResult, error) {
+	if channelID <= 0 {
+		return ChannelClearResult{}, errors.New("channel_id must be a positive integer")
+	}
+	if !common.RedisEnabled || common.RDB == nil {
+		return ChannelClearResult{}, errors.New("Redis is not enabled")
+	}
+
+	var result ChannelClearResult
+	var cursor uint64
+	for {
+		keys, next, err := common.RDB.Scan(ctx, cursor, Namespace+":*", scanCount).Result()
+		if err != nil {
+			return result, fmt.Errorf("scan channel affinity bindings: %w", err)
+		}
+		result.Scanned += int64(len(keys))
+		if len(keys) > 0 {
+			deleted, err := deleteByChannelScript.Run(
+				ctx,
+				common.RDB,
+				keys,
+				strconv.Itoa(channelID),
+			).Int64()
+			if err != nil {
+				return result, fmt.Errorf("delete channel affinity bindings: %w", err)
+			}
+			result.Deleted += deleted
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if _, err := common.RDB.XAdd(ctx, &redis.XAddArgs{
+		Stream: auditStream,
+		Values: channelClearAuditValues(event, result),
+	}).Result(); err != nil {
+		return result, fmt.Errorf("write channel affinity clear audit event: %w", err)
+	}
+	return result, nil
 }
 
 // Key mirrors new-api's channel-affinity cache protocol.
@@ -187,6 +255,19 @@ func auditValues(event AuditEvent) map[string]interface{} {
 		"group":       event.Binding.Group,
 		"model":       event.Binding.Model,
 		"channel_id":  event.Binding.ChannelID,
+		"actor_id":    event.ActorID,
+		"request_id":  event.RequestID,
+		"remote_ip":   event.RemoteIP,
+		"occurred_at": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+}
+
+func channelClearAuditValues(event ChannelClearAuditEvent, result ChannelClearResult) map[string]interface{} {
+	return map[string]interface{}{
+		"action":      "clear_channel",
+		"channel_id":  event.ChannelID,
+		"scanned":     result.Scanned,
+		"deleted":     result.Deleted,
 		"actor_id":    event.ActorID,
 		"request_id":  event.RequestID,
 		"remote_ip":   event.RemoteIP,

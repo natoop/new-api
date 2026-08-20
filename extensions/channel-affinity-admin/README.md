@@ -23,6 +23,7 @@
 | `PUT /api/extensions/channel-affinity` | 创建或立即改绑到指定渠道 |
 | `GET /api/extensions/channel-affinity?user_id=...&group=...&model=...` | 查询绑定及剩余 TTL |
 | `DELETE /api/extensions/channel-affinity?user_id=...&group=...&model=...` | 删除绑定 |
+| `DELETE /api/extensions/channel-affinity/channel/:channel_id` | 删除所有仍指向指定渠道的亲和记录 |
 
 写入示例：
 
@@ -68,5 +69,6 @@ Content-Type: application/json
 - B 成功时，B 会继续保持为首选；B 失败且重试成功到 C 时，在 `switch_on_success=true` 下，下次首选会回写为 C。
 - 亲和记录的 TTL 取当前规则配置；扩展与请求成功后的原有回写使用同一 TTL。
 - 每次创建、改绑或删除都会写入 Redis Stream `new-api:channel_affinity_admin:v1:audit`。现有 `AdminAuth` 也会照常记录管理操作审计。
+- 按渠道清理会扫描整个 Channel Affinity 命名空间，并在 Redis 端原子比较记录值；只删除仍指向目标渠道的键，不会误删并发改绑或其他渠道记录。重复调用是幂等的。
 
 升级前后请按 [升级核验清单](docs/UPGRADE_CHECKLIST.md) 检查；完整兼容性边界见 [new-api 契约](docs/NEW_API_CONTRACT.md)。

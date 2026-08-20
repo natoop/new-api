@@ -19,6 +19,7 @@ func Register(apiRouter *gin.RouterGroup) {
 	route.PUT("", upsert)
 	route.GET("", get)
 	route.DELETE("", deleteBinding)
+	route.DELETE("/channel/:channel_id", deleteChannelBindings)
 }
 
 func upsert(c *gin.Context) {
@@ -70,6 +71,32 @@ func deleteBinding(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"deleted": deleted, "request_id": requestID}})
+}
+
+func deleteChannelBindings(c *gin.Context) {
+	channelID, err := strconv.Atoi(c.Param("channel_id"))
+	if err != nil || channelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id must be a positive integer"})
+		return
+	}
+	requestID := requestID(c)
+	result, err := affinity.DeleteByChannel(c.Request.Context(), channelID, affinity.ChannelClearAuditEvent{
+		ChannelID: channelID,
+		ActorID:   c.GetInt("id"),
+		RequestID: requestID,
+		RemoteIP:  c.ClientIP(),
+	})
+	if err != nil {
+		common.SysError("channel affinity admin clear by channel failed: " + err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
+		"channel_id": channelID,
+		"scanned":    result.Scanned,
+		"deleted":    result.Deleted,
+		"request_id": requestID,
+	}})
 }
 
 func queryBinding(c *gin.Context) (affinity.Binding, error) {
