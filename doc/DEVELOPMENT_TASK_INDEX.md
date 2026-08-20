@@ -15,6 +15,7 @@ behavior from a historical task record alone.
 
 | Status | Task | Record | Scope and entry point |
 | --- | --- | --- | --- |
+| 已计划，尚未合并 | 2026-08-20 main 上游整合 | `tasks/MAIN_UPSTREAM_MERGE_PLAN_20260820.md` | `ccd535ef8..f11641428` 的功能完整性优先合并计划；整合前必须处理固定计量与旧异步任务的计费语义。 |
 | Active, implementation verification in progress | General fixed-metered billing refactor | `tasks/FIXED_METERED_BILLING_TASK.md` | Replaces active `async_task_expr` admission with a system-level mode. Backend/task/frontend implementation is present; the recorded release gates remain required before deployment. |
 | Superseded for new configuration; retained for history | ZZDH async-video pricing | `tasks/ZZDH_ASYNC_VIDEO_PRICING_TASK.md` | Documents the former profile-term pricing and pending-task compatibility requirements. |
 | Active protocol/operations baseline | ZZDH video channel | `tasks/ZZDH_VIDEO_CHANNEL_TASK.md` | Provider protocol, model admission, task lifecycle, and upstream-document evidence. |

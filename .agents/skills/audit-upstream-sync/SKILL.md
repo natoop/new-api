@@ -48,6 +48,13 @@ upstream_tracking_snapshot_fetched_at:
 scope:
 ```
 
+For a pending-main review that also assesses a separate frontend or middleware,
+use `templates/pending-main-report.md`. It adds stable sections for behavior,
+current-branch differences, Switcher compatibility, merge risk, and deployment
+contracts. Keep claims about the separate frontend tied to its actual source
+paths and classify bundled-Web work as not applicable when the deployment uses
+another frontend.
+
 ## Next Sync
 
 ```powershell
