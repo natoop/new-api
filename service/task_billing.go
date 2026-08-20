@@ -267,8 +267,16 @@ func taskModelName(task *model.Task) string {
 	return task.Properties.OriginModelName
 }
 
+// taskUsesFixedMeteredBilling reports whether the task reserved a frozen
+// fixed-metered price before upstream submission. Those tasks record usage
+// only after terminal success, unlike legacy async tasks.
+func taskUsesFixedMeteredBilling(task *model.Task) bool {
+	return task != nil && task.PrivateData.BillingContext != nil && task.PrivateData.BillingContext.FixedMeteredBilling != nil
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
-// 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
+// 当异步任务失败时退还资金与令牌额度。旧异步任务在提交时已经累计
+// 用量，因此还要回减用户和渠道用量；固定计量任务只在成功终态累计用量。
 // 返回资金来源是否已成功退还；失败时保留 quota，供显式重试或人工对账。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool {
 	quota := task.Quota
@@ -285,13 +293,20 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
 
-	// 3. 记录日志
+	// 3. 旧异步任务在提交阶段已经累计过用量，固定计量任务尚未累计。
+	// 两者的请求次数都不随退款回减。
+	if !taskUsesFixedMeteredBilling(task) {
+		model.UpdateUserUsedQuota(task.UserId, -quota)
+		model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+	}
+
+	// 4. 记录日志
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
 	model.RecordTaskBillingLog(taskBillingLogParams(task, model.LogTypeRefund, "", quota, other))
 
-	// 4. 资金退款完成后再清除持久化标记。
+	// 5. 资金退款完成后再清除持久化标记。
 	// 回写失败必须显式告警，避免漏掉潜在的重复退款风险。
 	task.Quota = 0
 	if err := task.UpdateQuota(); err != nil {
@@ -339,13 +354,15 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logger.LogError(ctx, fmt.Sprintf("差额结算回写 quota 失败 task %s: %s", task.TaskID, err.Error()))
 	}
 
+	// 提交阶段已经累计过一次请求；结算阶段只调整最终用量。
+	model.UpdateUserUsedQuota(task.UserId, quotaDelta)
+	model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
+
 	var logType int
 	var logQuota int
 	if quotaDelta > 0 {
 		logType = model.LogTypeConsume
 		logQuota = quotaDelta
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
